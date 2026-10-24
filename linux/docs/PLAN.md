@@ -270,19 +270,105 @@ Findings:
 Exit: `check.sh` passes, and an automatic screenshot plus a synthetic click
 work in nested KWin.
 
-### Phase 1: Platform layer
-- [ ] `UI/Agent` builds on Linux (small upstream patches).
-- [ ] INI-backed `NRegistry::CKey`, with tests.
-- [ ] `rcgen.py`: dialogs, `MENUEX`, `ACCELERATORS` and `STRINGTABLE`s into
+### Phase 1: Platform layer (done)
+- [x] `UI/Agent` builds on Linux (small upstream patches).
+- [x] INI-backed `NRegistry::CKey`, with tests.
+- [x] `rcgen.py`: dialogs, `MENUEX`, `ACCELERATORS` and `STRINGTABLE`s into
       generated C++ tables, with tests.
-- [ ] `MyLoadString` and `CLang` (`Lang/*.txt`) wired up.
-- [ ] POSIX `FSFolder`, `RootFolder` (`/`, home, mount points with
+- [x] `MyLoadString` and `CLang` (`Lang/*.txt`) wired up. `LangUtils.cpp`
+      itself builds in Phase 2 (see the findings).
+- [x] POSIX `FSFolder`, `RootFolder` (`/`, home, mount points with
       size and free-space columns) and POSIX columns (permissions, user,
       group, symlink target, dotfiles as hidden), with tests through the
       `IFolderFolder` API.
 
 Exit: a headless test browses file systems and nested archives through
-`IFolderFolder`, and settings round-trip.
+`IFolderFolder`, and settings round-trip. Both are in `unit_folders` and
+`unit_registry`; `check.sh` and `check.sh --asan` pass.
+
+What is where (`linux/platform`):
+- `Win32Compat.h` is force-included (`-include`) into the upstream sources of
+  the `z7_ui` library (UI/Common, UI/Agent, ZipRegistry, RegistryUtils,
+  ViewSettings, TextPairs). It adds the few Win32 names that POSIX
+  `MyWindows.h` lacks (`HMODULE`, `HINSTANCE`, `UINT64`, `RECT`, an opaque
+  `HWND`, `LANGID`, registry types) instead of patching upstream headers.
+  The Phase 2 shim must define `struct HWND__`.
+- `Registry.cpp` implements the unchanged `Windows/Registry.h` on top of
+  `$XDG_CONFIG_HOME/7-Zip/7-Zip.ini` in a `.reg`-like typed format
+  (`dword:`, `hex:`, `multi:`, escaped UTF-8 strings that round-trip any
+  bytes). Only `HKEY_CURRENT_USER` is stored. Changes are applied in memory
+  and written when the last open key closes: under `flock` on
+  `7-Zip.ini.lock`, the file is reloaded if another process replaced it, the
+  pending changes are replayed on top, and the result replaces the file
+  through a temporary file, `fsync` and `rename`. Readers reload when the
+  file's inode, size or time changes. `RegistryIni.h` has a path override and
+  an explicit flush for tests.
+- `tools/rcgen.py` generates `RcFm.cpp` (Bundles/Fm/resource.rc) and
+  `RcGui.cpp` (UI/GUI/resource.rc) at build time with a depfile; each program
+  links one of them (`z7_link_ui(<target> FM|GUI)`), and `RcTables.h`
+  describes the tables. `linux/shim/win32/windows.h` and `CommCtrl.h` hold the
+  Win32 constant values for both rcgen and the coming shim.
+- `ResourceString.cpp` (`MyLoadString`), `Locale.cpp` (POSIX locale to
+  `LANGID`), `Program.cpp` (program directory for `Lang/`,
+  `MyGetModuleFileName`), `Globals.cpp` (`g_hInstance`, `g_IsNT`).
+- `FSFolderPosix.cpp`, `RootFolderPosix.cpp` and `DirWatcher.cpp` (one shared
+  inotify instance, so folders do not use up the per-user instance limit).
+  The classes keep the upstream names (`NFsFolder::CFSFolder`,
+  `CRootFolder`), so Phase 4 can redirect `FSFolder.h`, `RootFolder.h` and the
+  `FSDrives` uses in the panel code to them.
+
+Findings:
+- Only three upstream files needed patches (`Agent.cpp`, `AgentOut.cpp`,
+  `ArchiveFolderOut.cpp`, see `UPSTREAM-PATCHES.md`); everything else is
+  handled on the Linux side. They are not built by the upstream 7zz makefile,
+  so the Windows build of these files is only checked by review until
+  mingw-w64 is available.
+- The tree has 40 dialog templates, not 65: 25 in 7zFM, 13 in 7zG (all of
+  them also in 7zFM), plus SFX, installer and Windows CE variants. Two Windows
+  CE variants do not build upstream either (`IDD_MENU_2`: string 3441 is
+  defined twice; `IDD_BENCH_2`: undefined `IDT_BENCH_SIZE_VAL`). The controls
+  use seven classes only: `Button`, `Static`, `Edit`, `ComboBox`,
+  `SysListView32`, `msctls_progress32` and `msctls_updown32` (no list box or
+  trackbar).
+- The resource compiler adds `CBS_SIMPLE` to a `COMBOBOX` only when its style
+  names no combo box type; OR-ing it unconditionally turns `CBS_DROPDOWN`
+  into `CBS_DROPDOWNLIST`. rcgen follows the resource compiler.
+- A `COMBOBOX` height in the templates includes the drop-down list (up to 198
+  DLUs), so those controls extend past the dialog; the Phase 2 layout engine
+  must compute the closed height from the font. `IDD_BROWSE` also has a label
+  36 DLUs wider than the dialog.
+- `FileManager/LangUtils.cpp` (`LangString`, `ReloadLang`, the dialog text
+  helpers) includes `Windows/Window.h`, so it builds with the Phase 2 shim.
+  Phase 1 provides what it needs from the platform: `MyLoadString`,
+  `GetUserDefaultLangID` (`$LANGUAGE`, `$LC_ALL`, `$LC_MESSAGES`, `$LANG`
+  mapped with a checked copy of its `kLangs` list) and the `Lang/` directory
+  next to the executable (`NPlatform::InitModuleDirPrefix`). `CLang` itself is
+  upstream code and is tested with a language file.
+- `CompareFileNames_ForFolderList()` lives in `PanelSort.cpp`, but UI/Agent
+  needs it; `FolderCompare.cpp` is a copy (a test checks that it matches)
+  until `PanelSort.cpp` builds in Phase 4.
+- `NDLL::MyGetModuleFileName()` and `RemoveDirWithSubItems()` exist only for
+  Windows upstream; the platform layer provides POSIX versions.
+- The zip handler has no `IInArchiveGetStream`, so the panel opens archives
+  inside a zip by extracting them first (`IFolderOperations::CopyTo`), as on
+  Windows; tar, iso and other handlers give seekable item streams.
+- POSIX `FSFolder` reports `kpidCTime` only where `statx` gives a birth time,
+  and the status change time as `kpidChangeTime`. A symbolic link to a
+  directory is a directory (the flat view does not follow it); its own mode
+  is shown as permissions. `IFolderOperations::CopyTo`, `CopyFrom` and
+  `CopyFromFile` return `E_NOTIMPL` until Phase 5, and icons
+  (`IFolderGetSystemIconIndex`) are left to the Qt side.
+- `RootFolder` items are the home directory, `/` and mounts outside system
+  directories (`/proc`, `/run` except `/run/media`, `/var`, `/boot`, ...) that
+  are not pseudo file systems. Sizes come from `statvfs` only when the column
+  is shown, but a hung network mount can still block that call.
+- Upstream `CPropVariant::Get_Ns100()` returns 0 for
+  `k_PropVar_TimePrec_1ns` (its condition reads `prec == 0 &&`), so the
+  nanosecond remainder of file times is lost by callers that use it. Not
+  patched; noted for an upstream report.
+- Under UBSan, upstream code has known findings (left shifts of negative
+  values in `C/LzFindOpt.c`, unaligned loads by design), so only port code is
+  built with `-fno-sanitize-recover`.
 
 ### Phase 2: Qt shim, dialog engine, dark theme
 - [ ] Shim classes: `CWindow`, `CDialog`, modal and modeless dialogs, child

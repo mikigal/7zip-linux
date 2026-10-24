@@ -24,9 +24,28 @@ The build goes to `build/linux`. It contains:
 - `oracle/7zz`: the same program built by the upstream makefile, used as a
   test oracle;
 - `tools/ei-input`: the input injection helper;
-- `tests/z7-probe`: the test window.
+- `tests/z7-probe`: the test window;
+- `tests/z7-test-*`: the unit tests (QtTest, label `unit`);
+- `platform/RcFm.cpp`, `platform/RcGui.cpp`: resource tables generated from
+  the upstream `.rc` files by `tools/rcgen.py`.
 
-Test logs and screenshots go to `build/linux/test-artifacts/`.
+Test logs and screenshots go to `build/linux/test-artifacts/`. Unit tests run
+with `HOME` and `XDG_*_HOME` in `test-artifacts/unit-home`.
+
+## Platform layer
+
+`platform/` holds what the shared upstream UI code (UI/Common, UI/Agent and
+the non-window parts of UI/FileManager) needs on Linux: the Win32 names it
+uses (`Win32Compat.h`, force-included), the registry on top of
+`$XDG_CONFIG_HOME/7-Zip/7-Zip.ini`, resource strings, the locale, and the
+POSIX file system and root folders. Programs link it with
+`z7_link_ui(<target> FM|GUI)`. See [docs/PLAN.md](docs/PLAN.md), Phase 1.
+
+To look at what rcgen reads from a resource script:
+
+```sh
+linux/tools/rcgen.py --dump CPP/7zip/Bundles/Fm/resource.rc
+```
 
 ## Upstream source lists
 
