@@ -98,6 +98,14 @@ if(TARGET 7zFM)
   z7_link_ui(z7-fm-driver FM)
   target_link_libraries(z7-fm-driver PRIVATE z7_driver_core
     "$<LINK_GROUP:RESCAN,z7_fm,z7_fm_linux>" z7_gui z7_theme Qt6::Test)
+
+  if(Z7_BUILD_ORACLE)
+    add_test(NAME gui_7zfm
+      COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/gui/test_7zfm.py"
+              --driver $<TARGET_FILE:z7-fm-driver> --oracle "${Z7_ORACLE_7ZZ}"
+              --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/gui_7zfm")
+    set_tests_properties(gui_7zfm PROPERTIES LABELS "gui" TIMEOUT 600)
+  endif()
 endif()
 
 find_program(Z7_MAGICK magick)
@@ -143,6 +151,17 @@ if(Qt6Widgets_FOUND)
       add_test(NAME wayland_7zg
         COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_7zg_wayland.py" ${Z7_WL7ZG_ARGS})
       set_tests_properties(wayland_7zg PROPERTIES LABELS "wayland" TIMEOUT 300)
+    endif()
+
+    if(TARGET z7-fm-driver)
+      set(Z7_WL7ZFM_ARGS --driver $<TARGET_FILE:z7-fm-driver>
+          --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/wayland_7zfm")
+      if(TARGET ei-input)
+        list(APPEND Z7_WL7ZFM_ARGS --ei-input $<TARGET_FILE:ei-input>)
+      endif()
+      add_test(NAME wayland_7zfm
+        COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_7zfm_wayland.py" ${Z7_WL7ZFM_ARGS})
+      set_tests_properties(wayland_7zfm PROPERTIES LABELS "wayland" TIMEOUT 300)
     endif()
   else()
     message(STATUS "Wayland tests disabled (need kwin_wayland, spectacle and ImageMagick)")

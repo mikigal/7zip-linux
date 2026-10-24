@@ -119,6 +119,12 @@ unsigned Get_LargePages_RiskLevel()
   return 0;
 }
 
+// FM.cpp asks for the lock-memory privilege at start (large pages).
+bool AddLockMemoryPrivilege()
+{
+  return false;
+}
+
 }
 
 }

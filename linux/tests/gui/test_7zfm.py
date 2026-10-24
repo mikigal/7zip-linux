@@ -1,0 +1,504 @@
+#!/usr/bin/env python3
+"""End-to-end tests of 7zFM: browsing folders and archives in its panels
+with the keyboard, the mouse, the menus and the address bar, run by
+z7-fm-driver (7zFM with a script) offscreen. Archives are made by the 7zz
+oracle.
+
+Command IDs are named as in the upstream resource headers; the names come
+from rcgen.py, which reads them from Bundles/Fm/resource.rc.
+"""
+
+import argparse
+import json
+import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+import unittest
+
+HERE = os.path.dirname(os.path.abspath(__file__))
+ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
+sys.path.insert(0, os.path.join(ROOT, "linux", "tools"))
+import rcgen  # noqa: E402
+
+DRIVER = None
+ORACLE = None
+ARTIFACTS = None
+IDS = {}
+
+
+def ID(name):
+  return IDS[name]
+
+
+def oracle(*args, cwd=None):
+  res = subprocess.run([ORACLE, *args], capture_output=True, text=True, cwd=cwd)
+  if res.returncode != 0:
+    raise AssertionError("7zz %s failed (%d):\n%s\n%s" % (
+        " ".join(args), res.returncode, res.stdout[-3000:], res.stderr[-3000:]))
+  return res
+
+
+def main_step(*actions):
+  return {"on": "main", "actions": list(actions)}
+
+
+class Run:
+  """One run of z7-fm-driver: exit code and the events of its log."""
+
+  def __init__(self, code, events, stderr):
+    self.code = code
+    self.events = events
+    self.stderr = stderr
+
+  def of(self, kind, name=None):
+    return [e for e in self.events
+            if e["event"] == kind and (name is None or e.get("name") == name)]
+
+  def errors(self):
+    return [e["message"] for e in self.of("error")]
+
+  def panels(self):
+    return self.of("panel")
+
+
+class FmTest(unittest.TestCase):
+
+  def setUp(self):
+    self.tmp = tempfile.mkdtemp(prefix="z7-7zfm-")
+    self.data = os.path.join(self.tmp, "data")
+    os.makedirs(os.path.join(self.data, "docs"))
+    os.makedirs(os.path.join(self.data, "sub"))
+    with open(os.path.join(self.data, "docs", "a.txt"), "w") as f:
+      f.write("hello\n")
+    with open(os.path.join(self.data, "b.txt"), "w") as f:
+      f.write("world, a longer file\n")
+    with open(os.path.join(self.data, "c10.bin"), "wb") as f:
+      f.write(b"\0" * 1000)
+    self.home = os.path.join(self.tmp, "home")
+    os.makedirs(self.home)
+    self.shots = os.path.join(ARTIFACTS, self.id().split(".")[-1])
+    shutil.rmtree(self.shots, ignore_errors=True)
+    os.makedirs(self.shots)
+
+  def tearDown(self):
+    shutil.rmtree(self.tmp, ignore_errors=True)
+
+  def run_fm(self, script, *args, timeout=60):
+    script_path = os.path.join(self.tmp, "script.json")
+    log_path = os.path.join(self.shots, "log.jsonl")
+    with open(script_path, "w") as f:
+      json.dump(script, f, indent=1)
+    shutil.copy(script_path, os.path.join(self.shots, "script.json"))
+    env = {
+        "PATH": "/usr/bin:/bin",
+        "HOME": self.home,
+        "XDG_CONFIG_HOME": os.path.join(self.home, "config"),
+        "XDG_DATA_HOME": os.path.join(self.home, "data"),
+        "XDG_CACHE_HOME": os.path.join(self.home, "cache"),
+        "XDG_STATE_HOME": os.path.join(self.home, "state"),
+        "XDG_RUNTIME_DIR": self.home,
+        "LANG": "C.UTF-8",
+        "QT_QPA_PLATFORM": "offscreen",
+        "QT_FORCE_STDERR_LOGGING": "1",
+    }
+    for name in ("ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
+      if name in os.environ:
+        env[name] = os.environ[name]
+    res = subprocess.run(
+        [DRIVER, "--script", script_path, "--log", log_path, "--shots", self.shots,
+         "--timeout", str(timeout), "--", *args],
+        cwd=self.tmp, env=env, capture_output=True, text=True, timeout=timeout + 30)
+    with open(os.path.join(self.shots, "stderr.txt"), "w") as f:
+      f.write(res.stderr)
+    events = []
+    if os.path.exists(log_path):
+      with open(log_path) as f:
+        events = [json.loads(line) for line in f if line.strip()]
+    return Run(res.returncode, events, res.stderr)
+
+  def assertRun(self, run):
+    self.assertEqual(run.errors(), [], run.stderr)
+    self.assertEqual(run.code, 0, run.stderr)
+
+  def path_re(self, *parts):
+    return "^" + re.escape(os.path.join(self.data, *parts)) + "/$"
+
+  # ---------- Start and the panel ----------
+
+  def test_start_lists_folder(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"panel": 0, "path": self.path_re()}},
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"], "focused": "docs",
+                        "selected": [], "focus_in_list": True,
+                        "status": [0, r"^0 / 4 "], "panels": 1,
+                        "title": "^" + re.escape(self.data) + "/$"}},
+            {"screenshot": "main.png"},
+            {"log": "panels"}),
+    ], self.data)
+    self.assertRun(run)
+    panel = run.panels()[0]
+    self.assertEqual(panel["columns"][:3], ["Name", "Size", "Modified"])
+    self.assertFalse(run.panels()[1]["created"])
+
+  def test_navigate_folders_with_keys(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            # the first item has the focus, but no selection: Enter opens
+            # only selected items, as on Windows
+            {"expect": {"focused": "docs", "selected": []}},
+            {"key": "Return"},
+            {"expect": {"path": self.path_re()}},
+            # as in the Windows control, Space selects the focused item;
+            # Home does not change anything on the first item
+            {"key": "Home"},
+            {"expect": {"focused": "docs", "selected": []}},
+            {"key": "Space"},
+            {"expect": {"focused": "docs", "selected": ["docs"]}},
+            {"key": "Return"},
+            {"wait": {"path": self.path_re("docs"), "items": ["a.txt"]}},
+            {"key": "Backspace"},
+            {"wait": {"path": self.path_re(), "focused": "docs"}},
+            {"key": "Down"},
+            {"expect": {"focused": "sub"}},
+            {"key": "ctrl+PgDown"},
+            {"wait": {"path": self.path_re("sub"), "count": 0}},
+            {"key": "ctrl+PgUp"},
+            {"wait": {"path": self.path_re(), "focused": "sub"}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_mouse_double_click_opens(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"expect": {"focused": "b.txt", "selected": ["b.txt"], "status": [1, "^21$"]}},
+            {"click": {"panel": 0, "item": "c10.bin", "mods": "ctrl"}},
+            {"expect": {"selected": ["b.txt", "c10.bin"], "status": [0, r"^2 / 4 "]}},
+            {"click": {"panel": 0, "item": "docs", "double": True}},
+            {"wait": {"path": self.path_re("docs"), "items": ["a.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_selection_keys(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "ctrl+A"},
+            {"expect": {"selected": ["docs", "sub", "b.txt", "c10.bin"], "status": [0, r"^4 / 4 "]}},
+            {"key": "keypad+*"},
+            {"expect": {"selected": []}},
+            {"key": "keypad++"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"text": [ID("IDC_COMBO"), "*.txt"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"expect": {"selected": ["b.txt"]}},
+            {"key": "Home"},
+            {"key": "shift+Down"},
+            {"key": "shift+Down"},
+            {"expect": {"focused": "b.txt", "selected": ["docs", "sub", "b.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_type_ahead(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"type": "c1"},
+            {"expect": {"focused": "c10.bin"}},
+            # a pause starts a new search
+            {"sleep": 1200},
+            {"type": "s"},
+            {"expect": {"focused": "sub"}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_rename_inline(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "End"},
+            {"expect": {"focused": "c10.bin"}},
+            {"key": "F2"},
+            {"type": "renamed.bin"},
+            {"key": "Return"},
+            {"wait": {"focused": "renamed.bin"}},
+            {"expect": {"items": ["docs", "sub", "b.txt", "renamed.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    self.assertTrue(os.path.exists(os.path.join(self.data, "renamed.bin")))
+    self.assertFalse(os.path.exists(os.path.join(self.data, "c10.bin")))
+
+  def test_address_bar(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"address": os.path.join(self.data, "docs")},
+            {"wait": {"path": self.path_re("docs"), "items": ["a.txt"], "focus_in_list": True}}),
+    ], self.data)
+    self.assertRun(run)
+
+  # ---------- Archives ----------
+
+  def make_archive(self):
+    src = os.path.join(self.tmp, "src")
+    os.makedirs(os.path.join(src, "inner"))
+    with open(os.path.join(src, "inner", "x.txt"), "w") as f:
+      f.write("x\n")
+    with open(os.path.join(src, "top.txt"), "w") as f:
+      f.write("top\n")
+    oracle("a", "-bso0", os.path.join(src, "nested.zip"), "top.txt", cwd=src)
+    archive = os.path.join(self.data, "arc.7z")
+    oracle("a", "-bso0", archive, "inner", "top.txt", "nested.zip", cwd=src)
+    return archive
+
+  def test_archive_navigation(self):
+    self.make_archive()
+    arc = os.path.join(self.data, "arc.7z")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"key": "Return"},
+            {"wait": {"path": "^" + re.escape(arc) + "/$", "items": ["inner", "nested.zip", "top.txt"]}},
+            {"screenshot": "archive.png"},
+            {"expect": {"focused": "inner", "selected": []}},
+            {"key": "Space"},
+            {"expect": {"focused": "inner", "selected": ["inner"]}},
+            {"key": "Return"},
+            {"wait": {"path": "^" + re.escape(arc) + "/inner/$", "items": ["x.txt"]}},
+            {"key": "Backspace"},
+            {"wait": {"path": "^" + re.escape(arc) + "/$", "focused": "inner"}},
+            {"key": "Down"},
+            {"key": "ctrl+PgDown"},
+            {"wait": {"path": "^" + re.escape(arc) + "/nested.zip/$", "items": ["top.txt"]}},
+            {"key": "Backspace"},
+            {"wait": {"path": "^" + re.escape(arc) + "/$", "focused": "nested.zip"}},
+            {"key": "Backspace"},
+            {"wait": {"path": self.path_re(), "focused": "arc.7z"}}),
+    ], self.data)
+    self.assertRun(run)
+    # a quick open shows no progress window (WaitMode waits 500 ms first)
+    captions = [d.get("caption", "") for d in run.of("dialog")]
+    self.assertEqual([c for c in captions if "Opening" in c], [], captions)
+
+  def test_open_archive_from_command_line(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$", "items": ["inner", "nested.zip", "top.txt"]}}),
+    ], archive)
+    self.assertRun(run)
+
+  # ---------- Window ----------
+
+  def test_two_panels(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "F9"},
+            {"wait": {"panels": 2}},
+            {"focus": 0},
+            {"key": "Tab"},
+            {"expect": {"panel": 1, "focus_in_list": True}},
+            {"address": [1, os.path.join(self.data, "docs")]},
+            {"wait": {"panel": 1, "path": self.path_re("docs"), "focus_in_list": True}},
+            {"screenshot": "two-panels.png"},
+            {"key": "Tab"},
+            {"expect": {"panel": 0, "focus_in_list": True, "path": self.path_re()}},
+            {"key": "F9"},
+            {"wait": {"panels": 1}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_view_modes_and_menu(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "ctrl+1"},
+            {"screenshot": "large-icons.png"},
+            {"menu": 2},
+            {"key": "ctrl+3"},
+            {"screenshot": "list.png"},
+            {"key": "ctrl+4"},
+            {"menu": 2},
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    menus = run.of("menu")
+    self.assertEqual(len(menus), 2)
+    def checked(menu):
+      return [i["text"] for i in menu["items"] if i.get("checked")]
+    self.assertIn("Lar&ge Icons\tCtrl+1", checked(menus[0]))
+    self.assertIn("&Details\tCtrl+4", checked(menus[1]))
+    self.assertIn("Name\tCtrl+F3", checked(menus[1]))
+
+  def test_toolbar_options(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            # both toolbars, small buttons with text (the upstream defaults)
+            {"expect": {"buttons": 7}},
+            {"command": ID("IDM_VIEW_STANDARD_TOOLBAR")},
+            {"expect": {"buttons": 3}},
+            {"command": ID("IDM_VIEW_ARCHIVE_TOOLBAR")},
+            {"expect": {"buttons": 0}},
+            {"command": ID("IDM_VIEW_ARCHIVE_TOOLBAR")},
+            {"command": ID("IDM_VIEW_STANDARD_TOOLBAR")},
+            {"command": ID("IDM_VIEW_TOOLBARS_LARGE_BUTTONS")},
+            {"expect": {"buttons": 7, "items": ["docs", "sub", "b.txt", "c10.bin"]}},
+            {"screenshot": "large-buttons.png"},
+            {"command": ID("IDM_VIEW_TOOLBARS_SHOW_BUTTONS_TEXT")},
+            {"screenshot": "large-no-text.png"},
+            {"menu": 2}),
+    ], self.data)
+    self.assertRun(run)
+    toolbars = [i for i in run.of("menu")[0]["items"] if i["text"].startswith("Toolbars")]
+    self.assertEqual(len(toolbars), 1)
+    self.assertTrue(toolbars[0].get("submenu"), toolbars)
+
+  def test_sort_by_size(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            # by size: the largest first, folders before files
+            {"key": "ctrl+F6"},
+            {"expect": {"items": ["sub", "docs", "c10.bin", "b.txt"]}},
+            {"key": "ctrl+F6"},
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_sort_by_column_click(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            # a new sort column: ascending, but the largest first by size
+            {"header": {"column": "Size"}},
+            {"expect": {"items": ["sub", "docs", "c10.bin", "b.txt"]}},
+            {"header": {"column": "Size"}},
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}},
+            {"header": {"column": "Name"}},
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}},
+            # descending; the folders stay first
+            {"header": {"column": "Name"}},
+            {"expect": {"items": ["sub", "docs", "c10.bin", "b.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_flat_view(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_VIEW_FLAT_VIEW")},
+            {"wait": {"items": ["docs", "sub", "a.txt", "b.txt", "c10.bin"]}},
+            {"screenshot": "flat.png"},
+            {"command": ID("IDM_VIEW_FLAT_VIEW")},
+            {"wait": {"items": ["docs", "sub", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+
+  def test_root_folder(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"address": [0, "/"]},
+            {"wait": {"path": "^/$"}},
+            # the parent of "/" is the root, with "/" focused
+            {"key": "Backspace"},
+            {"wait": {"path": "^$", "focused": "/",
+                      "columns": ["Name", "Total Size", "Free Space", "File System", "Label"]}},
+            {"log": "panels"},
+            {"screenshot": "root.png"},
+            {"key": "Space"},
+            {"key": "Return"},
+            {"wait": {"path": "^/$"}},
+            {"address": [0, self.data]},
+            {"wait": {"path": self.path_re()}},
+            # "/" or "\" in the list opens the root
+            {"key": "/"},
+            {"wait": {"path": "^$"}},
+            {"address": [0, self.data]},
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPEN_ROOT_FOLDER")},
+            {"wait": {"path": "^$"}}),
+    ], self.data)
+    self.assertRun(run)
+    root = [p for p in run.panels() if p.get("created") and p["path"] == ""][0]
+    # the home directory, "/", then the mounted file systems of the user
+    self.assertEqual(root["items"][:2], [self.home, "/"])
+
+  def test_bookmarks(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "alt+shift+1"},
+            {"key": "Space"},
+            {"key": "Return"},
+            {"wait": {"path": self.path_re("docs")}},
+            {"key": "alt+1"},
+            {"wait": {"path": self.path_re()}},
+            {"menu": 3}),
+    ], self.data)
+    self.assertRun(run)
+    items = [i["text"] for i in run.of("menu")[0]["items"]]
+    self.assertIn(self.data + "/\tAlt+1", items)
+    self.assertIn("-\tAlt+2", items)
+
+  def test_folders_history(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "Space"},
+            {"key": "Return"},
+            {"wait": {"path": self.path_re("docs")}},
+            {"key": "alt+F12"}),
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [
+            {"screenshot": "history.png"},
+            {"click": ID("IDCANCEL")}]},
+        main_step({"expect": {"path": self.path_re("docs")}}),
+    ], self.data)
+    self.assertRun(run)
+    dialog = run.of("dialog", "IDD_LISTVIEW")[0]
+    rows = [c for c in dialog["controls"] if c["class"] == "SysListView32"][0]["rows"]
+    self.assertEqual([r[0] for r in rows[:2]],
+                     [os.path.join(self.data, "docs") + "/", self.data + "/"])
+
+  def test_settings_are_kept(self):
+    first = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "Space"},
+            {"key": "Return"},
+            {"wait": {"path": self.path_re("docs")}}),
+    ], self.data)
+    self.assertRun(first)
+    second = self.run_fm([
+        main_step({"wait": {"path": self.path_re("docs")}}),
+    ])
+    self.assertRun(second)
+
+
+def main():
+  global DRIVER, ORACLE, ARTIFACTS, IDS
+  parser = argparse.ArgumentParser()
+  parser.add_argument("--driver", required=True)
+  parser.add_argument("--oracle", required=True)
+  parser.add_argument("--artifacts", required=True)
+  args, rest = parser.parse_known_args()
+  DRIVER = args.driver
+  ORACLE = args.oracle
+  ARTIFACTS = args.artifacts
+  os.makedirs(ARTIFACTS, exist_ok=True)
+  IDS = rcgen.parse_file(os.path.join(ROOT, "CPP/7zip/Bundles/Fm/resource.rc")).symbols
+  unittest.main(argv=[sys.argv[0]] + rest, verbosity=2)
+
+
+if __name__ == "__main__":
+  main()

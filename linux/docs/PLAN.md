@@ -44,10 +44,10 @@ one `MENUEX`, one `ACCELERATORS` table and several `STRINGTABLE`s.
 ## 3. Architecture
 
 ```
-  7zFM (Qt main window, panels)          7zG (Qt dialogs only)
+  7zFM (upstream FM.cpp, App, Panel*)    7zG (upstream GUI.cpp, dialogs)
         |                                     |
-  linux/fm: CApp/CPanel views, FolderModel,   |
-  drag and drop, clipboard, desktop services  |
+  linux/fm: entry point, Linux stand-ins for  |
+  shell-only parts (drag and drop, ...)       |
         |                                     |
   linux/shim: Win32 user32 subset over Qt <---+   (dialog logic and NWindows wrappers
   + dialog engine (layouts from rcgen tables)      from upstream, compiled as-is)
@@ -87,15 +87,20 @@ Key decisions:
    `MessageBox` or a similar call runs off the GUI thread, the shim moves it to
    the GUI thread with a blocking queued call. The GUI thread never blocks on a
    worker.
-5. **The main window and panel views are new Qt code; the panel logic is
-   reused.** The upstream `FileManager/Panel.h` is redirected to a Qt version
-   that keeps the member names, and `_listView` becomes an adapter over
-   `QTreeView` plus a virtual `FolderModel` built on `IFolderFolder`. Panel
-   logic files (`PanelCopy`, `PanelOperations`, `PanelCrc`, `PanelSplitFile`,
-   `PanelFolderChange`, `PanelSelect`, `PanelSort`, and parts of
-   `PanelItemOpen` and `PanelItems`) are compiled from upstream where possible.
-   The view-side files (`Panel.cpp`, `PanelListNotify`, `PanelKey`,
-   `PanelDrag`, `PanelMenu`) are reimplemented in `linux/fm`.
+5. **The main window and the panels are upstream code too.** (Changed in
+   Phase 4; the first plan was new Qt views with the panel logic reused.)
+   `FM.cpp`, `App.cpp`, all `Panel*.cpp` files, `MyLoadMenu.cpp` and the
+   option pages compile against the same shim as the dialogs: it also has
+   menus (`HMENU` over `QMenuBar`/`QMenu`), the toolbar, rebar and status
+   bar, `ComboBoxEx`, and a list view over a `QAbstractTableModel` with
+   `LVN_GETDISPINFO` callbacks, custom draw and label editing. Window
+   procedures and subclassing work as on Windows: Qt input events become
+   `WM_KEYDOWN`, `WM_CHAR` and mouse messages first, and Qt handles an event
+   only when its message reaches `DefWindowProc()`. This reuses all the
+   keyboard, selection, sorting and navigation behaviour of the original
+   instead of rewriting it, with a handful of upstream edits; the parts that
+   are shell-only on Windows (drag and drop, context menu registration,
+   links, version control) have Linux stand-ins in `linux/fm`.
 6. **One static core library.** Both binaries link the full codec and format
    set (like `Bundles/Fm`), and compress and extract run in-process from the
    file manager (`CompressCall2.cpp`). `7zG` stays a separate binary for file
@@ -115,7 +120,7 @@ linux/
   docs/                   this plan, upstream-patch inventory, testing notes
   platform/               registry backend, resource strings, POSIX folders
   shim/                   NWindows::NControl over Qt, dialog engine, win32 subset headers
-  fm/                     7zFM main window, panels, models, drag and drop, clipboard
+  fm/                     7zFM entry point and Linux stand-ins for shell-only parts
   gui/                    7zG entry point
   theme/                  dark palette, QSS, SVG icons
   tools/                  rcgen.py, Wayland test harness, input injection helper, check.sh
@@ -531,8 +536,9 @@ Findings:
   `Attrib` on POSIX, threads cannot be waited on with a timeout, and the
   custom browse dialog for very long paths is Windows-only.
 - `ProgressDialog2` `WaitMode` (only 7zFM sets it: show the dialog only if
-  the operation takes long) waits on a thread handle. On POSIX the dialog
-  is shown at once for now; Phase 4 needs a POSIX wait for it.
+  the operation takes long) waits on a thread handle. On POSIX it polls the
+  flag that the finished thread sets (Phase 4); a password asked during
+  that time shows the dialog after the 500 ms.
 - Win32 behaviour the dialog code relies on: typing in a combo box clears
   the selection of its list (`ExtractDialog` reads the typed path only
   when `CB_GETCURSEL` is `CB_ERR`); `MoveWindow()` sends `WM_SIZE` at once,
@@ -558,19 +564,77 @@ Findings:
   returns an object (Phase 6): `ProgressDialog2` already drives
   `ITaskbarList3`.
 
-### Phase 4: 7zFM core
-- [ ] Redirect `Panel.h` to the Qt version, the list view adapter, a virtual
-      `FolderModel`, columns, sorting, icons, address combo with history,
-      status bar.
-- [ ] Main window: menus and accelerators from rcgen, both toolbars with their
+### Phase 4: 7zFM core (done)
+- [x] The upstream panel on the shim (decision 5): the list view with
+      columns, sorting (keys and header clicks), icons and view modes, the
+      address combo box with its history, the status bar.
+- [x] Main window: menus and accelerators from rcgen, both toolbars with their
       options, one or two panels (F9), panel focus and Tab.
-- [ ] Navigation: folders, nested archives, open inside, the parent folder,
+- [x] Navigation: folders, nested archives, open inside, the parent folder,
       root view, flat view, bookmarks and folder history.
-- [ ] Keyboard: selection keys (Ins, +, -, *, Shift+arrows), type-ahead, and
+- [x] Keyboard: selection keys (Ins, +, -, *, Shift+arrows), type-ahead, and
       inline rename (F2).
 
 Exit: dual-panel browsing of file systems and archives, with screenshots
-matching the original layout.
+matching the original layout. Done: `gui_7zfm` (19 scenarios, offscreen) and
+`wayland_7zfm` (keyboard through libei in nested KWin) pass, also under ASan.
+
+What is where:
+- `linux/fm/`: `Main.cpp` (as for 7zG, then `WinMain()` of `FM.cpp`);
+  `CMakeLists.txt` lists the upstream sources of `z7_fm`, compiled with the
+  shim `windows.h` and `platform/UpstreamPosix.h` force-included, and the
+  ones left out (`PanelDrag`, `EnumFormatEtc`, `VerCtrl`, `LinkDialog`,
+  `RegistryContextMenu`, the Windows folders). Their stand-ins:
+  `PanelDragLinux.cpp` (no drag and drop until Phase 6),
+  `ContextMenuRegistration.cpp` (Phase 6), `PendingCommands.cpp` (Link and
+  version control say "not supported" until Phase 5),
+  `RootFolderNames.cpp`, `ClassDefsShell.cpp` (shell GUIDs).
+- `linux/platform/UpstreamPosix.h`, `.cpp`: POSIX meanings of the
+  Windows-only helpers that the 7zFM sources call (`CTempDir`, device paths,
+  privileges); `FSDrivesPosix.h`. Redirect guards in `FSFolder.h`,
+  `RootFolder.h` and `FSDrives.h` select the POSIX folders of Phase 1.
+- `linux/shim/`: `ShimMenu.cpp` (menus, `WM_INITMENUPOPUP`,
+  `TrackPopupMenu`), `ShimBars.cpp` (toolbar, rebar, status bar),
+  `ShimInput.cpp` (input events as messages, accelerators, mouse capture),
+  `ShimListView.cpp` (the list view), `ShimControls.cpp` (`ComboBoxEx`; a
+  top-level window of a registered class is a frame with the menu bar and a
+  client widget).
+- `linux/tests/gui/`: `DriverCore.cpp` (the script engine of both drivers),
+  `fm_driver.cpp` (keys, clicks, header clicks, menu and toolbar commands,
+  expectations on the panels), `test_7zfm.py`;
+  `linux/tests/wayland/test_7zfm_wayland.py`.
+
+Findings:
+- Upstream edits: POSIX forms in `Windows/DLL.h`, `FileFind`, `FileIO`;
+  `GetWinAttrib()` instead of `Attrib` and no Network item in
+  `PanelFolderChange.cpp` and `BrowseDialog2.cpp`; no child process to
+  wait for in `PanelItemOpen.cpp`; `g_LargePagesMode` is defined by
+  `ArchiveCommandLine.cpp` on POSIX; the parent of "/" focuses the "/" item
+  of the root; the `WaitMode` poll in `ProgressDialog2.cpp`.
+- Win32 behaviour that 7zFM relies on: Enter opens the selected items only
+  (at start item 0 has the focus but no selection); the list notifies
+  `LVN_KEYDOWN` for `WM_SYSKEYDOWN` too (Alt+digit bookmarks, Alt+arrows,
+  Alt+Enter); subitems that were never set are callbacks; a disabled window
+  keeps the focus of its child; `EndDialog()` activates the owner, whose
+  `WM_ACTIVATE` gives the focus back; a `CW_USEDEFAULT` window has its size
+  at `WM_CREATE` (the splitter is placed there); `DefWindowProc(WM_NCCREATE)`
+  returns TRUE.
+- Keys: the digit keys are VK '0'...'9' whatever character they give (Shift+1
+  is `Qt::Key_Exclam`), so the shim reads the XKB key code on Wayland and
+  X11; right Ctrl (bookmarks) is told apart the same way.
+- Without a window manager (offscreen tests) nothing activates a window
+  after a modal one closes; the shim activates the owner as Windows does.
+- The root folder is the home directory, "/" and the user's mount points
+  (Phase 1); "/" or "\\" in the list opens it, as "Computer" on Windows.
+- KWin 6.8 locks a new session at once: `wlsession` starts it with
+  `--no-lockscreen`, and gives it the system `XDG_CONFIG_DIRS` and
+  `XDG_DATA_DIRS` only (the user's `kdedefaults` leaked their theme in).
+- Left for Phase 5: copying between file systems (`CopyFileSystemItems` of
+  the POSIX folder), Link and version control, delete through
+  `SHFileOperation`, and the calls that upstream looks up with
+  `GetProcAddress(GetModuleHandle(...))`, which find nothing.
+- Left for Phase 6: drag and drop, and the app ID: on Wayland the windows
+  have the generic icon until a `.desktop` file names them.
 
 ### Phase 5: 7zFM operations
 - [ ] Copy and Move (F5, F6) across file systems and archives.

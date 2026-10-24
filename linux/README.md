@@ -34,6 +34,9 @@ The build goes to `build/linux`. It contains:
   benchmark);
 - `tests/z7-gui-driver`: 7zG with its dialogs answered by a script (label
   `gui` for the offscreen tests, `wayland` for the nested KWin ones);
+- `fm/7zFM`: the 7-Zip file manager;
+- `tests/z7-fm-driver`: 7zFM worked by a script (keys, clicks, menu
+  commands) that checks the panels;
 - `platform/RcFm.cpp`, `platform/RcGui.cpp`: resource tables generated from
   the upstream `.rc` files by `tools/rcgen.py`.
 
@@ -100,6 +103,26 @@ through `rcgen.py`), and the driver logs every dialog, message box and file
 dialog with the state of its controls. Screenshots and logs of each scenario
 are in `build/linux/test-artifacts/gui_7zg/`. See
 [docs/PLAN.md](docs/PLAN.md), Phase 3.
+
+## 7zFM
+
+`fm/` builds `7zFM` from the upstream file manager sources (`FM.cpp`,
+`App.cpp`, `Panel*.cpp`, the option pages) on top of the shim, which also
+provides the main window parts: menus, toolbars, the address combo box, the
+status bar and the list view. It takes the upstream command line (a folder
+or an archive to open):
+
+```sh
+build/linux/fm/7zFM ~/Downloads
+```
+
+The `gui_7zfm` test runs scenarios through `tests/z7-fm-driver`: a JSON
+script of keys, clicks, menu and toolbar commands and expectations on the
+panels (path, items, focus, selection, columns, status bar), with the
+dialogs answered as in `z7-gui-driver`. `wayland_7zfm` types into 7zFM in the
+nested KWin through libei. Screenshots and logs are in
+`build/linux/test-artifacts/gui_7zfm/` and `wayland_7zfm/`. See
+[docs/PLAN.md](docs/PLAN.md), Phase 4.
 
 ## Windows reference pictures (Wine)
 
