@@ -85,6 +85,16 @@ void SetFileDialogHook(const CFileDialogHook &hook);
 typedef std::function<Qt::DropAction(QDrag *drag, Qt::DropActions actions)> CDragHook;
 void SetDragHook(const CDragHook &hook);
 
+/* Starts a program that 7-Zip runs (CProcess::Create(), the commands of
+   the context menu) detached. Upstream names its own programs with the
+   Windows suffix ("7zFM.exe"), which is dropped when no such file exists.
+   The start hook runs instead, with the program found: the menu for GTK
+   file managers records the commands of its items. */
+bool StartProgram(const QString &program, const QStringList &args,
+    const QString &workingDir = QString());
+typedef std::function<bool(const QString &program, const QStringList &args)> CStartHook;
+void SetStartHook(const CStartHook &hook);
+
 }
 
 #endif

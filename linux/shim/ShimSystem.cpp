@@ -26,6 +26,7 @@
 #include "../../CPP/Common/CommandLineParser.h"
 #include "../../CPP/Windows/ProcessUtils.h"
 
+#include "ShimDialog.h"
 #include "ShimWindow.h"
 
 void Sleep(DWORD milliseconds)
@@ -314,12 +315,32 @@ BOOL Process32Next(HANDLE /* snapshot */, LPPROCESSENTRY32 /* entry */)
   return FALSE;
 }
 
+namespace NShim {
+
+static CStartHook g_StartHook;
+
+void SetStartHook(const CStartHook &hook)
+{
+  g_StartHook = hook;
+}
+
+bool StartProgram(const QString &program, const QStringList &args, const QString &workingDir)
+{
+  QString path = program;
+  if (path.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive) && !QFileInfo::exists(path))
+    path.chop(4);
+  if (g_StartHook)
+    return g_StartHook(path, args);
+  return QProcess::startDetached(path, args, workingDir);
+}
+
+}
+
 namespace NWindows {
 
 /* Windows/ProcessUtils.cpp runs CreateProcess(). Here the program is
    started detached, with params split like a Windows command line, and
-   the object gets no handle. Upstream names its own programs with the
-   Windows suffix ("7zFM.exe"), which the Linux ones do not have. */
+   the object gets no handle. */
 WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
 {
   Close();
@@ -328,12 +349,10 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
   QStringList args;
   FOR_VECTOR (i, parts)
     args.append(NShim::FromU(parts[i]));
-  QString program = NShim::FromW(imageName);
+  const QString program = NShim::FromW(imageName);
   if (program.isEmpty())
     return EINVAL;
-  if (program.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive) && !QFileInfo::exists(program))
-    program.chop(4);
-  if (!QProcess::startDetached(program, args, curDir ? NShim::FromW(curDir) : QString()))
+  if (!NShim::StartProgram(program, args, curDir ? NShim::FromW(curDir) : QString()))
     return ENOENT;
   return 0;
 }
