@@ -15,6 +15,16 @@ if(Z7_BUILD_ORACLE)
   set_tests_properties(core_roundtrip PROPERTIES LABELS "core" TIMEOUT 300)
 endif()
 
+# The compiled dialog templates of the 7-Zip release for Windows against the
+# rcgen tables, when an extracted release is configured (see README.md).
+set(Z7_WINDOWS_RELEASE "" CACHE PATH "Extracted 7-Zip release for Windows (7zFM.exe, 7zG.exe), for reference checks")
+if(Z7_WINDOWS_RELEASE)
+  add_test(NAME rcgen_windows_release
+    COMMAND Python3::Interpreter -I "${Z7_ROOT}/linux/tools/winref/wine_reference.py"
+            --release "${Z7_WINDOWS_RELEASE}" --templates)
+  set_tests_properties(rcgen_windows_release PROPERTIES LABELS "unit" TIMEOUT 120)
+endif()
+
 # Unit tests (label "unit"): QtTest programs, run with a private HOME and
 # XDG_CONFIG_HOME so that they never see the user's settings.
 find_package(Qt6 COMPONENTS Core Test Widgets)

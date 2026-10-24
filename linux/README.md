@@ -9,6 +9,7 @@ directory. The plan and progress are tracked in [docs/PLAN.md](docs/PLAN.md).
 - Qt 6 (Widgets, Svg, DBus, Test)
 - ImageMagick (`magick`) and the Noto Sans font for the golden-image test
   (`render_gallery`; skipped when the font is missing)
+- Optional, for the Windows reference pictures: Wine with `winegcc` and `wrc`
 - For the Wayland tests: `kwin_wayland`, `spectacle`, ImageMagick (`magick`),
   `libei` 1.x, and `dbus-python` with PyGObject
 
@@ -74,6 +75,42 @@ update the golden ones:
 
 ```sh
 linux/tests/render/test_gallery.py --gallery build/linux/tools/z7-gallery --artifacts build/linux/test-artifacts/render_gallery --update
+```
+
+## Windows reference pictures (Wine)
+
+`tools/winref/` compares the port with the official 7-Zip release for
+Windows, which is not in the repository. Download the release of the merged
+upstream version, check its SHA-256 against the digest of the GitHub release
+asset, and extract it with 7zz:
+
+```sh
+curl -L -o /tmp/7z2605-x64.exe https://www.7-zip.org/a/7z2605-x64.exe
+```
+
+```sh
+build/linux/core/7zz x -obuild/windows-release/26.05 /tmp/7z2605-x64.exe
+```
+
+With the release configured, the `rcgen_windows_release` test compares the
+compiled dialog templates of its 7zFM.exe and 7zG.exe with the rcgen tables,
+control by control:
+
+```sh
+cmake -B build/linux -DZ7_WINDOWS_RELEASE=$PWD/build/windows-release/26.05
+```
+
+The reference pictures need Wine with `winegcc` and the nested KWin. `winref`
+creates every template with the dialog manager of Wine (classic look, Tahoma
+at 96 dpi); the script names the pictures like the gallery and puts each next
+to the gallery picture in `compare/`:
+
+```sh
+cmake --build build/linux --target winref
+```
+
+```sh
+linux/tools/winref/wine_reference.py --release build/windows-release/26.05 --helper build/linux/tools/winref/winref.exe --out build/linux/test-artifacts/wine_reference --gallery build/linux/test-artifacts/render_gallery/rendered
 ```
 
 ## Upstream source lists

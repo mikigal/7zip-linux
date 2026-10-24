@@ -1,0 +1,2 @@
+/* winref.rc: the manifest that selects common controls 6 */
+1 24 "winref.manifest"

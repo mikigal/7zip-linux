@@ -24,3 +24,23 @@ if(TARGET z7_gui AND TARGET z7_theme)
   z7_link_ui(z7-gallery FM)
   target_link_libraries(z7-gallery PRIVATE z7_gui z7_theme)
 endif()
+
+# winref: a Winelib program that renders the dialog templates of the 7-Zip
+# release for Windows with Wine, for reference pictures (see
+# winref/wine_reference.py). Built on request: cmake --build ... --target winref
+find_program(Z7_WINEGCC winegcc)
+find_program(Z7_WRC wrc)
+if(Z7_WINEGCC AND Z7_WRC)
+  set(Z7_WINREF_DIR "${CMAKE_CURRENT_BINARY_DIR}/winref")
+  add_custom_command(OUTPUT "${Z7_WINREF_DIR}/winref.exe" "${Z7_WINREF_DIR}/winref.exe.so"
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${Z7_WINREF_DIR}"
+    COMMAND "${Z7_WRC}" -o "${Z7_WINREF_DIR}/winref.res" winref.rc
+    COMMAND "${Z7_WINEGCC}" -m64 -municode -mwindows -Wall -Wextra -Werror
+            -o "${Z7_WINREF_DIR}/winref.exe" winref.c "${Z7_WINREF_DIR}/winref.res"
+            -lcomctl32 -luser32 -lgdi32
+    DEPENDS winref/winref.c winref/winref.rc winref/winref.manifest
+    WORKING_DIRECTORY "${CMAKE_CURRENT_SOURCE_DIR}/winref"
+    COMMENT "Building winref with winegcc"
+    VERBATIM)
+  add_custom_target(winref DEPENDS "${Z7_WINREF_DIR}/winref.exe")
+endif()
