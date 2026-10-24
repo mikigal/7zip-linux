@@ -19,6 +19,7 @@
 #include "../../../CPP/7zip/UI/FileManager/CopyDialogRes.h"
 #include "../../../CPP/7zip/UI/FileManager/SettingsPageRes.h"
 #include "../../../CPP/7zip/UI/GUI/CompressDialogRes.h"
+#include "../../../CPP/7zip/UI/Explorer/resource.h"
 
 #include "Platform.h"
 #include "RcTables.h"
@@ -253,6 +254,31 @@ private slots:
         QString::fromUtf8("Plik '{0}' został zmieniony.\nZaktualizować?"));
     QVERIFY(lang.Get(IDS_COPY_TO) == NULL); // falls back to MyLoadString() in LangString()
     QVERIFY(!lang.Open(path.toUtf8().constData(), "other"));
+  }
+
+  void releaseLangFiles()
+  {
+    // linux/lang: the Lang folder of the 7-Zip release, which the build
+    // copies next to the programs
+    const QDir dir(QStringLiteral(Z7_SOURCE_ROOT "/linux/lang"));
+    const QStringList files = dir.entryList({ "*.txt" }, QDir::Files);
+    QVERIFY(files.size() > 80);
+    QVERIFY(files.contains("pl.txt"));
+    for (const QString &name : files)
+    {
+      if (name == QLatin1String("CMakeLists.txt"))
+        continue;
+      CLang lang;
+      QVERIFY2(lang.Open(dir.filePath(name).toUtf8().constData(), "7-Zip"), qPrintable(name));
+      QVERIFY2(lang.Get(1) && *lang.Get(1), qPrintable(name));  // the English name of the language
+    }
+    QVERIFY(QFile::exists(dir.filePath("en.ttt")));
+    CLang pl;
+    QVERIFY(pl.Open(dir.filePath("pl.txt").toUtf8().constData(), "7-Zip"));
+    QCOMPARE(ToQString(pl.Get(1)), QString("Polish"));
+    QCOMPARE(ToQString(pl.Get(IDS_COPY)), QString("Kopiuj"));
+    QCOMPARE(ToQString(pl.Get(IDS_CONTEXT_EXTRACT_HERE)), QString("Wypakuj tutaj"));
+    QCOMPARE(ToQString(pl.Get(IDS_CONTEXT_EXTRACT_TO)), QString("Wypakuj do {0}"));
   }
 
   void moduleDirPrefix()
