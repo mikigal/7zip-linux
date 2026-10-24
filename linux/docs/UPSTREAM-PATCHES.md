@@ -9,3 +9,4 @@ every patch below still applies and is still needed.
 | File | Guard | Purpose |
 |---|---|---|
 | `CPP/7zip/UI/Agent/Agent.cpp` | `#ifdef _WIN32` / `#else` | POSIX `CFileInfo` has no `Attrib`/`IsDevice` (use `GetWinAttrib()` and `S_ISCHR`/`S_ISBLK`); skip `IsAltStreamPrefixWithColon()`, which exists only on Windows. |
+| `CPP/7zip/UI/Agent/AgentOut.cpp` | `#ifdef _WIN32` / `#else` | No alternate streams on POSIX: skip `IsAltStreamPrefixWithColon()` and `CDirItem::IsAltStream`; `CreateFolder()` uses `SetAsDir()` instead of `Attrib`. The current time goes through `CFiTime`/`GetCurUtc_FiTime()` unguarded: on Windows these are `FILETIME` and the `GetCurUtcFileTime` macro, so the Windows code is token-for-token the same. |
