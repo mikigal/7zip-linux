@@ -3,6 +3,14 @@
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
+# The program folder of an installation: 7zFM, 7zG and 7z-context-menu,
+# with Lang/ next to them, where the programs look for their files (the
+# folder of the executable, as on Windows); bin has links to 7zFM and 7zG.
+include(GNUInstallDirs)
+set(Z7_PROGRAM_SUBDIR "${CMAKE_INSTALL_LIBDIR}/7zip-linux" CACHE STRING
+    "The program folder of an installation, under the prefix")
+set(Z7_INSTALL_FULL_PROGRAM_DIR "${CMAKE_INSTALL_PREFIX}/${Z7_PROGRAM_SUBDIR}")
+
 # Same base definitions as CFLAGS_BASE in CPP/7zip/7zip_gcc.mak.
 set(Z7_BASE_DEFINITIONS _REENTRANT _FILE_OFFSET_BITS=64 _LARGEFILE_SOURCE)
 

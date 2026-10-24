@@ -198,6 +198,16 @@ if(Qt6Widgets_FOUND)
   endif()
 endif()
 
+# The AppStream metadata of linux/packaging (label "unit").
+find_program(Z7_APPSTREAMCLI appstreamcli)
+if(Z7_APPSTREAMCLI)
+  add_test(NAME appstream_metadata
+    COMMAND "${Z7_APPSTREAMCLI}" validate --no-net "${Z7_ROOT}/linux/packaging/pl.mikigal.SevenZip.metainfo.xml")
+  set_tests_properties(appstream_metadata PROPERTIES LABELS "unit" TIMEOUT 60)
+else()
+  message(STATUS "appstream_metadata test disabled (need appstreamcli)")
+endif()
+
 # The desktop files of linux/packaging (label "unit").
 find_program(Z7_DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(Z7_DESKTOP_FILE_VALIDATE)

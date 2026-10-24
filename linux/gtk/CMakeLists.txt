@@ -22,7 +22,7 @@ set_target_properties(z7_gtk_menu PROPERTIES C_STANDARD 11 C_STANDARD_REQUIRED O
   C_VISIBILITY_PRESET hidden)
 target_compile_options(z7_gtk_menu PRIVATE ${Z7_PORT_C_WARNINGS})
 target_compile_definitions(z7_gtk_menu PRIVATE
-  Z7_CONTEXT_MENU_TOOL="${CMAKE_INSTALL_FULL_LIBEXECDIR}/7z-context-menu")
+  Z7_CONTEXT_MENU_TOOL="${Z7_INSTALL_FULL_PROGRAM_DIR}/7z-context-menu")
 target_include_directories(z7_gtk_menu PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${Z7_ROOT}/linux/platform")
 target_link_libraries(z7_gtk_menu PUBLIC PkgConfig::Z7_GIO)
 

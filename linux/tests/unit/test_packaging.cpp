@@ -1,9 +1,9 @@
 // test_packaging.cpp
-// Checks the desktop files and the MIME package of linux/packaging against
-// 7-Zip and shared-mime-info: every type that 7-Zip associates (the System
-// options page) has a MIME type, with the MIME package installed, and the
-// .desktop file of 7zFM lists it; the files are named by the application
-// ID of platform/AppId.h.
+// Checks the desktop files, the AppStream metadata and the MIME package of
+// linux/packaging against 7-Zip and shared-mime-info: every type that 7-Zip
+// associates (the System options page) has a MIME type, with the MIME
+// package installed, and the .desktop file of 7zFM lists it; the files are
+// named by the application ID of platform/AppId.h.
 
 #include <QDir>
 #include <QFile>
@@ -122,6 +122,27 @@ private slots:
       const int numActions = DesktopValue(menu, "Actions").split(';', Qt::SkipEmptyParts).size();
       QCOMPARE(numExec, numActions);
     }
+  }
+
+  void appStreamMetadata()
+  {
+    // named by the application ID, which it has, with the .desktop file of 7zFM
+    QFile f(kPackaging + Z7_APP_ID ".metainfo.xml");
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QXmlStreamReader r(&f);
+    QString id, launchable;
+    while (!r.atEnd())
+    {
+      if (r.readNext() != QXmlStreamReader::StartElement)
+        continue;
+      if (r.name() == QLatin1String("id"))
+        id = r.readElementText();
+      else if (r.name() == QLatin1String("launchable"))
+        launchable = r.readElementText();
+    }
+    QVERIFY2(!r.hasError(), qPrintable(r.errorString()));
+    QCOMPARE(id, QStringLiteral(Z7_APP_ID));
+    QCOMPARE(launchable, QStringLiteral(Z7_FM_DESKTOP_FILE));
   }
 
   void kdePlugin()

@@ -1,5 +1,6 @@
 # The language files of the 7-Zip release (README.md): the build puts them
-# in Lang/ next to 7zFM and 7zG, where the programs look for them.
+# in Lang/ next to 7zFM and 7zG, where the programs look for them, and so
+# does an installation (the program folder).
 
 file(GLOB Z7_LANG_FILES CONFIGURE_DEPENDS "${CMAKE_CURRENT_SOURCE_DIR}/*.txt"
      "${CMAKE_CURRENT_SOURCE_DIR}/*.ttt")
@@ -13,3 +14,5 @@ add_custom_command(OUTPUT "${Z7_LANG_STAMP}"
   DEPENDS ${Z7_LANG_FILES}
   COMMENT "Copying the 7-Zip language files")
 add_custom_target(z7_lang ALL DEPENDS "${Z7_LANG_STAMP}")
+
+install(FILES ${Z7_LANG_FILES} DESTINATION "${Z7_PROGRAM_SUBDIR}/Lang")

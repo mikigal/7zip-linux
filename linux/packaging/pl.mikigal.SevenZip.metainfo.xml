@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The AppStream metadata of the Linux port (software centers). -->
+<component type="desktop-application">
+  <id>pl.mikigal.SevenZip</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>LGPL-2.1-or-later AND BSD-3-Clause AND BSD-2-Clause AND LicenseRef-unRAR</project_license>
+  <name>7-Zip File Manager</name>
+  <summary>File archiver with a high compression ratio</summary>
+  <description>
+    <p>
+      7-Zip is a file archiver with a high compression ratio. This is the
+      7-Zip file manager and its dialogs, ported from Windows to Linux: the
+      original interface in a dark theme, running natively on Wayland.
+    </p>
+    <ul>
+      <li>Open, extract, test and create 7z, zip, tar, xz, zstd and many other archives</li>
+      <li>The 7-Zip context menu in Dolphin, Nemo, Thunar and Nautilus</li>
+      <li>Drag and drop with file managers and browsers</li>
+      <li>The translations of 7-Zip</li>
+    </ul>
+  </description>
+  <launchable type="desktop-id">pl.mikigal.SevenZip.desktop</launchable>
+  <url type="homepage">https://github.com/mikigal/7zip-linux</url>
+  <url type="bugtracker">https://github.com/mikigal/7zip-linux/issues</url>
+  <developer id="pl.mikigal">
+    <name>mikigal</name>
+  </developer>
+  <categories>
+    <category>Utility</category>
+    <category>Archiving</category>
+  </categories>
+  <content_rating type="oars-1.1"/>
+  <provides>
+    <binary>7zFM</binary>
+    <binary>7zG</binary>
+  </provides>
+  <releases>
+    <release version="26.05.1" date="2026-10-24"/>
+  </releases>
+</component>
