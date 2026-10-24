@@ -26,6 +26,7 @@ add_library(z7_shim STATIC
   ShimShell.cpp
   ShimShellFolder.cpp
   ShimSystem.cpp
+  ShimTaskbar.cpp
 )
 z7_port_target(z7_shim)
 # Upstream COM interfaces have no virtual destructors by design.

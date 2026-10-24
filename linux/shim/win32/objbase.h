@@ -22,8 +22,9 @@ void CoUninitialize();
 HRESULT OleInitialize(LPVOID reserved);
 void OleUninitialize();
 
-/* No COM classes are registered yet: it returns REGDB_E_CLASSNOTREG, and
-   callers go on without the object (the taskbar list, for example). */
+/* The shim has one COM class: the taskbar list (CLSID_TaskbarList,
+   ShimTaskbar.cpp). Other classes give REGDB_E_CLASSNOTREG, and callers go
+   on without the object. */
 HRESULT CoCreateInstance(REFCLSID clsid, IUnknown *outer, DWORD clsContext, REFIID iid, LPVOID *object);
 
 LPVOID CoTaskMemAlloc(size_t size);

@@ -417,12 +417,18 @@ void OleUninitialize()
 {
 }
 
-HRESULT CoCreateInstance(REFCLSID /* clsid */, IUnknown * /* outer */, DWORD /* clsContext */,
-    REFIID /* iid */, LPVOID *object)
+namespace NShim {
+// ShimTaskbar.cpp: CLSID_TaskbarList
+HRESULT CreateShimObject(REFCLSID clsid, REFIID iid, void **object);
+}
+
+HRESULT CoCreateInstance(REFCLSID clsid, IUnknown * /* outer */, DWORD /* clsContext */,
+    REFIID iid, LPVOID *object)
 {
-  if (object)
-    *object = NULL;
-  return REGDB_E_CLASSNOTREG;
+  if (!object)
+    return E_INVALIDARG;
+  *object = NULL;
+  return NShim::CreateShimObject(clsid, iid, object);
 }
 
 // OLE drag and drop and ReleaseStgMedium() are in ShimDragDrop.cpp.

@@ -2,8 +2,8 @@
    uses:
    - ITaskbarList and ITaskbarList2, which FileManager/MyWindowsNew.h
      expects (it defines ITaskbarList3 on top of them). CoCreateInstance()
-     has no taskbar class yet, so the progress dialog runs without taskbar
-     progress.
+     gives the taskbar list of ShimTaskbar.cpp, so the progress dialog shows
+     its progress on the task of the program.
    - IContextMenu, IShellExtInit and IShellFolder, for the context menus of
      the file manager: the 7-Zip submenu (Explorer/ContextMenu.cpp) is an
      IContextMenu of 7-Zip itself; the "System" submenu and the Properties

@@ -15,6 +15,7 @@ import os
 import subprocess
 import sys
 import tempfile
+import time
 import unittest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -148,6 +149,27 @@ class Wayland7zG(unittest.TestCase):
     closed = [e for e in events(self.log) if e["event"] == "dialog_closed" and e["name"] == "IDD_PASSWORD"]
     texts = [c["text"] for c in closed[0]["controls"] if c["id"] == ID("IDE_PASSWORD_PASSWORD")]
     self.assertEqual(texts, ["secret"])
+
+  def test_taskbar_progress(self):
+    # the progress of an operation goes to the task manager of the desktop
+    with open(os.path.join(self.src, "big.bin"), "wb") as f:
+      f.write(os.urandom(6 << 20))
+    archive = os.path.join(self.tmp, "big.7z")
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      monitor_log = os.path.join(s.artifacts, "launcher.log")
+      s.spawn(["dbus-monitor", "--session",
+               "type='signal',interface='com.canonical.Unity.LauncherEntry'"], log="launcher")
+      time.sleep(0.5)
+      p = self.start_7zg(s, [], "a", "-mx9", "-mmt1", archive, "big.bin", cwd=self.src)
+      self.assertEqual(self.finish(p), 0)
+      time.sleep(0.5)
+    with open(monitor_log) as f:
+      text = f.read()
+    self.assertIn('string "application://io.github.mikigal.SevenZip.Gui.desktop"', text)
+    self.assertIn('string "progress"', text)
+    self.assertRegex(text, r'string "progress-visible"\s+variant\s+boolean true')
+    # hidden at the end
+    self.assertRegex(text, r'(?s)boolean true.*string "progress-visible"\s+variant\s+boolean false')
 
   def test_options_dialog_parent(self):
     archive = os.path.join(self.tmp, "out.7z")
