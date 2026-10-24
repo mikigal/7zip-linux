@@ -48,6 +48,7 @@
 //                               "buttons" (number on the toolbar)
 //   {"wait_file": "path"}       waits until the file exists
 //   {"log": "panels"}           logs the state of both panels and the focus
+//   {"log": "clipboard"}        logs the formats of the clipboard and their data
 //   {"log": {"panel": 0, "item": "name"}}
 //                               logs where an item (or the free space of the
 //                               panel) is in the top-level window (event
@@ -60,6 +61,7 @@
 // When all steps are done, the driver closes the main window.
 
 #include <QApplication>
+#include <QClipboard>
 #include <QElapsedTimer>
 #include <QUrl>
 #include <QMimeData>
@@ -424,6 +426,15 @@ public:
     }
     else if (a.contains("wait_file"))
       return QFile::exists(a["wait_file"].toString());
+    else if (a.contains("log") && a["log"].toString() == QLatin1String("clipboard"))
+    {
+      // the clipboard: each format with its data as text (event "clipboard")
+      QJsonObject formats;
+      if (const QMimeData *mime = QApplication::clipboard()->mimeData())
+        for (const QString &f : mime->formats())
+          formats[f] = QString::fromUtf8(mime->data(f));
+      g_Driver.Write(QJsonObject{ { "event", "clipboard" }, { "formats", formats } });
+    }
     else if (a.contains("log") && a["log"].isObject())
     {
       // {"log": {"panel": 0, "item": "name"}}: where the item is in the

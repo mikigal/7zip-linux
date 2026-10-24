@@ -1266,6 +1266,46 @@ class FmTest(unittest.TestCase):
     self.assertNotIn("text/uri-list", drags[1]["formats"])
     self.assertEqual(drags[1]["action"], 0)
 
+  # ---------- Clipboard ----------
+
+  def test_clipboard_copy_cut_paste(self):
+    archive = self.make_archive()
+    b = os.path.join(self.data, "b.txt")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "ctrl+C"},
+            {"log": "clipboard"},
+            {"address": os.path.join(self.data, "sub")},
+            {"wait": {"path": self.path_re("sub")}},
+            {"key": "ctrl+V"},
+            {"wait": {"items": ["b.txt"]}},
+            {"address": self.data},
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "c10.bin"}},
+            {"key": "ctrl+X"},
+            {"log": "clipboard"},
+            # cut files pasted into an archive are moved into it
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"key": "Return"},
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"key": "ctrl+V"},
+            {"wait": {"items": ["inner", "c10.bin", "nested.zip", "top.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+    copied, cut = run.of("clipboard")
+    url = "file://" + b
+    self.assertEqual(copied["formats"]["text/uri-list"].strip(), url)
+    self.assertEqual(copied["formats"]["text/plain"], "b.txt")
+    self.assertEqual(copied["formats"]["x-special/gnome-copied-files"], "copy\n" + url)
+    self.assertEqual(cut["formats"]["application/x-kde-cutselection"], "1")
+    self.assertTrue(os.path.exists(b))
+    with open(os.path.join(self.data, "sub", "b.txt")) as f:
+      self.assertEqual(f.read(), "world, a longer file\n")
+    self.assertIn("Path = c10.bin", oracle("l", "-slt", archive).stdout)
+    self.assertFalse(os.path.exists(os.path.join(self.data, "c10.bin")))
+
   # ---------- Window ----------
 
   def test_two_panels(self):
