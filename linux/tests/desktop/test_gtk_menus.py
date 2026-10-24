@@ -6,7 +6,10 @@ command of each item (linux/shell/ShellMenu.h).
 - Tool: the records of 7z-context-menu;
 - Core: the menu as the shared code of the extensions reads it
   (z7-gtk-menu-probe), and the commands of its items, which the oracle
-  runs to check them.
+  runs to check them;
+- Nemo, Thunar, Nautilus: the menu items that each extension gives its
+  file manager (z7-<name>-probe loads the module as the file manager does)
+  and what activating one starts.
 
 7zG and 7zFM are stand-ins that write their arguments."""
 
@@ -22,6 +25,8 @@ import unittest
 TOOL = None
 PROBE = None
 ORACLE = None
+EXTENSIONS = {}   # name: (probe, module)
+APP_ID = "io.github.mikigal.SevenZip"
 
 
 def oracle(*args, cwd=None):
@@ -72,6 +77,10 @@ class GtkMenus(unittest.TestCase):
         "Z7_PROGRAM_DIR": self.bin,
         "Z7_CONTEXT_MENU_TOOL": TOOL,
     }
+    # the sanitizer options of the ASan build (check.sh --asan)
+    for name in ("ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
+      if name in os.environ:
+        env[name] = os.environ[name]
     env.update(self.extra_env)
     return env
 
@@ -161,16 +170,98 @@ class Core(GtkMenus):
     self.assertEqual(self.wait_log("7zFM"), [self.f("b.zip"), "-tzip"])
 
 
+class Extension:
+  """The menu of an extension; the file managers differ in separators
+  (only Nemo has them) and icons (Nautilus 4 shows none). The labels are
+  GTK mnemonic texts: "_" is doubled."""
+  FM = None
+  SEPARATORS = False
+  ICONS = False
+
+  def setUp(self):
+    if self.FM not in EXTENSIONS:
+      self.skipTest("the extension is not built")
+    super().setUp()
+    self.fm_probe, self.module = EXTENSIONS[self.FM]
+
+  def env(self):
+    env = super().env()
+    # the system libraries have no frame pointers: the slow unwinder finds
+    # their frames, which lsan.supp names
+    env["ASAN_OPTIONS"] = ":".join(filter(None, [env.get("ASAN_OPTIONS"), "fast_unwind_on_malloc=0"]))
+    return env
+
+  def probe(self, *args):
+    res = subprocess.run([self.fm_probe, self.module] + list(args), env=self.env(),
+                         capture_output=True, text=True, timeout=30)
+    self.assertEqual(res.returncode, 0, res.stderr)
+    self.assertEqual(res.stderr, "")
+    return [(line.split("\t")[0], line.split("\t")[2] if line.count("\t") == 2 else "")
+            for line in res.stdout.splitlines()]
+
+  def test_menu(self):
+    items = [p for p, _ in self.probe(self.f("b.zip"))]
+    self.assertEqual(items[0], "7-Zip >")
+    direct = [p[len("7-Zip > "):] for p in items[1:] if " > " not in p[len("7-Zip > "):]]
+    self.assertEqual(direct, [
+        "Open archive", "Open archive >", "Extract files...", "Extract Here", 'Extract to "b/"',
+        "Test archive", "Add to archive...", "Compress and email...",
+        'Add to "b__2.7z"', 'Compress to "b__2.7z" and email',
+        'Add to "b__2.zip"', 'Compress to "b__2.zip" and email', "CRC SHA >"])
+    self.assertIn("7-Zip > CRC SHA > SHA-256", items)
+    separators = [p for p in items if p == "-" or p.endswith(" > -")]
+    self.assertEqual(separators, ["7-Zip > CRC SHA > -"] if self.SEPARATORS else [])
+
+  def test_options(self):
+    self.write_settings('[Software/7-Zip/Options]\n"CascadedMenu"=dword:00000000\n'
+                        '"MenuIcons"=dword:00000001\n"ContextMenu"=dword:%08x\n' % ((1 << 1) | (1 << 9)))
+    icon = APP_ID if self.ICONS else ""
+    self.assertEqual(self.probe(self.f("b.zip")), [("Extract Here", icon), ('Add to "b__2.7z"', icon)])
+
+  def test_commands(self):
+    self.probe("--trigger", "7-Zip > Extract Here", self.f("b.zip"))
+    self.assertEqual(self.wait_log("7zG"), ["x", "-o" + self.files + "/", "-an", "-aiw-!" + self.f("b.zip")])
+    self.probe("--trigger", "7-Zip > Open archive > zip", self.f("b.zip"))
+    self.assertEqual(self.wait_log("7zFM"), [self.f("b.zip"), "-tzip"])
+
+  def test_other_files(self):
+    menu = [p for p, _ in self.probe(self.f("folder"), self.f("c.txt"))]
+    self.assertIn('7-Zip > Add to "files.7z"', menu)
+    self.assertNotIn("7-Zip > Extract Here", menu)
+    # 7-Zip works on paths of the file system
+    self.assertEqual(self.probe("https://example.com/a.7z"), [])
+
+
+class Nemo(Extension, GtkMenus):
+  FM = "nemo"
+  SEPARATORS = True
+  ICONS = True
+
+
+class Thunar(Extension, GtkMenus):
+  FM = "thunar"
+  ICONS = True
+
+
+class Nautilus(Extension, GtkMenus):
+  FM = "nautilus"
+
+
 def main():
   global TOOL, PROBE, ORACLE
   ap = argparse.ArgumentParser()
   ap.add_argument("--tool", required=True)
   ap.add_argument("--probe", required=True)
   ap.add_argument("--oracle", required=True)
+  for fm in ("nemo", "thunar", "nautilus"):
+    ap.add_argument("--" + fm, nargs=2, metavar=("PROBE", "MODULE"))
   args, rest = ap.parse_known_args()
   TOOL = os.path.abspath(args.tool)
   PROBE = os.path.abspath(args.probe)
   ORACLE = os.path.abspath(args.oracle)
+  for fm in ("nemo", "thunar", "nautilus"):
+    if getattr(args, fm):
+      EXTENSIONS[fm] = tuple(os.path.abspath(p) for p in getattr(args, fm))
   unittest.main(argv=[sys.argv[0]] + rest, verbosity=2)
 
 

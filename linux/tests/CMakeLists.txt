@@ -176,6 +176,23 @@ if(Qt6Widgets_FOUND)
         set_tests_properties(wayland_dnd PROPERTIES LABELS "wayland" TIMEOUT 400)
       endif()
     endif()
+
+    # the 7-Zip extensions in the real Nemo and Thunar
+    set(Z7_WLGTK_ARGS)
+    if(TARGET libnemo-sevenzip)
+      list(APPEND Z7_WLGTK_ARGS --nemo $<TARGET_FILE:libnemo-sevenzip>)
+    endif()
+    if(TARGET thunar-sevenzip)
+      list(APPEND Z7_WLGTK_ARGS --thunar $<TARGET_FILE:thunar-sevenzip>)
+    endif()
+    if(TARGET ei-input AND Z7_WLGTK_ARGS)
+      add_test(NAME wayland_gtk_fm
+        COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_gtk_fm_wayland.py"
+                --ei-input $<TARGET_FILE:ei-input> --tool $<TARGET_FILE:7z-context-menu>
+                --7zg $<TARGET_FILE:7zG> --7zfm $<TARGET_FILE:7zFM> --oracle "${Z7_ORACLE_7ZZ}"
+                --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/wayland_gtk_fm" ${Z7_WLGTK_ARGS})
+      set_tests_properties(wayland_gtk_fm PROPERTIES LABELS "wayland" TIMEOUT 300)
+    endif()
   else()
     message(STATUS "Wayland tests disabled (need kwin_wayland, spectacle and ImageMagick)")
   endif()
@@ -228,10 +245,28 @@ if(TARGET z7_gtk_menu)
   if(Z7_BUILD_ORACLE)
     set(Z7_GTK_ORACLE "${Z7_ORACLE_7ZZ}")
   endif()
+  # a probe for each extension that is built: --<name> PROBE MODULE
+  find_package(PkgConfig REQUIRED)
+  pkg_check_modules(Z7_GMODULE IMPORTED_TARGET gmodule-2.0)
+  set(Z7_GTK_EXTENSION_ARGS)
+  foreach(fm nemo thunar nautilus)
+    string(TOUPPER "${fm}" FM)
+    set(module lib${fm}-sevenzip)
+    if(fm STREQUAL "thunar")
+      set(module thunar-sevenzip)
+    endif()
+    if(TARGET ${module})
+      add_executable(z7-${fm}-probe desktop/fm_menu_probe.c)
+      target_compile_definitions(z7-${fm}-probe PRIVATE Z7_PROBE_${FM})
+      target_compile_options(z7-${fm}-probe PRIVATE ${Z7_PORT_C_WARNINGS})
+      target_link_libraries(z7-${fm}-probe PRIVATE PkgConfig::${module}_PKG PkgConfig::Z7_GMODULE)
+      list(APPEND Z7_GTK_EXTENSION_ARGS --${fm} $<TARGET_FILE:z7-${fm}-probe> $<TARGET_FILE:${module}>)
+    endif()
+  endforeach()
   add_test(NAME gtk_menus
     COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/desktop/test_gtk_menus.py"
             --tool $<TARGET_FILE:7z-context-menu> --probe $<TARGET_FILE:z7-gtk-menu-probe>
-            --oracle "${Z7_GTK_ORACLE}")
+            --oracle "${Z7_GTK_ORACLE}" ${Z7_GTK_EXTENSION_ARGS})
   set_tests_properties(gtk_menus PROPERTIES LABELS "unit" TIMEOUT 120)
 endif()
 
