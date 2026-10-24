@@ -17,7 +17,7 @@ endif()
 
 # Unit tests (label "unit"): QtTest programs, run with a private HOME and
 # XDG_CONFIG_HOME so that they never see the user's settings.
-find_package(Qt6 COMPONENTS Core Test)
+find_package(Qt6 COMPONENTS Core Test Widgets)
 set(Z7_UNIT_HOME "${CMAKE_BINARY_DIR}/test-artifacts/unit-home")
 
 # z7_unit_test(<name> <sources...>): a test program linked with the platform
@@ -44,6 +44,8 @@ if(Qt6Test_FOUND)
   # archives for the tests are made with the 7zz of this build
   target_compile_definitions(z7-test-folders PRIVATE Z7_TEST_7ZZ="$<TARGET_FILE:7zz>")
   add_dependencies(z7-test-folders 7zz)
+  z7_unit_test(shim unit/test_shim.cpp)
+  target_link_libraries(z7-test-shim PRIVATE z7_gui Qt6::Widgets)
 else()
   message(STATUS "Unit tests disabled (need Qt6 Test)")
 endif()

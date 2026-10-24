@@ -299,8 +299,323 @@
 #define SUBLANG_DEFAULT    0x01
 #define SUBLANG_ENGLISH_US 0x01
 
-#ifndef RC_INVOKED
-/* C and C++ declarations go here when the GUI shim needs them. */
+/* Window messages */
+#define WM_NULL            0x0000
+#define WM_CREATE          0x0001
+#define WM_DESTROY         0x0002
+#define WM_MOVE            0x0003
+#define WM_SIZE            0x0005
+#define WM_ACTIVATE        0x0006
+#define WM_SETFOCUS        0x0007
+#define WM_KILLFOCUS       0x0008
+#define WM_ENABLE          0x000A
+#define WM_SETREDRAW       0x000B
+#define WM_SETTEXT         0x000C
+#define WM_GETTEXT         0x000D
+#define WM_GETTEXTLENGTH   0x000E
+#define WM_PAINT           0x000F
+#define WM_CLOSE           0x0010
+#define WM_QUIT            0x0012
+#define WM_ERASEBKGND      0x0014
+#define WM_SHOWWINDOW      0x0018
+#define WM_ACTIVATEAPP     0x001C
+#define WM_SETCURSOR       0x0020
+#define WM_GETMINMAXINFO   0x0024
+#define WM_NEXTDLGCTL      0x0028
+#define WM_DRAWITEM        0x002B
+#define WM_SETFONT         0x0030
+#define WM_GETFONT         0x0031
+#define WM_WINDOWPOSCHANGED 0x0047
+#define WM_NOTIFY          0x004E
+#define WM_HELP            0x0053
+#define WM_CONTEXTMENU     0x007B
+#define WM_SETICON         0x0080
+#define WM_NCCREATE        0x0081
+#define WM_NCDESTROY       0x0082
+#define WM_GETDLGCODE      0x0087
+#define WM_KEYDOWN         0x0100
+#define WM_KEYUP           0x0101
+#define WM_CHAR            0x0102
+#define WM_SYSKEYDOWN      0x0104
+#define WM_SYSKEYUP        0x0105
+#define WM_SYSCHAR         0x0106
+#define WM_INITDIALOG      0x0110
+#define WM_COMMAND         0x0111
+#define WM_SYSCOMMAND      0x0112
+#define WM_TIMER           0x0113
+#define WM_HSCROLL         0x0114
+#define WM_VSCROLL         0x0115
+#define WM_INITMENUPOPUP   0x0117
+#define WM_MENUSELECT      0x011F
+#define WM_ENTERIDLE       0x0121
+#define WM_CHANGEUISTATE   0x0127
+#define WM_UPDATEUISTATE   0x0128
+#define WM_QUERYUISTATE    0x0129
+#define WM_CTLCOLOREDIT    0x0133
+#define WM_CTLCOLORSTATIC  0x0138
+#define WM_MOUSEMOVE       0x0200
+#define WM_LBUTTONDOWN     0x0201
+#define WM_LBUTTONUP       0x0202
+#define WM_LBUTTONDBLCLK   0x0203
+#define WM_RBUTTONDOWN     0x0204
+#define WM_RBUTTONUP       0x0205
+#define WM_MOUSEWHEEL      0x020A
+#define WM_DROPFILES       0x0233
+#define WM_USER            0x0400
+#define WM_APP             0x8000
+
+/* WM_*UISTATE */
+#define UIS_SET        1
+#define UIS_CLEAR      2
+#define UIS_INITIALIZE 3
+#define UISF_HIDEFOCUS 0x1
+#define UISF_HIDEACCEL 0x2
+
+/* WM_SIZE wParam */
+#define SIZE_RESTORED  0
+#define SIZE_MINIMIZED 1
+#define SIZE_MAXIMIZED 2
+
+/* ShowWindow() */
+#define SW_HIDE            0
+#define SW_SHOWNORMAL      1
+#define SW_NORMAL          1
+#define SW_SHOWMINIMIZED   2
+#define SW_SHOWMAXIMIZED   3
+#define SW_MAXIMIZE        3
+#define SW_SHOWNOACTIVATE  4
+#define SW_SHOW            5
+#define SW_MINIMIZE        6
+#define SW_SHOWMINNOACTIVE 7
+#define SW_SHOWNA          8
+#define SW_RESTORE         9
+#define SW_SHOWDEFAULT     10
+
+/* SetWindowPos() */
+#define SWP_NOSIZE       0x0001
+#define SWP_NOMOVE       0x0002
+#define SWP_NOZORDER     0x0004
+#define SWP_NOREDRAW     0x0008
+#define SWP_NOACTIVATE   0x0010
+#define SWP_FRAMECHANGED 0x0020
+#define SWP_SHOWWINDOW   0x0040
+#define SWP_HIDEWINDOW   0x0080
+
+/* GetWindowLong() indexes */
+#define GWL_WNDPROC    (-4)
+#define GWL_HINSTANCE  (-6)
+#define GWL_HWNDPARENT (-8)
+#define GWL_ID         (-12)
+#define GWL_STYLE      (-16)
+#define GWL_EXSTYLE    (-20)
+#define GWL_USERDATA   (-21)
+#define GWLP_WNDPROC    (-4)
+#define GWLP_HINSTANCE  (-6)
+#define GWLP_HWNDPARENT (-8)
+#define GWLP_USERDATA   (-21)
+#define GWLP_ID         (-12)
+/* 64-bit layout: LRESULT, DLGPROC and the user pointer */
+#define DWLP_MSGRESULT 0
+#define DWLP_DLGPROC   8
+#define DWLP_USER      16
+
+/* Button notifications, messages and states */
+#define BN_CLICKED       0
+#define BN_DBLCLK        5
+#define BN_DOUBLECLICKED BN_DBLCLK
+#define BN_SETFOCUS      6
+#define BN_KILLFOCUS     7
+#define BM_GETCHECK      0x00F0
+#define BM_SETCHECK      0x00F1
+#define BM_GETSTATE      0x00F2
+#define BM_SETSTATE      0x00F3
+#define BM_SETSTYLE      0x00F4
+#define BM_CLICK         0x00F5
+#define BM_GETIMAGE      0x00F6
+#define BM_SETIMAGE      0x00F7
+#define BST_UNCHECKED     0x0000
+#define BST_CHECKED       0x0001
+#define BST_INDETERMINATE 0x0002
+#define BST_PUSHED        0x0004
+#define BST_FOCUS         0x0008
+
+/* Combo box messages and notifications */
+#define CB_OKAY               0
+#define CB_ERR                (-1)
+#define CB_ERRSPACE           (-2)
+#define CB_GETEDITSEL         0x0140
+#define CB_LIMITTEXT          0x0141
+#define CB_SETEDITSEL         0x0142
+#define CB_ADDSTRING          0x0143
+#define CB_DELETESTRING       0x0144
+#define CB_DIR                0x0145
+#define CB_GETCOUNT           0x0146
+#define CB_GETCURSEL          0x0147
+#define CB_GETLBTEXT          0x0148
+#define CB_GETLBTEXTLEN       0x0149
+#define CB_INSERTSTRING       0x014A
+#define CB_RESETCONTENT       0x014B
+#define CB_FINDSTRING         0x014C
+#define CB_SELECTSTRING       0x014D
+#define CB_SETCURSEL          0x014E
+#define CB_SHOWDROPDOWN       0x014F
+#define CB_GETITEMDATA        0x0150
+#define CB_SETITEMDATA        0x0151
+#define CB_GETDROPPEDCONTROLRECT 0x0152
+#define CB_SETITEMHEIGHT      0x0153
+#define CB_GETITEMHEIGHT      0x0154
+#define CB_SETEXTENDEDUI      0x0155
+#define CB_GETEXTENDEDUI      0x0156
+#define CB_GETDROPPEDSTATE    0x0157
+#define CB_FINDSTRINGEXACT    0x0158
+#define CB_SETDROPPEDWIDTH    0x0160
+#define CBN_ERRSPACE          (-1)
+#define CBN_SELCHANGE         1
+#define CBN_DBLCLK            2
+#define CBN_SETFOCUS          3
+#define CBN_KILLFOCUS         4
+#define CBN_EDITCHANGE        5
+#define CBN_EDITUPDATE        6
+#define CBN_DROPDOWN          7
+#define CBN_CLOSEUP           8
+#define CBN_SELENDOK          9
+#define CBN_SELENDCANCEL      10
+
+/* Edit control messages and notifications */
+#define EM_GETSEL          0x00B0
+#define EM_SETSEL          0x00B1
+#define EM_SCROLLCARET     0x00B7
+#define EM_GETMODIFY       0x00B8
+#define EM_SETMODIFY       0x00B9
+#define EM_GETLINECOUNT    0x00BA
+#define EM_REPLACESEL      0x00C2
+#define EM_LIMITTEXT       0x00C5
+#define EM_SETLIMITTEXT    EM_LIMITTEXT
+#define EM_SETPASSWORDCHAR 0x00CC
+#define EM_SETREADONLY     0x00CF
+#define EM_GETPASSWORDCHAR 0x00D2
+#define EN_SETFOCUS        0x0100
+#define EN_KILLFOCUS       0x0200
+#define EN_CHANGE          0x0300
+#define EN_UPDATE          0x0400
+#define EN_ERRSPACE        0x0500
+#define EN_MAXTEXT         0x0501
+
+/* Static control messages and notifications */
+#define STM_SETICON  0x0170
+#define STM_GETICON  0x0171
+#define STM_SETIMAGE 0x0172
+#define STM_GETIMAGE 0x0173
+#define STN_CLICKED  0
+#define STN_DBLCLK   1
+
+/* Dialog messages and WM_GETDLGCODE results */
+#define DM_GETDEFID   (WM_USER + 0)
+#define DM_SETDEFID   (WM_USER + 1)
+#define DM_REPOSITION (WM_USER + 2)
+#define DC_HASDEFID   0x534B
+#define DLGC_WANTARROWS      0x0001
+#define DLGC_WANTTAB         0x0002
+#define DLGC_WANTALLKEYS     0x0004
+#define DLGC_WANTMESSAGE     0x0004
+#define DLGC_HASSETSEL       0x0008
+#define DLGC_DEFPUSHBUTTON   0x0010
+#define DLGC_UNDEFPUSHBUTTON 0x0020
+#define DLGC_RADIOBUTTON     0x0040
+#define DLGC_WANTCHARS       0x0080
+#define DLGC_STATIC          0x0100
+#define DLGC_BUTTON          0x2000
+
+/* Scroll bar requests (WM_HSCROLL, WM_VSCROLL) */
+#define SB_HORZ          0
+#define SB_VERT          1
+#define SB_CTL           2
+#define SB_LINEUP        0
+#define SB_LINELEFT      0
+#define SB_LINEDOWN      1
+#define SB_LINERIGHT     1
+#define SB_PAGEUP        2
+#define SB_PAGEDOWN      3
+#define SB_THUMBPOSITION 4
+#define SB_THUMBTRACK    5
+#define SB_TOP           6
+#define SB_BOTTOM        7
+#define SB_ENDSCROLL     8
+
+/* MessageBox() */
+#define MB_OK                0x00000000L
+#define MB_OKCANCEL          0x00000001L
+#define MB_ABORTRETRYIGNORE  0x00000002L
+#define MB_YESNOCANCEL       0x00000003L
+#define MB_YESNO             0x00000004L
+#define MB_RETRYCANCEL       0x00000005L
+#define MB_CANCELTRYCONTINUE 0x00000006L
+#define MB_ICONHAND          0x00000010L
+#define MB_ICONQUESTION      0x00000020L
+#define MB_ICONEXCLAMATION   0x00000030L
+#define MB_ICONASTERISK      0x00000040L
+#define MB_ICONERROR         MB_ICONHAND
+#define MB_ICONSTOP          MB_ICONHAND
+#define MB_ICONWARNING       MB_ICONEXCLAMATION
+#define MB_ICONINFORMATION   MB_ICONASTERISK
+#define MB_DEFBUTTON1        0x00000000L
+#define MB_DEFBUTTON2        0x00000100L
+#define MB_DEFBUTTON3        0x00000200L
+#define MB_DEFBUTTON4        0x00000300L
+#define MB_APPLMODAL         0x00000000L
+#define MB_SYSTEMMODAL       0x00001000L
+#define MB_TASKMODAL         0x00002000L
+#define MB_HELP              0x00004000L
+#define MB_SETFOREGROUND     0x00010000L
+#define MB_TOPMOST           0x00040000L
+#define MB_TYPEMASK          0x0000000FL
+#define MB_ICONMASK          0x000000F0L
+#define MB_DEFMASK           0x00000F00L
+
+/* System parameters, metrics and monitors */
+#define SPI_GETNONCLIENTMETRICS 0x0029
+#define SPI_GETWORKAREA         0x0030
+#define SM_CXSCREEN    0
+#define SM_CYSCREEN    1
+#define SM_CXVSCROLL   2
+#define SM_CYHSCROLL   3
+#define SM_CYCAPTION   4
+#define SM_CXICON      11
+#define SM_CYICON      12
+#define SM_CXSMICON    49
+#define SM_CYSMICON    50
+#define MONITOR_DEFAULTTONULL    0x00000000
+#define MONITOR_DEFAULTTOPRIMARY 0x00000001
+#define MONITOR_DEFAULTTONEAREST 0x00000002
+
+/* Icons and images */
+#define ICON_SMALL    0
+#define ICON_BIG      1
+#define IMAGE_BITMAP  0
+#define IMAGE_ICON    1
+#define IMAGE_CURSOR  2
+#define LR_DEFAULTCOLOR 0x00000000
+#define LR_LOADFROMFILE 0x00000010
+#define LR_DEFAULTSIZE  0x00000040
+#define LR_SHARED       0x00008000
+
+/* System colors */
+#define COLOR_WINDOW        5
+#define COLOR_WINDOWTEXT    8
+#define COLOR_HIGHLIGHT     13
+#define COLOR_HIGHLIGHTTEXT 14
+#define COLOR_BTNFACE       15
+#define COLOR_3DFACE        COLOR_BTNFACE
+#define COLOR_GRAYTEXT      17
+#define COLOR_BTNTEXT       18
+
+/* PeekMessage() */
+#define PM_NOREMOVE 0x0000
+#define PM_REMOVE   0x0001
+
+#if !defined(RC_INVOKED) && defined(__cplusplus)
+/* Types and functions: the user32 subset that linux/shim implements over Qt. */
+#include "winuser.h"
 #endif
 
 #endif

@@ -49,8 +49,8 @@ one `MENUEX`, one `ACCELERATORS` table and several `STRINGTABLE`s.
   linux/fm: CApp/CPanel views, FolderModel,   |
   drag and drop, clipboard, desktop services  |
         |                                     |
-  linux/shim: NWindows::NControl over Qt  <---+   (dialog logic from upstream
-  + dialog engine (layouts from rcgen tables)      GUI/ and FileManager/ compiled as-is)
+  linux/shim: Win32 user32 subset over Qt <---+   (dialog logic and NWindows wrappers
+  + dialog engine (layouts from rcgen tables)      from upstream, compiled as-is)
         |
   linux/platform: registry (INI), resource strings, POSIX FSFolder/RootFolder,
   process and thread helpers
@@ -65,10 +65,17 @@ Key decisions:
    xdg-decoration), pull-based drag and drop through `QMimeData::retrieveData`,
    and `QtDBus`.
 2. **Dialogs keep upstream logic.** Upstream dialog sources (`CompressDialog.cpp`,
-   `ExtractDialog.cpp` and the rest) compile unchanged against a Qt
-   implementation of `NWindows::NControl`. Controls are found by resource ID,
-   signals map to `OnButtonClicked`, `OnCommand(CBN_SELCHANGE / EN_CHANGE)` and
-   `OnMessage(WM_TIMER / custom)`, and `PostMsg` becomes a queued Qt event.
+   `ExtractDialog.cpp` and the rest) and the `NWindows` wrappers they use
+   (`Window.h`, `Control/Dialog.h`, `ComboBox.h`, `ListView.h`, `PropertyPage.h`
+   and their `.cpp` files) compile unchanged against a Qt implementation of
+   the Win32 user32 and comctl32 subset that the wrappers call (`linux/shim`).
+   An `HWND` is a shim window object that owns a Qt widget; `SendMessage`
+   runs the built-in procedure of the control class (`CB_*`, `EM_*`, `LVM_*`,
+   ...), and the widgets' signals come back as `WM_COMMAND` and `WM_NOTIFY`
+   with the Win32 notification codes, so `OnButtonClicked`, `OnCommand` and
+   `OnNotify` work as on Windows. `PostMessage` is a queued Qt call and
+   timers are `QTimer`s. Implementing the API under the wrappers, instead of
+   replacing the wrapper headers, needs no upstream edits at all.
 3. **Original layouts come from the `.rc` files.** The `linux/tools/rcgen.py`
    generator runs `cpp` over the upstream `.rc` files and generates C++ tables
    for dialogs, menus, accelerators and strings. At runtime the dialog engine
@@ -378,11 +385,11 @@ Findings:
   built with `-fno-sanitize-recover`.
 
 ### Phase 2: Qt shim, dialog engine, dark theme
-- [ ] Shim classes: `CWindow`, `CDialog`, modal and modeless dialogs, child
-      controls, `CComboBox(Ex)`, `CEdit`, `CStatic`, buttons, `CProgressBar`,
+- [x] Shim classes: `CWindow`, `CDialog`, modal and modeless dialogs, child
+      controls, `CComboBox`, `CEdit`, `CStatic`, buttons, `CProgressBar`,
       up-down, trackbar, `CListView` (dialog subset), and property sheets as
-      `QTabWidget`.
-- [ ] Shim behaviour: `MessageBox`, timers, `PostMsg`, and thread marshalling.
+      `QTabWidget`. `CComboBoxEx` follows with the panel in Phase 4.
+- [x] Shim behaviour: `MessageBox`, timers, `PostMsg`, and thread marshalling.
 - [ ] DLU layout engine and font calibration.
 - [ ] Dark theme: palette and QSS, SVG toolbar icons, archive `.ico` icons.
 - [ ] Dialog gallery and golden-image tests; Wine references if mingw-w64 is
