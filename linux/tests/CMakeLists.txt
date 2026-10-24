@@ -10,6 +10,32 @@ if(Z7_BUILD_ORACLE)
   set_tests_properties(core_roundtrip PROPERTIES LABELS "core" TIMEOUT 300)
 endif()
 
+# Unit tests (label "unit"): QtTest programs, run with a private HOME and
+# XDG_CONFIG_HOME so that they never see the user's settings.
+find_package(Qt6 COMPONENTS Core Test)
+set(Z7_UNIT_HOME "${CMAKE_BINARY_DIR}/test-artifacts/unit-home")
+
+# z7_unit_test(<name> <sources...>): a test program linked with the platform
+# layer, registered as the ctest test "unit_<name>".
+function(z7_unit_test name)
+  add_executable(z7-test-${name} ${ARGN})
+  z7_port_target(z7-test-${name})
+  target_compile_options(z7-test-${name} PRIVATE -Wno-non-virtual-dtor)
+  set_target_properties(z7-test-${name} PROPERTIES AUTOMOC ON)
+  z7_link_ui(z7-test-${name})
+  target_link_libraries(z7-test-${name} PRIVATE Qt6::Core Qt6::Test)
+  add_test(NAME unit_${name} COMMAND z7-test-${name})
+  set_tests_properties(unit_${name} PROPERTIES LABELS "unit" TIMEOUT 120
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;HOME=${Z7_UNIT_HOME};XDG_CONFIG_HOME=${Z7_UNIT_HOME}/config;XDG_DATA_HOME=${Z7_UNIT_HOME}/data;XDG_CACHE_HOME=${Z7_UNIT_HOME}/cache;XDG_STATE_HOME=${Z7_UNIT_HOME}/state")
+endfunction()
+
+if(Qt6Test_FOUND)
+  file(MAKE_DIRECTORY "${Z7_UNIT_HOME}")
+  z7_unit_test(registry unit/test_registry.cpp)
+else()
+  message(STATUS "Unit tests disabled (need Qt6 Test)")
+endif()
+
 # Wayland scenario tests run in a nested headless KWin (label "wayland").
 find_package(Qt6 COMPONENTS Widgets)
 find_program(Z7_KWIN kwin_wayland)
