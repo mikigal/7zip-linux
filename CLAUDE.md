@@ -47,7 +47,8 @@ rendered in a dark theme. The full plan and phase checklist are in
   committing. Use `--asan` after larger changes in C++ code.
 - Logs and screenshots are in `build/linux/test-artifacts/`. Look at the
   screenshots when a change affects what is on screen.
-- After merging an upstream release, run `linux/tools/upstream_sources.py`.
+- Merge a new upstream release with `linux/tools/upstream_sync.sh` (it runs
+  `upstream_sources.py` and `check.sh`; see `linux/docs/UPSTREAM.md`).
 - UI changes: render the dialog gallery, look at the PNGs, and update golden
   images only after a visual review.
 - Wayland and desktop integration: run the scenario tests in a nested headless

@@ -904,7 +904,7 @@ Findings:
 - [x] Install layout, AUR packages (Arch/CachyOS), AppStream metadata,
       `Lang` files; Flatpak is optional (portal FileTransfer for drag and
       drop) and not done.
-- [ ] Upstream sync script and documentation: merge the new upstream release
+- [x] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
       consistency checks, check the templates against the new Windows release
       (`rcgen_windows_release`) and look at the Wine reference pictures,
@@ -930,6 +930,14 @@ Notes:
   release (26.05.1); `unit_packaging` checks that the PKGBUILDs and the
   AppStream metadata agree with `C/7zVersion.h`.
 - The console `7z` is not part of the packages: Arch's `7zip` has it.
+- Upstream sync (`linux/tools/upstream_sync.sh`, `docs/UPSTREAM.md`): merges
+  the newest upstream tag (or a given one) with a merge commit, stops on
+  conflicts (`--continue` after they are committed), then regenerates the
+  source lists, sets the next port version (TAG.1), runs `check.sh`, lists
+  the upstream edits since the new release and prints the steps left by
+  hand (the Windows release with the user's approval, `Lang`, the Wine
+  reference pictures, the upstream history). Tried on a clone with made-up
+  upstream releases, a clean merge and a conflicting one.
 
 ## Appendix A: Windows features and their Linux counterparts
 
@@ -955,15 +963,18 @@ Notes:
 ## Appendix B: Upstream patch inventory
 
 Git keeps it; each commit message says why the edit is needed. After
-`git fetch upstream`, these list the edits since the last merged upstream
-release (today that release is commit `b88c6bc`, 26.05):
+`git fetch upstream --tags`, these list the edits since the last merged
+upstream release (26.05 today); `linux/tools/upstream_sync.sh` prints them
+after a merge:
 
 ```sh
-git diff --stat $(git merge-base HEAD upstream/main) HEAD -- C CPP Asm DOC
-git log --oneline $(git merge-base HEAD upstream/main)..HEAD -- C CPP Asm DOC
+base=$(git describe --tags --abbrev=0 --match '[0-9]*.[0-9]*' HEAD)
+git diff --stat $base HEAD -- C CPP Asm DOC
+git log --oneline --no-merges $base..HEAD -- C CPP Asm DOC
 ```
 
-After merging a release, check that each edit is still needed.
+After merging a release, check that each edit is still needed
+(`docs/UPSTREAM.md`).
 
 ## Appendix C: Open questions
 
