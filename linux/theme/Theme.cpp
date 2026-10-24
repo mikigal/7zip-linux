@@ -6,6 +6,7 @@
 #include <QPainter>
 #include <QPainterPath>
 #include <QProxyStyle>
+#include <QRegion>
 #include <QStyleFactory>
 #include <QStyleOption>
 #include <QWidget>
@@ -192,8 +193,62 @@ public:
     QProxyStyle::drawControl(ce, option, p, w);
   }
 
+  // A group box as on Windows: the title interrupts the top line of the
+  // frame, which runs through the middle of the text (Fusion puts the title
+  // above the frame, so the frame would start lower than in the templates).
+  static bool IsPlainGroupBox(const QStyleOptionComplex *option)
+  {
+    const QStyleOptionGroupBox *g = qstyleoption_cast<const QStyleOptionGroupBox *>(option);
+    return g && !(g->subControls & SC_GroupBoxCheckBox);
+  }
+
+  QRect subControlRect(ComplexControl cc, const QStyleOptionComplex *option, SubControl sc, const QWidget *w) const override
+  {
+    if (cc == CC_GroupBox && IsPlainGroupBox(option))
+    {
+      const QStyleOptionGroupBox *g = qstyleoption_cast<const QStyleOptionGroupBox *>(option);
+      const QFontMetrics &fm = option->fontMetrics;
+      const int th = fm.height();
+      const QRect r = option->rect;
+      switch (sc)
+      {
+        case SC_GroupBoxFrame:
+          return r.adjusted(0, th / 2, 0, 0);
+        case SC_GroupBoxLabel:
+        {
+          if (g->text.isEmpty())
+            return QRect();
+          const int indent = fm.averageCharWidth();
+          return QRect(r.left() + indent, r.top(), fm.horizontalAdvance(g->text) + 4, th);
+        }
+        case SC_GroupBoxContents:
+          return r.adjusted(1, th, -1, -1);
+        default:
+          break;
+      }
+    }
+    return QProxyStyle::subControlRect(cc, option, sc, w);
+  }
+
   void drawComplexControl(ComplexControl cc, const QStyleOptionComplex *option, QPainter *p, const QWidget *w) const override
   {
+    if (cc == CC_GroupBox && IsPlainGroupBox(option))
+    {
+      const QStyleOptionGroupBox *g = qstyleoption_cast<const QStyleOptionGroupBox *>(option);
+      const QRect frame = subControlRect(cc, option, SC_GroupBoxFrame, w);
+      const QRect label = subControlRect(cc, option, SC_GroupBoxLabel, w);
+      p->save();
+      QRegion clip(option->rect);
+      if (label.isValid())
+        clip -= label;
+      p->setClipRegion(clip);
+      DrawOutline(p, frame, QColor(kGroupFrame), 3);
+      p->restore();
+      if (label.isValid())
+        drawItemText(p, label, Qt::AlignHCenter | Qt::AlignVCenter | Qt::TextHideMnemonic, option->palette,
+            (option->state & State_Enabled) != 0, g->text, QPalette::WindowText);
+      return;
+    }
     QProxyStyle::drawComplexControl(cc, option, p, w);
     if (cc == CC_ComboBox)
     {
