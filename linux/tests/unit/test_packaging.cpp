@@ -7,6 +7,9 @@
 
 #include <QDir>
 #include <QFile>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QMimeDatabase>
 #include <QProcess>
 #include <QSet>
@@ -119,6 +122,22 @@ private slots:
       const int numActions = DesktopValue(menu, "Actions").split(';', Qt::SkipEmptyParts).size();
       QCOMPARE(numExec, numActions);
     }
+  }
+
+  void kdePlugin()
+  {
+    // the metadata of the KFileItemActions plugin (linux/kde)
+    QFile f(QStringLiteral(Z7_SOURCE_ROOT "/linux/kde/sevenzipfileitemaction.json"));
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QJsonParseError error;
+    const QJsonObject root = QJsonDocument::fromJson(f.readAll(), &error).object();
+    QCOMPARE(error.error, QJsonParseError::NoError);
+    const QJsonObject plugin = root.value("KPlugin").toObject();
+    QCOMPARE(plugin.value("Icon").toString(), QStringLiteral(Z7_APP_ID));
+    QCOMPARE(plugin.value("Name").toString(), QStringLiteral("7-Zip"));
+    // files and folders: 7-Zip decides what its menu offers
+    QCOMPARE(plugin.value("MimeTypes").toArray(), QJsonArray({ "application/octet-stream", "inode/directory" }));
+    QCOMPARE(root.value("MimeType").toString(), QStringLiteral("application/octet-stream;inode/directory;"));
   }
 
   void everyAssociatedTypeIsListed()

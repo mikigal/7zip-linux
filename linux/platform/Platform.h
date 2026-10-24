@@ -15,6 +15,11 @@ namespace NPlatform {
    start. */
 void InitModuleDirPrefix(const char *argv0);
 
+/* Sets NWindows::NDLL::GetModuleDirPrefix() to a directory, for 7-Zip code
+   that runs in another program (the plugin of KDE file managers): the
+   directory of 7zG, 7zFM and Lang/. */
+void SetModuleDir(const FString &dir);
+
 /* The home directory ($HOME, else the password database), without a
    trailing '/'. */
 FString GetHomeDir();

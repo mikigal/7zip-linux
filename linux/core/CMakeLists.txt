@@ -13,6 +13,11 @@ target_compile_definitions(z7_core PUBLIC ${Z7_BASE_DEFINITIONS})
 target_compile_options(z7_core PRIVATE ${Z7_UPSTREAM_WARNINGS} ${Z7_7ZZ_FLAGS})
 target_link_libraries(z7_core PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
 
+# The same objects as a static library, for code that needs only some of
+# them (the plugin of KDE file managers): no handlers that nothing calls.
+add_library(z7_core_lib STATIC $<TARGET_OBJECTS:z7_core>)
+target_link_libraries(z7_core_lib PUBLIC Threads::Threads ${CMAKE_DL_LIBS})
+
 # Upstream console 7zz built from the same lists: verifies that the core
 # library matches the upstream build, and gives us a console tool.
 set(Z7_7ZZ_REST ${Z7_7ZZ_SOURCES})

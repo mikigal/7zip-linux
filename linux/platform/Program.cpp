@@ -61,4 +61,14 @@ void InitModuleDirPrefix(const char *argv0)
     Set_ModuleDirPrefix_From_ProgArg0(argv0);
 }
 
+void SetModuleDir(const FString &dir)
+{
+  // the prefix is the directory of a program path
+  FString path = dir;
+  if (path.IsEmpty() || path.Back() != '/')
+    path.Add_Char('/');
+  path += "7zG";
+  Set_ModuleDirPrefix_From_ProgArg0(path);
+}
+
 }

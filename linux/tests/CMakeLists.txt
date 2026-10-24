@@ -206,10 +206,20 @@ find_package(KF6KIO QUIET)
 if(KF6KIO_FOUND AND TARGET Qt6::Widgets)
   add_executable(z7-servicemenu-probe desktop/servicemenu_probe.cpp)
   target_link_libraries(z7-servicemenu-probe PRIVATE KF6::KIOWidgets Qt6::Widgets)
-  add_test(NAME servicemenus_kio
-    COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/desktop/test_servicemenus.py"
-            --probe $<TARGET_FILE:z7-servicemenu-probe> --packaging "${Z7_ROOT}/linux/packaging")
-  set_tests_properties(servicemenus_kio PROPERTIES LABELS "unit" TIMEOUT 60)
+  # the KDE plugin of linux/kde, when it is built
+  set(Z7_KDE_PLUGIN_ARG)
+  if(TARGET sevenzipfileitemaction)
+    set(Z7_KDE_PLUGIN_ARG --plugin $<TARGET_FILE:sevenzipfileitemaction>)
+  endif()
+  set(Z7_KDE_ORACLE $<TARGET_FILE:7zz>)
+  if(Z7_BUILD_ORACLE)
+    set(Z7_KDE_ORACLE "${Z7_ORACLE_7ZZ}")
+  endif()
+  add_test(NAME kde_menus
+    COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/desktop/test_kde_menus.py"
+            --probe $<TARGET_FILE:z7-servicemenu-probe> --packaging "${Z7_ROOT}/linux/packaging"
+            ${Z7_KDE_PLUGIN_ARG} --oracle "${Z7_KDE_ORACLE}")
+  set_tests_properties(kde_menus PROPERTIES LABELS "unit" TIMEOUT 120)
 else()
-  message(STATUS "servicemenus_kio test disabled (need KF6 KIO)")
+  message(STATUS "kde_menus test disabled (need KF6 KIO)")
 endif()

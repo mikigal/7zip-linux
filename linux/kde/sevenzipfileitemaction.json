@@ -1,0 +1,12 @@
+{
+    "KPlugin": {
+        "Description": "Open, extract, test and compress archives with 7-Zip",
+        "Icon": "io.github.mikigal.SevenZip",
+        "MimeTypes": [
+            "application/octet-stream",
+            "inode/directory"
+        ],
+        "Name": "7-Zip"
+    },
+    "MimeType": "application/octet-stream;inode/directory;"
+}
