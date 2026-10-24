@@ -990,6 +990,30 @@ class FmTest(unittest.TestCase):
     self.assertFalse(states[(1, ID("IDC_SYSTEM_ZONE"))]["enabled"])
     self.assertFalse(states[(4, ID("IDX_SETTINGS_LARGE_PAGES"))]["enabled"])
 
+  def test_settings_page_drag_option(self):
+    # the Linux option of the Settings page: on by default, with its
+    # description; turning it off is saved with the options of 7zFM
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": [
+            {"tab": 1}, {"tab": 2}, {"tab": 3}, {"tab": 4},
+            {"screenshot": "settings.png"},
+            {"click": ID("IDX_SETTINGS_DRAG_FILES")},
+            {"click": ID("IDOK")}]},
+    ], self.data)
+    self.assertRun(run)
+    closed = run.of("dialog_closed", "PropertySheet")[0]
+    states = {c["id"]: c for c in closed["controls"] if c.get("page") == 4}
+    option = states[ID("IDX_SETTINGS_DRAG_FILES")]
+    # one click turned it off
+    self.assertFalse(option["checked"])
+    self.assertIn("other programs", option["text"])
+    self.assertIn("Dolphin", states[ID("IDT_SETTINGS_DRAG_FILES_INFO")]["text"])
+    with open(os.path.join(self.home, "config", "7-Zip", "7-Zip.ini")) as f:
+      self.assertIn('"DragFilesToOtherPrograms"=dword:00000000', f.read())
+
   def system_rows(self, run):
     sheet = run.of("dialog_closed", "PropertySheet")[-1]
     rows = [c for c in sheet["controls"] if c["id"] == ID("IDL_SYSTEM_ASSOCIATE")][0]["rows"]
