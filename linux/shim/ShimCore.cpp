@@ -453,7 +453,9 @@ LRESULT DefWindowProcImpl(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam)
         wnd->Widget->setUpdatesEnabled(wParam != 0);
       return 0;
     case WM_SETICON:
-      if (wnd->Widget && !wnd->IsChild())
+      // the application icon (an SVG, as the .desktop file names it) wins
+      // over the small bitmaps of the .rc files
+      if (wnd->Widget && !wnd->IsChild() && QApplication::windowIcon().isNull())
         wnd->Widget->setWindowIcon(IconFromHandle((HICON)lParam));
       return 0;
     case WM_GETDLGCODE:

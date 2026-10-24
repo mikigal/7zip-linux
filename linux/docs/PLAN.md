@@ -740,7 +740,7 @@ Findings:
   the panel disables "Alternate streams".
 
 ### Phase 6: Desktop integration
-- [ ] App ID, `.desktop`, icons, MIME associations.
+- [x] App ID, `.desktop`, icons, MIME associations.
 - [ ] Drag and drop in and out (Ark protocol, lazy `uri-list`, internal MIME),
       covered by Wayland scenario tests with Dolphin and a probe app.
 - [ ] Clipboard, taskbar progress, notifications, portal "Open with" and file
@@ -750,6 +750,28 @@ Findings:
 
 Exit: the drag-and-drop and clipboard scenarios pass in nested KWin, and the
 user signs off on the real session.
+
+What is where:
+- `linux/platform/AppId.h`: the application IDs, `io.github.mikigal.SevenZip`
+  (7zFM) and `io.github.mikigal.SevenZip.Gui` (7zG): the Wayland app IDs
+  (`QGuiApplication::setDesktopFileName`) and the names of the .desktop
+  files. Provisional, see Appendix C.
+- `linux/packaging/`: the .desktop files (7zFM opens the archive types;
+  7zG is NoDisplay), the MIME package with the types that 7-Zip associates
+  and shared-mime-info lacks, and the install rules. The application icon
+  is `linux/theme/icons/app/7-Zip.svg` (FM.ico redrawn on its 48 px grid),
+  built into the programs as their window icon and installed in hicolor.
+- `unit_packaging`: every extension of the System page has a MIME type
+  (with the package installed in a database of its own) that the .desktop
+  file lists; `desktop_files`: desktop-file-validate.
+
+Findings:
+- KWin shows the window icon (xdg-toplevel-icon) even without the .desktop
+  file installed; the shim keeps the SVG application icon instead of the
+  16-color bitmaps that `WM_SETICON` sets.
+- shared-mime-info 2.5 has no types for `.001`, `.esd`, `.fat`, `.ntfs`,
+  `.hfs` and `.apfs`, and no globs for `.gzip`, `.bzip2` and `.tpz`; the
+  package adds them (`application/x-split-archive`, ...).
 
 ### Phase 7: Packaging and upstream sync
 - [ ] Install layout, `PKGBUILD` (Arch/CachyOS), AppStream metadata, `Lang`
@@ -797,7 +819,9 @@ After merging a release, check that each edit is still needed.
 ## Appendix C: Open questions
 
 - **App ID:** it must be a valid D-Bus name, and segments cannot start with a
-  digit, so `org.7-zip.*` is invalid. Candidate: `io.github.mikigal.SevenZip`.
+  digit, so `org.7-zip.*` is invalid. Used for now (one place to change:
+  `platform/AppId.h`, the file names in `linux/packaging/`):
+  `io.github.mikigal.SevenZip`, waiting for the user's confirmation.
 - **`Lang/*.txt` translations** are not in the source repo. They ship in the
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.

@@ -70,6 +70,7 @@
 
 #include "../../../CPP/7zip/UI/FileManager/App.h"
 
+#include "AppId.h"
 #include "DriverCore.h"
 #include "ShimWindow.h"
 #include "Theme.h"
@@ -624,6 +625,8 @@ int main(int argc, char *argv[])
   int qtArgc = 1;
   char *qtArgv[] = { argv[0], NULL };
   QApplication app(qtArgc, qtArgv);
+  // the Wayland app ID: the name of the .desktop file (linux/packaging)
+  QGuiApplication::setDesktopFileName(QStringLiteral(Z7_APP_ID));
   NTheme::Apply(app);
   if (!Start(args, "z7-fm-driver"))
     return 2;

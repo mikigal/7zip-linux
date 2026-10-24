@@ -16,8 +16,12 @@ namespace NTheme {
 QPalette DarkPalette();
 QString StyleSheet();
 
-// Sets the style, palette and style sheet of the application.
+// Sets the style, palette and style sheet of the application, and the
+// 7-Zip icon as its window icon.
 void Apply(QApplication &app);
+
+// The 7-Zip application icon.
+QIcon AppIcon();
 
 /* A toolbar icon: name is the upstream bitmap name ("Add", "Extract",
    "Test", "Copy", "Move", "Delete", "Info"); large selects the 48x36

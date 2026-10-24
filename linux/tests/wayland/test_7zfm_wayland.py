@@ -32,7 +32,7 @@ WIDTH, HEIGHT = 1280, 800
 WINDOWS = """workspace.windowList().filter(w => w.normalWindow || w.dialog).map(w => ({
   caption: w.caption, active: w.active, transient: w.transient, modal: w.modal,
   transientFor: w.transientFor ? w.transientFor.caption : null,
-  decorated: !w.noBorder,
+  decorated: !w.noBorder, desktopFileName: w.desktopFileName,
   width: w.frameGeometry.width, height: w.frameGeometry.height }))"""
 
 
@@ -105,6 +105,8 @@ class Wayland7zFM(unittest.TestCase):
       self.assertEqual(events(self.log)[0], {"event": "start", "platform": "wayland"})
       self.assertTrue(main["decorated"], main)
       self.assertFalse(main["transient"], main)
+      # the app ID names the .desktop file (linux/packaging)
+      self.assertEqual(main["desktopFileName"], "io.github.mikigal.SevenZip", main)
       s.screenshot(os.path.join(self.artifacts, "main.png"))
 
       # the first item has the focus; Space selects it, Enter opens it

@@ -34,7 +34,7 @@ WIDTH, HEIGHT = 1280, 800
 WINDOWS = """workspace.windowList().filter(w => w.normalWindow || w.dialog).map(w => ({
   caption: w.caption, active: w.active, transient: w.transient, modal: w.modal,
   transientFor: w.transientFor ? w.transientFor.caption : null,
-  resourceClass: w.resourceClass, decorated: !w.noBorder,
+  resourceClass: w.resourceClass, decorated: !w.noBorder, desktopFileName: w.desktopFileName,
   width: w.frameGeometry.width, height: w.frameGeometry.height }))"""
 
 
@@ -140,6 +140,7 @@ class Wayland7zG(unittest.TestCase):
       self.assertTrue(password["transient"], windows)
       self.assertRegex(password["transientFor"] or "", "Extracting", windows)
       self.assertTrue(password["decorated"], windows)
+      self.assertEqual(password["desktopFileName"], "io.github.mikigal.SevenZip.Gui", windows)
       s.screenshot(os.path.join(self.artifacts, "password.png"))
       s.run([EI_INPUT, "type", "secret", "key", "enter"], timeout=30)
       self.assertEqual(self.finish(p), 0)

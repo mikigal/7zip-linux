@@ -313,12 +313,18 @@ QIcon ToolbarIcon(const char *name, bool large)
   return QIcon(QStringLiteral(":/z7/toolbar/%1%2.svg").arg(QLatin1String(name), large ? QString() : QStringLiteral("2")));
 }
 
+QIcon AppIcon()
+{
+  return QIcon(QStringLiteral(":/z7/app/7-Zip.svg"));
+}
+
 void Apply(QApplication &app)
 {
   CStyle *style = new CStyle();
   app.setStyle(style);   // the application owns the style
   app.setPalette(DarkPalette());
   app.setStyleSheet(StyleSheet());
+  app.setWindowIcon(AppIcon());
   app.installEventFilter(new CAltWatcher(style, &app));
 }
 

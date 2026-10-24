@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=7-Zip
+Comment=Compress, extract and test archives
+Exec=7zG
+TryExec=7zG
+Icon=io.github.mikigal.SevenZip
+Terminal=false
+NoDisplay=true
+Categories=Qt;Utility;Archiving;Compression;

@@ -1,0 +1,52 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- MIME types of the archives that 7-Zip opens and shared-mime-info does
+     not name: the System options page and the .desktop file of 7zFM
+     associate them. -->
+<mime-info xmlns="http://www.freedesktop.org/standards/shared-mime-info">
+  <!-- other extensions of known types -->
+  <mime-type type="application/gzip">
+    <glob pattern="*.gzip"/>
+  </mime-type>
+  <mime-type type="application/x-bzip2">
+    <glob pattern="*.bzip2"/>
+  </mime-type>
+  <mime-type type="application/x-compressed-tar">
+    <glob pattern="*.tpz"/>
+  </mime-type>
+
+  <mime-type type="application/x-split-archive">
+    <comment>Split file (first part)</comment>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.001"/>
+  </mime-type>
+  <mime-type type="application/x-ms-esd">
+    <comment>Windows ESD image</comment>
+    <sub-class-of type="application/x-ms-wim"/>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.esd"/>
+  </mime-type>
+  <mime-type type="application/x-fat-image">
+    <comment>FAT file system image</comment>
+    <sub-class-of type="application/x-raw-disk-image"/>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.fat"/>
+  </mime-type>
+  <mime-type type="application/x-ntfs-image">
+    <comment>NTFS file system image</comment>
+    <sub-class-of type="application/x-raw-disk-image"/>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.ntfs"/>
+  </mime-type>
+  <mime-type type="application/x-hfs-image">
+    <comment>HFS file system image</comment>
+    <sub-class-of type="application/x-raw-disk-image"/>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.hfs"/>
+  </mime-type>
+  <mime-type type="application/x-apfs-image">
+    <comment>APFS file system image</comment>
+    <sub-class-of type="application/x-raw-disk-image"/>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.apfs"/>
+  </mime-type>
+</mime-info>

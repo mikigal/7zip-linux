@@ -1,5 +1,7 @@
-# The dark theme of the 7-Zip programs: style, palette and the toolbar
-# icons (SVG versions of the upstream toolbar bitmaps).
+# The dark theme of the 7-Zip programs: style, palette, the toolbar icons
+# (SVG versions of the upstream toolbar bitmaps) and the application icon
+# (the 7-Zip icon of FileManager/FM.ico as SVG; linux/packaging installs
+# it in the hicolor theme).
 
 find_package(Qt6 REQUIRED COMPONENTS Widgets Svg)
 
@@ -16,3 +18,5 @@ foreach(name IN LISTS Z7_TOOLBAR_ICONS)
 endforeach()
 qt_add_resources(z7_theme "z7_theme_icons" PREFIX "/z7/toolbar" BASE icons/toolbar
   FILES ${Z7_TOOLBAR_FILES})
+qt_add_resources(z7_theme "z7_theme_app_icon" PREFIX "/z7/app" BASE icons/app
+  FILES icons/app/7-Zip.svg)

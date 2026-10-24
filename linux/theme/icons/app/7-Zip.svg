@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- The 7-Zip icon (FileManager/FM.ico, 48 px), drawn on the same grid. -->
+<svg xmlns="http://www.w3.org/2000/svg" width="48" height="48" viewBox="0 0 48 48">
+  <path fill="#000000" d="M3 7h44v34H3z"/>
+  <path fill="#ffffff" d="M6 10h38v28H6z"/>
+  <path fill="#000000" d="M7 14h18v20H7z"/>
+  <path fill="#ffffff" d="M11 17h11v3l-4 4v7h-4v-7l4-4h-7z"/>
+  <path fill="#000000" d="M28 20h9v3l-5 8h5v3h-9v-3l5-8h-5z"/>
+</svg>

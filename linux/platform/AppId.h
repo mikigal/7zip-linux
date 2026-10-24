@@ -6,9 +6,11 @@
 #ifndef ZIP7_INC_LINUX_APP_ID_H
 #define ZIP7_INC_LINUX_APP_ID_H
 
+// 7zFM, the program that opens archives
 #define Z7_APP_ID "io.github.mikigal.SevenZip"
-
-// the .desktop file of 7zFM, which opens archives
 #define Z7_FM_DESKTOP_FILE Z7_APP_ID ".desktop"
+
+// 7zG, the dialogs that file manager context menus run
+#define Z7_GUI_APP_ID Z7_APP_ID ".Gui"
 
 #endif

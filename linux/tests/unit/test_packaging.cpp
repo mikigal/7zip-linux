@@ -1,0 +1,125 @@
+// test_packaging.cpp
+// Checks the desktop files and the MIME package of linux/packaging against
+// 7-Zip and shared-mime-info: every type that 7-Zip associates (the System
+// options page) has a MIME type, with the MIME package installed, and the
+// .desktop file of 7zFM lists it; the files are named by the application
+// ID of platform/AppId.h.
+
+#include <QDir>
+#include <QFile>
+#include <QMimeDatabase>
+#include <QProcess>
+#include <QSet>
+#include <QStandardPaths>
+#include <QTemporaryDir>
+#include <QTest>
+#include <QXmlStreamReader>
+
+#include "Win32Compat.h"
+
+#include "../../../CPP/Common/MyCom.h"
+#include "../../../CPP/7zip/UI/Agent/Agent.h"
+
+#include "AppId.h"
+
+static const QString kPackaging = QStringLiteral(Z7_SOURCE_ROOT "/linux/packaging/");
+
+// The value of a key of the [Desktop Entry] group.
+static QString DesktopValue(const QString &path, const QString &key)
+{
+  QFile f(path);
+  if (!f.open(QIODevice::ReadOnly | QIODevice::Text))
+    return QString();
+  bool inEntry = false;
+  while (!f.atEnd())
+  {
+    const QString line = QString::fromUtf8(f.readLine()).trimmed();
+    if (line.startsWith(QLatin1Char('[')))
+      inEntry = (line == QLatin1String("[Desktop Entry]"));
+    else if (inEntry && line.section(QLatin1Char('='), 0, 0) == key)
+      return line.section(QLatin1Char('='), 1);
+  }
+  return QString();
+}
+
+class CPackagingTest: public QObject
+{
+  Q_OBJECT
+
+  QSet<QString> _desktopTypes;
+  QSet<QString> _packageTypes;  // types that the MIME package defines
+
+private slots:
+  void initTestCase()
+  {
+    QVERIFY(QFile::exists(kPackaging + Z7_FM_DESKTOP_FILE));
+    QVERIFY(QFile::exists(kPackaging + Z7_GUI_APP_ID ".desktop"));
+    QVERIFY(QFile::exists(kPackaging + Z7_APP_ID ".xml"));
+    for (const QString &t : DesktopValue(kPackaging + Z7_FM_DESKTOP_FILE, "MimeType").split(';', Qt::SkipEmptyParts))
+      _desktopTypes.insert(t);
+    QFile xml(kPackaging + Z7_APP_ID ".xml");
+    QVERIFY(xml.open(QIODevice::ReadOnly));
+    QXmlStreamReader r(&xml);
+    while (!r.atEnd())
+    {
+      if (r.readNext() == QXmlStreamReader::StartElement && r.name() == QLatin1String("mime-type"))
+      {
+        const QString type = r.attributes().value("type").toString();
+        // a type of its own has a comment; the others only add globs
+        bool hasComment = false;
+        while (!(r.readNext() == QXmlStreamReader::EndElement && r.name() == QLatin1String("mime-type")) && !r.atEnd())
+          if (r.isStartElement() && r.name() == QLatin1String("comment"))
+            hasComment = true;
+        if (hasComment)
+          _packageTypes.insert(type);
+      }
+    }
+    QVERIFY2(!r.hasError(), qPrintable(r.errorString()));
+  }
+
+  void desktopFiles()
+  {
+    QCOMPARE(DesktopValue(kPackaging + Z7_FM_DESKTOP_FILE, "Icon"), QStringLiteral(Z7_APP_ID));
+    QCOMPARE(DesktopValue(kPackaging + Z7_GUI_APP_ID ".desktop", "Icon"), QStringLiteral(Z7_APP_ID));
+    QCOMPARE(DesktopValue(kPackaging + Z7_FM_DESKTOP_FILE, "Exec"), QStringLiteral("7zFM %f"));
+    QCOMPARE(DesktopValue(kPackaging + Z7_GUI_APP_ID ".desktop", "NoDisplay"), QStringLiteral("true"));
+    for (const QString &t : _packageTypes)
+      QVERIFY2(_desktopTypes.contains(t), qPrintable(t));
+  }
+
+  void everyAssociatedTypeIsListed()
+  {
+    // the MIME package as an installed one, in a database of its own
+    if (QStandardPaths::findExecutable("update-mime-database").isEmpty())
+      QSKIP("no update-mime-database");
+    QTemporaryDir dir;
+    QVERIFY(QDir().mkpath(dir.path() + "/mime/packages"));
+    QVERIFY(QFile::copy(kPackaging + Z7_APP_ID ".xml", dir.path() + "/mime/packages/" Z7_APP_ID ".xml"));
+    qputenv("XDG_DATA_DIRS", QFile::encodeName(dir.path()) + ":/usr/local/share:/usr/share");
+    QCOMPARE(QProcess::execute("update-mime-database", { dir.path() + "/mime" }), 0);
+    QMimeDatabase db;
+
+    CMyComPtr<IFolderManager> manager = new CArchiveFolderManager;
+    CMyComBSTR exts;
+    QCOMPARE(manager->GetExtensions(&exts), S_OK);
+    const QStringList list = QString::fromWCharArray(exts).split(' ', Qt::SkipEmptyParts);
+    QVERIFY(list.size() > 30);
+    for (const QString &ext : list)
+    {
+      const QMimeType t = db.mimeTypeForFile("a." + ext, QMimeDatabase::MatchExtension);
+      QVERIFY2(!t.isDefault(), qPrintable("no MIME type for ." + ext));
+      QVERIFY2(_desktopTypes.contains(t.name()), qPrintable("." + ext + ": " + t.name() + " is not in MimeType"));
+    }
+    for (const QString &t : _desktopTypes)
+      QVERIFY2(db.mimeTypeForName(t).isValid(), qPrintable("unknown type " + t));
+  }
+};
+
+int main(int argc, char *argv[])
+{
+  QCoreApplication app(argc, argv);
+  CPackagingTest test;
+  return QTest::qExec(&test, argc, argv);
+}
+
+#include "test_packaging.moc"

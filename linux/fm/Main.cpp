@@ -7,6 +7,7 @@
 #include <windows.h>
 
 #include "Platform.h"
+#include "AppId.h"
 #include "Theme.h"
 
 int WINAPI WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow);
@@ -21,6 +22,8 @@ int main(int argc, char *argv[])
   int qtArgc = 1;
   char *qtArgv[] = { argc > 0 ? argv[0] : (char *)"7zFM", NULL };
   QApplication app(qtArgc, qtArgv);
+  // the Wayland app ID: the name of the .desktop file (linux/packaging)
+  QGuiApplication::setDesktopFileName(QStringLiteral(Z7_APP_ID));
   NTheme::Apply(app);
 
   char emptyCmdLine[] = "";
