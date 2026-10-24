@@ -16,6 +16,9 @@ z7_port_target(sevenzipfileitemaction)
 target_compile_options(sevenzipfileitemaction PRIVATE -Wno-non-virtual-dtor)
 set_target_properties(sevenzipfileitemaction PROPERTIES
   AUTOMOC ON
+  # moc embeds the metadata file of K_PLUGIN_CLASS_WITH_JSON: a change to it
+  # runs moc again (ECM sets the same filter)
+  AUTOMOC_DEPEND_FILTERS "K_PLUGIN_CLASS_WITH_JSON;[\n][ \t]*K_PLUGIN_CLASS_WITH_JSON[ \t\n]*\\([^,]*,[ \t\n]*\"([^\"]+)\""
   PREFIX ""
   # the plugin runs in the file manager: only the Qt plugin entry points are
   # visible, not the Win32 functions of the shim
