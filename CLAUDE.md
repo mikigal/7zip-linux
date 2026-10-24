@@ -26,7 +26,9 @@ rendered in a dark theme. The full plan and phase checklist are in
   classes, `UString`/`AString`, `CObjectVector`, `Z7_` macros.
 
 ## Git
-- Work on the `linux-port` branch; `main` mirrors upstream.
+- This repo is Linux-only: commit directly to `main`, with no feature branches.
+- New upstream releases come from the `upstream` remote (`ip7z/7zip`) and are
+  merged into `main`.
 - Commit small, self-contained steps as you go, each one building and passing
   tests.
 - Never push without asking the user.

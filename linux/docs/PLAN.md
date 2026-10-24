@@ -233,7 +233,8 @@ any golden-image change has been reviewed.
 ## 7. Phases
 
 ### Phase 0: Foundations and test harness (done)
-- [x] Work branch `linux-port`; add an `upstream` remote (`ip7z/7zip`).
+- [x] Add an `upstream` remote (`ip7z/7zip`). The repo is Linux-only, so all
+      work is committed directly to `main`.
 - [x] `CLAUDE.md` and this plan.
 - [x] CMake: the `z7_core` OBJECT library from the upstream source lists.
       `tools/upstream_sources.py` evaluates the upstream GNU makefiles and
@@ -349,9 +350,9 @@ user signs off on the real session.
 ### Phase 7: Packaging and upstream sync
 - [ ] Install layout, `PKGBUILD` (Arch/CachyOS), AppStream metadata, `Lang`
       files; Flatpak is optional (portal FileTransfer for drag and drop).
-- [ ] Upstream sync script and documentation: fast-forward `main` from
-      upstream, merge into `linux-port`, rerun rcgen and the consistency
-      checks, then the full test suite.
+- [ ] Upstream sync script and documentation: merge the new upstream release
+      from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
+      consistency checks, then the full test suite.
 
 ## Appendix A: Windows features and their Linux counterparts
 
