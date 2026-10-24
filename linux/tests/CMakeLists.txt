@@ -112,6 +112,17 @@ if(Qt6Widgets_FOUND)
     add_test(NAME wayland_smoke
       COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_smoke.py" ${Z7_SMOKE_ARGS})
     set_tests_properties(wayland_smoke PROPERTIES LABELS "wayland" TIMEOUT 120)
+
+    if(TARGET z7-gui-driver AND Z7_BUILD_ORACLE)
+      set(Z7_WL7ZG_ARGS --driver $<TARGET_FILE:z7-gui-driver> --oracle "${Z7_ORACLE_7ZZ}"
+          --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/wayland_7zg")
+      if(TARGET ei-input)
+        list(APPEND Z7_WL7ZG_ARGS --ei-input $<TARGET_FILE:ei-input>)
+      endif()
+      add_test(NAME wayland_7zg
+        COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_7zg_wayland.py" ${Z7_WL7ZG_ARGS})
+      set_tests_properties(wayland_7zg PROPERTIES LABELS "wayland" TIMEOUT 300)
+    endif()
   else()
     message(STATUS "Wayland tests disabled (need kwin_wayland, spectacle and ImageMagick)")
   endif()

@@ -19,6 +19,7 @@ and the isolated directories set) and exits with its status.
 """
 
 import argparse
+import json
 import os
 import shutil
 import signal
@@ -200,6 +201,25 @@ class Session:
     self.run(["dbus-send", "--session", "--print-reply", "--dest=org.kde.KWin",
               "/Scripting", "org.kde.kwin.Scripting.unloadScript", "string:" + plugin],
              timeout=timeout, check=False)
+
+  def kwin_query(self, expression, timeout=10):
+    """Evaluates a KWin JavaScript expression and returns its value, which
+    the script prints as JSON into the KWin log."""
+    tag = "Z7Q-" + uuid.uuid4().hex
+    self.kwin_script('print("%s " + JSON.stringify(%s));' % (tag, expression), timeout=timeout)
+    log = os.path.join(self.artifacts, "kwin.log")
+    prefix = "js: " + tag + " "
+    found = []
+
+    def read():
+      with open(log, encoding="utf-8", errors="replace") as f:
+        for line in f:
+          if line.startswith(prefix):
+            found.append(json.loads(line[len(prefix):]))
+            return True
+      return False
+    wait_until(read, timeout, "the result of a KWin script")
+    return found[0]
 
   def place_window(self, caption, x, y, width, height):
     """Moves and resizes the window whose caption is exactly CAPTION."""

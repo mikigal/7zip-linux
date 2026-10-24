@@ -16,6 +16,8 @@
 //   {"click": id}                 clicks a button
 //   {"expect": [id, "regex"]}     fails the script unless the text matches
 //   {"wait": [id, "regex"]}       waits until the text matches
+//   {"wait_file": "path"}         waits until the file exists (a test that
+//                                 looks at the screen tells the script to go on)
 //   {"screenshot": "name.png"}    saves a picture of the dialog in --shots
 // Dialogs named in "passive" ({"passive": ["IDD_PROGRESS"]} as the first
 // element; IDD_PROGRESS by default) run on their own unless a step names
@@ -23,8 +25,8 @@
 //
 // The log has one JSON object per line: each dialog with the state of its
 // controls when it is shown and when it is closed, each message box and file
-// dialog, script errors, and the exit code. The exit code is that of 7zG,
-// or 100 when the script failed.
+// dialog, script errors, and the exit code; the first line names the Qt
+// platform. The exit code is that of 7zG, or 100 when the script failed.
 
 #include <QAbstractButton>
 #include <QApplication>
@@ -165,6 +167,19 @@ HWND Control(HWND dlg, const QJsonValue &id)
   return c;
 }
 
+// A control that the user can work with: visible and enabled.
+HWND InputControl(HWND dlg, const QJsonValue &id)
+{
+  HWND c = Control(dlg, id);
+  if (c && (!IsWindowVisible(c) || !IsWindowEnabled(c)))
+  {
+    g_Driver.Fail(QStringLiteral("%1: control %2 is %3").arg(DialogName(dlg)).arg(id.toInt())
+        .arg(IsWindowVisible(c) ? QStringLiteral("disabled") : QStringLiteral("hidden")));
+    return NULL;
+  }
+  return c;
+}
+
 // Applies one action. Returns false when the action must be tried again
 // later (a "wait" whose condition does not hold yet).
 bool Apply(HWND dlg, const QJsonObject &a)
@@ -173,7 +188,7 @@ bool Apply(HWND dlg, const QJsonObject &a)
   if (a.contains("text"))
   {
     const QJsonArray p = a["text"].toArray();
-    HWND c = Control(dlg, p[0]);
+    HWND c = InputControl(dlg, p[0]);
     if (!c)
       return true;
     const QString v = p[1].toString();
@@ -193,7 +208,7 @@ bool Apply(HWND dlg, const QJsonObject &a)
   else if (a.contains("select"))
   {
     const QJsonArray p = a["select"].toArray();
-    HWND c = Control(dlg, p[0]);
+    HWND c = InputControl(dlg, p[0]);
     QComboBox *cb = c ? qobject_cast<QComboBox *>(c->Widget.data()) : NULL;
     if (!cb)
       return true;
@@ -209,14 +224,14 @@ bool Apply(HWND dlg, const QJsonObject &a)
   else if (a.contains("check"))
   {
     const QJsonArray p = a["check"].toArray();
-    HWND c = Control(dlg, p[0]);
+    HWND c = InputControl(dlg, p[0]);
     QAbstractButton *b = c ? qobject_cast<QAbstractButton *>(c->Widget.data()) : NULL;
     if (b && b->isChecked() != p[1].toBool())
       b->click();
   }
   else if (a.contains("click"))
   {
-    HWND c = Control(dlg, a["click"]);
+    HWND c = InputControl(dlg, a["click"]);
     if (!c)
       return true;
     if (QAbstractButton *b = qobject_cast<QAbstractButton *>(c->Widget.data()))
@@ -240,6 +255,11 @@ bool Apply(HWND dlg, const QJsonObject &a)
       g_Driver.Fail(QStringLiteral("%1: control %2 is \"%3\", expected /%4/")
           .arg(name).arg(c->Id).arg(text, p[1].toString()));
     }
+  }
+  else if (a.contains("wait_file"))
+  {
+    if (!QFile::exists(a["wait_file"].toString()))
+      return false;
   }
   else if (a.contains("screenshot"))
   {
@@ -428,6 +448,7 @@ int main(int argc, char *argv[])
     return 2;
   }
 
+  g_Driver.Write(QJsonObject{ { "event", "start" }, { "platform", QGuiApplication::platformName() } });
   NShim::SetModalHook(OnModal);
   NShim::SetMessageBoxHook(OnMessageBox);
   NShim::SetFileDialogHook(OnFileDialog);

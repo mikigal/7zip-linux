@@ -13,10 +13,12 @@ import json
 import os
 import re
 import shutil
+import struct
 import subprocess
 import sys
 import tempfile
 import unittest
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", "..", ".."))
@@ -49,6 +51,38 @@ def make_tree(root):
   for rel, data in files.items():
     with open(os.path.join(root, rel), "wb") as f:
       f.write(data)
+
+
+def rar5_vint(n):
+  out = bytearray()
+  while True:
+    b = n & 0x7f
+    n >>= 7
+    out.append(b | (0x80 if n else 0))
+    if not n:
+      return bytes(out)
+
+
+def rar5_header(body):
+  data = rar5_vint(len(body)) + body
+  return struct.pack("<I", zlib.crc32(data)) + data
+
+
+def make_rar5_big_dictionary(path):
+  """A RAR5 archive with one stored file whose header asks for a 2 GB
+  dictionary: extraction with a lower memory limit asks the user."""
+  content = b"hello rar\n"
+  name = b"big-dict.txt"
+  comp = 14 << 10   # algorithm 0, method 0 (store), dictionary 128 KB << 14
+  file_header = (rar5_vint(2) + rar5_vint(0x0002) + rar5_vint(len(content))
+                 + rar5_vint(0x0004) + rar5_vint(len(content)) + rar5_vint(0x20)
+                 + struct.pack("<I", zlib.crc32(content))
+                 + rar5_vint(comp) + rar5_vint(1) + rar5_vint(len(name)) + name)
+  with open(path, "wb") as f:
+    f.write(b"Rar!\x1a\x07\x01\x00")
+    f.write(rar5_header(rar5_vint(1) + rar5_vint(0) + rar5_vint(0)))
+    f.write(rar5_header(file_header) + content)
+    f.write(rar5_header(rar5_vint(5) + rar5_vint(0) + rar5_vint(0)))
 
 
 def snapshot(root):
@@ -192,6 +226,23 @@ class GuiTest(unittest.TestCase):
     oracle("x", "-bso0", "-ppässwörd", archive, "-o" + out)
     self.assertEqual(snapshot(out), snapshot(self.src))
 
+  def test_add_options_symlinks(self):
+    os.symlink("dir/nested/compressible.bin", os.path.join(self.src, "link.bin"))
+    # 7z has no link options (its handler does not report kSymLinks); tar does
+    archive = os.path.join(self.tmp, "links.tar")
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_COMPRESS", "actions": [
+            {"click": ID("IDB_COMPRESS_OPTIONS")},
+            {"click": ID("IDOK")}]},
+        {"on": "dialog", "name": "IDD_COMPRESS_OPTIONS", "actions": [
+            {"screenshot": "options.png"},
+            {"check": [ID("IDX_COMPRESS_NT_SYM_LINKS"), True]},
+            {"click": ID("IDOK")}]},
+    ], "a", "-ad", "-ttar", archive, "small.txt", "link.bin", cwd=self.src)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertIn("Symbolic Link = dir/nested/compressible.bin", listing)
+
   def test_add_password_mismatch(self):
     archive = os.path.join(self.tmp, "secret.7z")
     run = self.run_7zg([
@@ -292,6 +343,21 @@ class GuiTest(unittest.TestCase):
       self.assertEqual(f.read(), b"old content\n")
     with open(os.path.join(out, "small_1.txt"), "rb") as f:
       self.assertEqual(f.read(), b"hello 7-Zip\n")
+
+  def test_extract_memory_limit(self):
+    archive = os.path.join(self.tmp, "big-dict.rar")
+    make_rar5_big_dictionary(archive)
+    self.assertIn("2G", oracle("l", "-slt", archive).stdout)
+    out = os.path.join(self.tmp, "out")
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_MEM", "actions": [
+            {"screenshot": "memory.png"},
+            {"click": ID("IDCANCEL")}]},
+    ], "x", "-smemx1g", archive, "-o" + out)
+    self.assertRun(run, K_USER_BREAK)
+    shown = run.of("dialog", "IDD_MEM")[0]
+    texts = " ".join(c["text"] for c in shown["controls"])
+    self.assertIn("2 GB", texts)
 
   # ---------- Test ----------
 
