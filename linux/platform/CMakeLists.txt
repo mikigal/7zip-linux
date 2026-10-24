@@ -28,6 +28,7 @@ set(Z7_UI_EXTRA_SOURCES
   CPP/7zip/UI/Agent/ArchiveFolderOut.cpp
   CPP/7zip/UI/Agent/UpdateCallbackAgent.cpp
   CPP/7zip/UI/FileManager/RegistryUtils.cpp
+  CPP/7zip/UI/FileManager/TextPairs.cpp
   CPP/7zip/UI/FileManager/ViewSettings.cpp
 )
 
@@ -45,11 +46,16 @@ target_compile_options(z7_ui PRIVATE ${Z7_UPSTREAM_WARNINGS} -include "${Z7_COMP
 
 add_library(z7_platform STATIC
   ClassDefs.cpp
+  DirWatcher.cpp
+  FolderCompare.cpp
+  FSFolderPosix.cpp
   Globals.cpp
   Locale.cpp
+  Program.cpp
   RcTables.cpp
   Registry.cpp
   ResourceString.cpp
+  RootFolderPosix.cpp
 )
 z7_port_target(z7_platform)
 # Upstream COM interfaces have no virtual destructors by design.
@@ -57,9 +63,6 @@ target_compile_options(z7_platform PRIVATE -Wno-non-virtual-dtor)
 target_compile_definitions(z7_platform PUBLIC ${Z7_BASE_DEFINITIONS} Z7_LANG)
 target_include_directories(z7_platform PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 
-# The two libraries reference each other; CMake repeats them on the link line.
-target_link_libraries(z7_ui PUBLIC z7_platform)
-target_link_libraries(z7_platform PUBLIC z7_ui)
 
 # Resource tables generated from the upstream .rc files by tools/rcgen.py:
 # z7_rc_fm for 7zFM (Bundles/Fm/resource.rc) and z7_rc_gui for 7zG
@@ -85,8 +88,10 @@ z7_rc_library(z7_rc_fm RcFm.cpp CPP/7zip/Bundles/Fm/resource.rc)
 z7_rc_library(z7_rc_gui RcGui.cpp CPP/7zip/UI/GUI/resource.rc)
 
 # z7_link_ui(<target> FM|GUI): links the platform layer, the shared UI code,
-# the resource tables of 7zFM or 7zG and the 7-Zip core into <target>.
+# the resource tables of 7zFM or 7zG and the 7-Zip core into <target>. The
+# static libraries reference each other, so the linker rescans them as a group.
 function(z7_link_ui target program)
   string(TOLOWER "${program}" program)
-  target_link_libraries(${target} PRIVATE z7_platform z7_ui z7_rc_${program} z7_core)
+  target_link_libraries(${target} PRIVATE
+    "$<LINK_GROUP:RESCAN,z7_platform,z7_ui,z7_rc_${program}>" z7_core)
 endfunction()

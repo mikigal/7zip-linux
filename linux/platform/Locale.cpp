@@ -1,17 +1,12 @@
-// Locale.cpp -- the user's language for 7-Zip language files, and the
-// program directory.
+// Locale.cpp -- the user's language for 7-Zip language files.
 
 #include "Win32Compat.h"
 
 #include <stdlib.h>
-#include <unistd.h>
 
 #include "../../CPP/Common/StringConvert.h"
 
 #include "Platform.h"
-
-// UI/Common/ArchiveCommandLine.cpp (POSIX part)
-void Set_ModuleDirPrefix_From_ProgArg0(const char *s);
 
 namespace NPlatform {
 
@@ -172,19 +167,6 @@ AString GetMessagesLocale()
       res.Add_Char(*language);
   }
   return res;
-}
-
-void InitModuleDirPrefix(const char *argv0)
-{
-  char buf[4096];
-  const ssize_t n = readlink("/proc/self/exe", buf, sizeof(buf) - 1);
-  if (n > 0)
-  {
-    buf[n] = 0;
-    Set_ModuleDirPrefix_From_ProgArg0(buf);
-  }
-  else if (argv0)
-    Set_ModuleDirPrefix_From_ProgArg0(argv0);
 }
 
 }
