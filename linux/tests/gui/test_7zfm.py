@@ -1253,7 +1253,10 @@ class FmTest(unittest.TestCase):
             {"key": "Return"},
             {"wait": {"path": "^" + re.escape(archive) + "/$"}},
             {"click": {"panel": 0, "item": "top.txt"}},
-            {"drag": {"panel": 0, "to": "outside"}}),
+            {"drag": {"panel": 0, "to": "outside"}},
+            # the extraction showed its progress: the item again
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"drag": {"panel": 0, "to": "outside-cancel"}}),
     ], self.data)
     self.assertRun(run)
     drags = run.of("drag")
@@ -1261,10 +1264,39 @@ class FmTest(unittest.TestCase):
     self.assertIn("text/uri-list", drags[0]["formats"])
     self.assertEqual(sorted(drags[0]["files"]),
                      [os.path.join(self.data, "b.txt"), os.path.join(self.data, "docs")])
-    # archive items: no paths before the target names a folder (the Ark
-    # protocol needs a session bus, which these tests do not have)
-    self.assertNotIn("text/uri-list", drags[1]["formats"])
-    self.assertEqual(drags[1]["action"], 0)
+    # archive items (the Ark protocol needs a session bus, which these tests
+    # do not have): extracted into the temporary folder at the first request
+    self.assertIn("text/uri-list", drags[1]["formats"])
+    self.assertEqual(len(drags[1]["files"]), 1)
+    extracted = drags[1]["files"][0]
+    self.assertEqual(os.path.basename(extracted), "top.txt")
+    self.assertTrue(extracted.startswith(self.tmpdir + os.sep), extracted)
+    self.assertEqual(drags[1]["files_again"], drags[1]["files"])
+    self.assertEqual(drags[1]["action"], 1)
+    # after a drop they stay until 7zFM exits (the target copies them later);
+    # without a drop they go at once
+    ends = run.of("drag_end")
+    self.assertEqual(ends[1]["exist"], [True])
+    self.assertEqual(drags[2]["action"], 0)
+    self.assertEqual(len(drags[2]["files"]), 1)
+    self.assertEqual(ends[2]["exist"], [False])
+    self.assertFalse(os.path.exists(extracted))
+    self.assertFalse(os.path.exists(os.path.dirname(extracted)))
+
+  def test_drag_to_other_program_option_off(self):
+    # the option of the Settings page: archive items keep the Ark protocol
+    archive = self.make_archive()
+    self.write_settings('[Software/7-Zip/FM]\n"DragFilesToOtherPrograms"=dword:00000000\n')
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"drag": {"panel": 0, "to": "outside"}}),
+    ], archive)
+    self.assertRun(run)
+    drag = run.of("drag")[0]
+    self.assertNotIn("text/uri-list", drag["formats"])
+    self.assertEqual(drag["action"], 0)
 
   # ---------- Clipboard ----------
 

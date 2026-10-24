@@ -16,11 +16,27 @@
 // Drags: DoDragDrop() runs a QDrag. Files of the file system are offered as
 // text/uri-list. Items that the source still has to extract (archive items:
 // k_SourceFlags_TempFiles of "7-Zip::GetTransfer") are offered through the
-// Ark protocol only, as Ark does: Dolphin reads text/uri-list while the
-// pointer moves over it, and that would extract them before the drop. The
-// target calls extractSelectedFilesTo(folder); the folder becomes the
-// "SetTargetFolder" of the source, which extracts into it after the drag,
-// as when a 7-Zip window names the folder on Windows.
+// Ark protocol: the target calls extractSelectedFilesTo(folder); the folder
+// becomes the "SetTargetFolder" of the source, which extracts into it after
+// the drag, as when a 7-Zip window names the folder on Windows.
+//
+// Other targets (browsers, GTK programs) read text/uri-list while the
+// pointer moves over them and keep that list for the drop, so with the
+// option of the Settings page (ReadDragFilesToOtherPrograms()) they get the
+// items extracted at their first request: the mouse button is released for
+// the source then (as before the target's Drop() on Windows), so that its
+// data object extracts them into its temporary folder, as for Explorer.
+// That folder stays until the program exits if the drag ends with a drop
+// (such targets copy the files after the drag), else it goes at once.
+// Targets of the Ark protocol (Dolphin, and the file managers that drop
+// with KIO) read the list while the pointer moves over them too:
+// they get an empty one. The source tells them apart by the process that
+// reads (the other end of the pipe of the request, found in /proc); if it
+// cannot, the target gets the files, and an Ark call after them makes the
+// source extract again, into the target's folder ("7-Zip::SetTransfer").
+// Requests without such a pipe are Qt's own (at the start of the drag) or
+// come from X11 (no pipe either): they get an empty list, so this is for
+// Wayland.
 //
 // Windows calls IDropSource::QueryContinueDrag() when the mouse button is
 // released; here that happens before a target of this process gets the
@@ -37,16 +53,23 @@
 #include <QElapsedTimer>
 #include <QEventLoop>
 #include <QFile>
+#include <QFileInfo>
 #include <QHash>
+#include <QLoggingCategory>
 #include <QMimeData>
 #include <QMutex>
 #include <QPointer>
 #include <QTimer>
 #include <QUrl>
 
+#include <dirent.h>
+#include <fcntl.h>
+#include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
+
+#include <set>
 
 #include <windows.h>
 #include <ShlObj.h>
@@ -54,10 +77,15 @@
 #include "../../CPP/Common/MyCom.h"
 #include "../../CPP/Windows/Shell.h"
 
+#include "Platform.h"
 #include "ShimDialog.h"
+#include "UpstreamPosix.h"
 #include "ShimWindow.h"
 
 namespace NShim {
+
+// what targets ask of a drag: QT_LOGGING_RULES="z7.dnd.debug=true"
+Q_LOGGING_CATEGORY(lcDnd, "z7.dnd", QtWarningMsg)
 
 // ---------- Global memory ----------
 
@@ -490,6 +518,15 @@ static const UInt32 kGetTransferStructId = 3;
 static const size_t kGetTransferFlagsOffset = 64;
 static const UInt32 k_SourceFlags_TempFiles = 1 << 6;
 
+/* Upstream's "7-Zip::SetTransfer" of a 7-Zip target at the end of a drop
+   (CDataObject_SetTransfer, Target.FuncType k_DragTargetMode_Drop_End):
+   the source must process the drop (extract into the target folder). */
+static const UInt32 kSetTransferStructId = 2;
+static const size_t kSetTransferSize = 112;
+static const size_t kSetTransferTargetOffset = 64;
+static const UInt32 kDragTargetMode_Drop_End = 5;
+static const UInt32 kTargetFlags_MustBeProcessedBySource = 1 << 1;
+
 static DWORD KeyState(Qt::KeyboardModifiers mods, Qt::MouseButtons buttons)
 {
   DWORD k = 0;
@@ -554,6 +591,10 @@ struct CDragContext
   HRESULT ReleaseResult = DRAGDROP_S_CANCEL;
   bool ArkRequested = false;  // a target read the Ark protocol types
   bool ArkCalled = false;     // extractSelectedFilesTo() came
+  std::set<unsigned long> PipesBefore;  // WritePipes() at the start
+  std::set<pid_t> ArkReaders; // targets of the Ark protocol that asked
+  bool FilesGiven = false;    // a target got the items extracted
+  QStringList Files;          // those items
 
   // the mouse button is released over a target that accepts (effect)
   HRESULT Release(DWORD effect, DWORD keyState)
@@ -579,10 +620,116 @@ struct CDragContext
     ReleaseStgMedium(&medium);
     return res;
   }
+
+  // a 7-Zip target leaves the drop to the source (see kSetTransferStructId)
+  HRESULT SetSourceProcessesDrop()
+  {
+    QByteArray t(kSetTransferSize, 0);
+    const UInt32 size = kSetTransferSize;
+    memcpy(t.data(), &kSetTransferStructId, 4);
+    memcpy(t.data() + 4, &size, 4);
+    memcpy(t.data() + kSetTransferTargetOffset, &kTargetFlags_MustBeProcessedBySource, 4);
+    memcpy(t.data() + kSetTransferTargetOffset + 4, &kDragTargetMode_Drop_End, 4);
+    FORMATETC etc = HGlobalFormat(RegisterClipboardFormatA("7-Zip::SetTransfer"));
+    STGMEDIUM medium;
+    MediumFromBytes(&medium, t);
+    const HRESULT res = DataObject->SetData(&etc, &medium, FALSE);
+    ReleaseStgMedium(&medium);
+    return res;
+  }
 };
 
 static CDragContext *g_Drag;
 static CDragHook g_DragHook;
+
+// ---------- The program that reads the data of a drag ----------
+
+// The pipes that this process writes to (inode numbers); a request of a
+// target (wl_data_source.send) brings one.
+static std::set<unsigned long> WritePipes()
+{
+  std::set<unsigned long> pipes;
+  DIR *dir = opendir("/proc/self/fd");
+  if (!dir)
+    return pipes;
+  while (const struct dirent *e = readdir(dir))
+  {
+    char link[64];
+    const QByteArray path = QByteArray("/proc/self/fd/") + e->d_name;
+    const ssize_t n = readlink(path.constData(), link, sizeof(link) - 1);
+    if (n <= 0)
+      continue;
+    link[n] = 0;
+    unsigned long inode;
+    if (sscanf(link, "pipe:[%lu]", &inode) != 1)
+      continue;
+    QFile info(QStringLiteral("/proc/self/fdinfo/%1").arg(QString::fromLatin1(e->d_name)));
+    if (!info.open(QIODevice::ReadOnly))
+      continue;
+    for (const QByteArray &line : info.readAll().split('\n'))
+      if (line.startsWith("flags:") && (line.mid(6).trimmed().toUInt(nullptr, 8) & 3) == O_WRONLY)
+        pipes.insert(inode);
+  }
+  closedir(dir);
+  return pipes;
+}
+
+// The process that holds the other end of one of the pipes, or 0.
+static pid_t PipeReader(const std::set<unsigned long> &pipes)
+{
+  if (pipes.empty())
+    return 0;
+  pid_t found = 0;
+  DIR *procs = opendir("/proc");
+  if (!procs)
+    return 0;
+  while (!found)
+  {
+    const struct dirent *p = readdir(procs);
+    if (!p)
+      break;
+    char *end;
+    const long pid = strtol(p->d_name, &end, 10);
+    if (end == p->d_name || *end != 0 || pid == (long)getpid())
+      continue;
+    const QByteArray fdDir = QByteArray("/proc/") + p->d_name + "/fd";
+    DIR *fds = opendir(fdDir.constData());
+    if (!fds)
+      continue;
+    while (const struct dirent *e = readdir(fds))
+    {
+      char link[64];
+      const ssize_t n = readlink((fdDir + '/' + e->d_name).constData(), link, sizeof(link) - 1);
+      if (n <= 0)
+        continue;
+      link[n] = 0;
+      unsigned long inode;
+      if (sscanf(link, "pipe:[%lu]", &inode) == 1 && pipes.count(inode))
+      {
+        found = (pid_t)pid;
+        break;
+      }
+    }
+    closedir(fds);
+  }
+  closedir(procs);
+  return found;
+}
+
+// Whether a process takes the Ark protocol: Dolphin, and the file managers
+// that drop with KIO (KIO::DropJob handles it). Its library alone tells
+// nothing: on Plasma every Qt program loads it with the platform theme.
+static bool UsesArkProtocol(pid_t pid)
+{
+  char exe[4096];
+  const ssize_t n = readlink(QStringLiteral("/proc/%1/exe").arg(pid).toLocal8Bit().constData(), exe, sizeof(exe) - 1);
+  if (n <= 0)
+    return false;
+  exe[n] = 0;
+  const char *slash = strrchr(exe, '/');
+  const QByteArray name (slash ? slash + 1 : exe);
+  return name == "dolphin" || name == "konqueror" || name == "krusader" || name == "plasmashell";
+}
 
 void SetDragHook(const CDragHook &hook)
 {
@@ -614,8 +761,15 @@ public:
     if (g_Drag && !g_Drag->ArkCalled && !path.isEmpty())
     {
       g_Drag->ArkCalled = true;
+      // after a release for another target the source still has to know
+      // that the drop is its own
+      const bool released = g_Drag->Released;
       if (g_Drag->SetTargetFolder(path) == S_OK)
+      {
+        if (released)
+          g_Drag->SetSourceProcessesDrop();
         g_Drag->Release(DROPEFFECT_COPY, 0);
+      }
     }
     connection.send(message.createReply());
     return true;
@@ -629,6 +783,7 @@ public:
   CDragContext *Context;
   QStringList Formats;
   QString ArkPath;
+  bool FilesOnRequest = false;  // archive items for targets of other programs
   CDragMimeData(CDragContext *context): Context(context) {}
 
   QStringList formats() const override { return Formats; }
@@ -637,16 +792,30 @@ public:
 protected:
   QVariant retrieveData(const QString &mimeType, QMetaType type) const override
   {
+    qCDebug(lcDnd) << "data" << mimeType << "released" << (Context && Context->Released)
+        << "ark" << (Context && Context->ArkCalled);
     if (!Context || !Formats.contains(mimeType))
       return QVariant();
     if (mimeType == QLatin1String("text/uri-list"))
     {
-      FORMATETC etc = HGlobalFormat(CF_HDROP);
-      STGMEDIUM medium;
-      if (Context->DataObject->GetData(&etc, &medium) != S_OK)
-        return QVariant();
-      const QStringList names = HDropNames(medium.hGlobal);
-      ReleaseStgMedium(&medium);
+      QStringList names;
+      if (!FilesOnRequest)
+      {
+        if (!GetNames(names))
+          return QVariant();
+      }
+      else if (Context->FilesGiven)
+        names = Context->Files;
+      else if (ReleaseForTarget())
+      {
+        GetNames(names);
+        for (int i = names.size() - 1; i >= 0; i--)
+          if (!QFile::exists(names[i]))
+            names.removeAt(i);
+        Context->Files = names;
+        Context->FilesGiven = !names.isEmpty();
+      }
+      qCDebug(lcDnd) << "files" << names;
       // urls() asks for a list; the Wayland data source for the bytes
       if (type.id() == QMetaType::QVariantList)
       {
@@ -673,6 +842,55 @@ protected:
     if (mimeType == QLatin1String(kOwnDragType))
       return QByteArray::number((qlonglong)getpid());
     return QVariant();
+  }
+
+private:
+  bool GetNames(QStringList &names) const
+  {
+    FORMATETC etc = HGlobalFormat(CF_HDROP);
+    STGMEDIUM medium;
+    if (Context->DataObject->GetData(&etc, &medium) != S_OK)
+      return false;
+    names = HDropNames(medium.hGlobal);
+    ReleaseStgMedium(&medium);
+    return true;
+  }
+
+  /* Archive items for a target that is not 7-Zip, at its first request:
+     the mouse button is released for the source, so that its data object
+     extracts them into its temporary folder when asked for CF_HDROP. Not
+     for a target of the Ark protocol, nor after an Ark call. */
+  bool ReleaseForTarget() const
+  {
+    if (Context->ArkCalled)
+      return false;
+    if (Context->Released)
+      return Context->ReleaseResult == DRAGDROP_S_DROP;
+    // the drag hook (tests) plays another program
+    if (!g_DragHook)
+    {
+      /* A request of another program brings the pipe to write the data to
+         (wl_data_source.send). Qt reads the list itself too, without one,
+         at the start of the drag (files for the document portal). */
+      std::set<unsigned long> pipes = WritePipes();
+      for (unsigned long p : Context->PipesBefore)
+        pipes.erase(p);
+      if (pipes.empty())
+        return false;
+      const pid_t reader = PipeReader(pipes);
+      qCDebug(lcDnd) << "reader" << reader;
+      if (reader)
+      {
+        if (Context->ArkReaders.count(reader))
+          return false;
+        if (UsesArkProtocol(reader))
+        {
+          Context->ArkReaders.insert(reader);
+          return false;
+        }
+      }
+    }
+    return Context->Release(DROPEFFECT_COPY, 0) == DRAGDROP_S_DROP;
   }
 };
 
@@ -721,7 +939,7 @@ HRESULT DoDragDrop(IDataObject *dataObject, IDropSource *dropSource, DWORD okEff
     mime->Formats.append(QString::fromLatin1(kOwnDragType));
     QDBusConnection bus = QDBusConnection::sessionBus();
     static int s_DragNumber = 0;
-    const QString arkPath = QStringLiteral("/io/github/mikigal/SevenZip/DndExtract/%1").arg(++s_DragNumber);
+    const QString arkPath = QStringLiteral("/pl/mikigal/SevenZip/DndExtract/%1").arg(++s_DragNumber);
     CArkObject ark;
     bool arkRegistered = false;
     if (SourceHasTempFiles(dataObject))
@@ -732,6 +950,12 @@ HRESULT DoDragDrop(IDataObject *dataObject, IDropSource *dropSource, DWORD okEff
         mime->ArkPath = arkPath;
         mime->Formats.append(QString::fromLatin1(kArkServiceType));
         mime->Formats.append(QString::fromLatin1(kArkPathType));
+      }
+      if (ReadDragFilesToOtherPrograms())
+      {
+        mime->FilesOnRequest = true;
+        mime->Formats.append(QStringLiteral("text/uri-list"));
+        context.PipesBefore = WritePipes();
       }
     }
     else
@@ -771,6 +995,9 @@ HRESULT DoDragDrop(IDataObject *dataObject, IDropSource *dropSource, DWORD okEff
     DWORD performed = EffectsOf(action);
     if (context.ArkCalled)
       performed = DROPEFFECT_COPY;
+    // the items that a target got stay for it, if it took the drop
+    if (context.FilesGiven && performed != DROPEFFECT_NONE)
+      NPlatform::KeepTempDirUntilExit(us2fs(ToU(QFileInfo(context.Files[0]).path())));
     if (performed != DROPEFFECT_NONE && !context.Released)
       context.Release(performed, 0);
     if (effect)

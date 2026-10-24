@@ -8,6 +8,11 @@ headless KWin, with a real pointer from libei:
   text/uri-list;
 - archive items dragged to Dolphin are extracted by 7zFM into Dolphin's
   folder: Dolphin names it through the Ark protocol (org.kde.ark.DndExtract);
+- archive items dragged to another program (z7-probe, which reads the data
+  at the drop; Thunar, which reads it while the pointer moves over it and
+  copies the files after the drag; Firefox and Brave, with a page that
+  reads the dropped file) arrive as files that 7zFM extracts into its
+  temporary folder at their first request, and that stay until it exits;
 - files copied with Ctrl+C go to the Wayland clipboard, where wl-paste
   reads them, and files that wl-copy puts there are pasted into an archive;
 - Open With of the System menu asks the desktop portal (a stand-in that
@@ -77,6 +82,9 @@ class WaylandDnD(unittest.TestCase):
     shutil.rmtree(self.artifacts, ignore_errors=True)
     os.makedirs(self.artifacts)
     self.log = os.path.join(self.artifacts, "7zfm-events.jsonl")
+    # the temporary folder of 7zFM
+    self.tmpdir = os.path.join(self.tmp, "tmp")
+    os.makedirs(self.tmpdir)
     self.go = os.path.join(self.tmp, "go")
     self.placed = os.path.join(self.tmp, "placed")
 
@@ -89,7 +97,8 @@ class WaylandDnD(unittest.TestCase):
       json.dump(script, f)
     shutil.copy(path, os.path.join(self.artifacts, "script.json"))
     return session.spawn([DRIVER, "--script", path, "--log", self.log, "--timeout", "90",
-                          "--", *args], log="7zfm", cwd=self.tmp)
+                          "--", *args], log="7zfm", cwd=self.tmp,
+                         env={"TMPDIR": self.tmpdir, "QT_LOGGING_RULES": "z7.dnd.debug=true"})
 
   def wait_event(self, kind, timeout=20):
     found = []
@@ -237,6 +246,149 @@ class WaylandDnD(unittest.TestCase):
       self.drag(s, start, (WIDTH * 3 // 4, HEIGHT // 2))
       wlsession.wait_until(lambda: os.path.exists(os.path.join(target, "inner", "x.txt")), 30,
                            "the items extracted into Dolphin's folder")
+      s.screenshot(os.path.join(self.artifacts, "after.png"))
+      # the Ark protocol extracts straight into the folder: no copies in the
+      # temporary folder are left for a target
+      self.assertEqual(os.listdir(self.tmpdir), [])
+      self.finish(p, s, arc_title)
+    with open(os.path.join(target, "top.txt")) as f:
+      self.assertEqual(f.read(), "top\n")
+
+  def test_drag_archive_items_to_other_program(self):
+    archive = os.path.join(self.data, "arc.7z")
+    with open(os.path.join(self.tmp, "top.txt"), "w") as f:
+      f.write("top\n")
+    subprocess.run([ORACLE, "a", "-bso0", archive, "top.txt"], cwd=self.tmp, check=True)
+    arc_title = archive + "/"
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(arc_title) + "$"}},
+              {"click": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.placed},
+              {"log": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.go}]},
+      ], archive)
+      probe_log = os.path.join(s.artifacts, "probe.log")
+      s.spawn([PROBE, "--title", "z7-dst", "--size", "600x700", "--color", "#33aa33"], log="probe")
+      wlsession.wait_until(lambda: "ready" in read_lines(probe_log), 20, "the probe window")
+      self.client(s, arc_title)
+      s.place_window("z7-dst", WIDTH // 2, 0, WIDTH // 2, HEIGHT)
+      self.place_7zfm(s, arc_title)
+      start = self.screen_point(s, arc_title)
+      self.drag(s, start, (WIDTH * 3 // 4, HEIGHT // 2))
+      urls = []
+
+      def dropped():
+        urls[:] = [l[len("drop-url "):] for l in read_lines(probe_log) if l.startswith("drop-url ")]
+        return bool(urls)
+      wlsession.wait_until(dropped, 30, "the archive item in the probe")
+      self.assertEqual(len(urls), 1, read_lines(probe_log))
+      self.assertTrue(urls[0].startswith("file://" + self.tmpdir + "/"), urls)
+      extracted = urls[0][len("file://"):]
+      self.assertEqual(os.path.basename(extracted), "top.txt")
+      # the drag has ended; the target copies the file later
+      time.sleep(1.0)
+      with open(extracted) as f:
+        self.assertEqual(f.read(), "top\n")
+      s.screenshot(os.path.join(self.artifacts, "after.png"))
+      self.finish(p, s, arc_title)
+    self.assertFalse(os.path.exists(extracted))
+
+  def drag_archive_item_to_browser(self, argv, env=None):
+    """Drags top.txt of an archive to a page that shows the name and the
+    contents of the dropped file in its title."""
+    archive = os.path.join(self.data, "arc.7z")
+    with open(os.path.join(self.tmp, "top.txt"), "w") as f:
+      f.write("top\n")
+    subprocess.run([ORACLE, "a", "-bso0", archive, "top.txt"], cwd=self.tmp, check=True)
+    page = os.path.join(self.tmp, "drop.html")
+    with open(page, "w") as f:
+      f.write("<!doctype html><title>drop here</title>"
+              "<body style='margin:0;height:100vh' ondragover='event.preventDefault()' "
+              "ondrop='event.preventDefault(); const f = event.dataTransfer.files[0]; "
+              "f.text().then(t => document.title = \"dropped \" + f.name + \" \" + t.trim())'>")
+    profile = os.path.join(self.tmp, "profile")
+    os.makedirs(profile)
+    arc_title = archive + "/"
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(arc_title) + "$"}},
+              {"click": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.placed},
+              {"log": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.go}]},
+      ], archive)
+      s.spawn([a.replace("PROFILE", profile).replace("PAGE", "file://" + page) for a in argv],
+              log="browser", env=env)
+      browser = []
+
+      def page_window(title):
+        browser[:] = s.kwin_query("""workspace.windowList().filter(w => w.normalWindow &&
+            w.caption.indexOf(%s) >= 0).map(w => w.caption)""" % js_string(title))
+        return bool(browser)
+      wlsession.wait_until(lambda: page_window("drop here"), 60, "the page in the browser", interval=0.5)
+      self.client(s, arc_title)
+      s.place_window(browser[0], WIDTH // 2, 0, WIDTH // 2, HEIGHT)
+      time.sleep(1.0)
+      self.place_7zfm(s, arc_title)
+      start = self.screen_point(s, arc_title)
+      self.drag(s, start, (WIDTH * 3 // 4, HEIGHT // 2))
+      wlsession.wait_until(lambda: page_window("dropped top.txt top"), 30, "the dropped file in the page",
+                           interval=0.5)
+      s.screenshot(os.path.join(self.artifacts, "after.png"))
+      self.finish(p, s, arc_title)
+
+  @unittest.skipUnless(shutil.which("firefox"), "needs Firefox")
+  def test_drag_archive_items_to_firefox(self):
+    self.drag_archive_item_to_browser(["firefox", "--no-remote", "--new-instance", "--profile", "PROFILE", "PAGE"],
+                                      env={"MOZ_ENABLE_WAYLAND": "1"})
+
+  @unittest.skipUnless(shutil.which("brave"), "needs Brave")
+  def test_drag_archive_items_to_brave(self):
+    self.drag_archive_item_to_browser(["brave", "--user-data-dir=PROFILE", "--ozone-platform=wayland",
+                                       "--no-first-run", "--no-default-browser-check",
+                                       "--password-store=basic", "PAGE"])
+
+  @unittest.skipUnless(shutil.which("thunar"), "needs Thunar")
+  def test_drag_archive_items_to_thunar(self):
+    # a GTK file manager reads the file list while the pointer moves over
+    # it, and copies the files of the drop after the drag
+    archive = os.path.join(self.data, "arc.7z")
+    with open(os.path.join(self.tmp, "top.txt"), "w") as f:
+      f.write("top\n")
+    subprocess.run([ORACLE, "a", "-bso0", archive, "top.txt"], cwd=self.tmp, check=True)
+    target = os.path.join(self.tmp, "target")
+    os.makedirs(target)
+    arc_title = archive + "/"
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(arc_title) + "$"}},
+              {"click": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.placed},
+              {"log": {"panel": 0, "item": "top.txt"}},
+              {"wait_file": self.go}]},
+      ], archive)
+      s.spawn(["thunar", target], log="thunar")
+      thunar = []
+
+      def thunar_window():
+        thunar[:] = s.kwin_query("""workspace.windowList().filter(w => w.normalWindow &&
+            w.caption.indexOf('Thunar') >= 0).map(w => w.caption)""")
+        return bool(thunar)
+      wlsession.wait_until(thunar_window, 30, "the Thunar window", interval=0.5)
+      self.client(s, arc_title)
+      s.place_window(thunar[0], WIDTH // 2, 0, WIDTH // 2, HEIGHT)
+      time.sleep(1.0)
+      self.place_7zfm(s, arc_title)
+      start = self.screen_point(s, arc_title)
+      self.drag(s, start, (WIDTH * 3 // 4, HEIGHT // 2))
+      time.sleep(1.0)
+      s.screenshot(os.path.join(self.artifacts, "dropped.png"))
+      wlsession.wait_until(lambda: os.path.exists(os.path.join(target, "top.txt")), 30,
+                           "the archive item in Thunar's folder")
       s.screenshot(os.path.join(self.artifacts, "after.png"))
       self.finish(p, s, arc_title)
     with open(os.path.join(target, "top.txt")) as f:

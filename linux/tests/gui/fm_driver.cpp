@@ -63,6 +63,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QElapsedTimer>
+#include <QFile>
 #include <QUrl>
 #include <QMimeData>
 #include <QDropEvent>
@@ -77,6 +78,8 @@
 #include <QTimer>
 #include <QToolButton>
 #include <QTreeView>
+
+#include <memory>
 
 // the Qt headers come first: windows.h defines _WIN64, which Qt reads as
 // a Windows build
@@ -630,20 +633,29 @@ public:
   {
     const unsigned panel = (unsigned)c.value("panel").toInt((int)g_App.LastFocusedPanel);
     const QJsonValue to = c["to"];
-    NShim::SetDragHook([to](QDrag *drag, Qt::DropActions actions) -> Qt::DropAction
+    std::shared_ptr<QJsonArray> dropped = std::make_shared<QJsonArray>();
+    NShim::SetDragHook([to, dropped](QDrag *drag, Qt::DropActions actions) -> Qt::DropAction
     {
       const QMimeData *mime = drag->mimeData();
       QJsonObject o{ { "event", "drag" }, { "formats", QJsonArray::fromStringList(mime->formats()) } };
       Qt::DropAction a = Qt::IgnoreAction;
       if (to.isString())
       {
+        // another program, which reads the files while the pointer moves
+        // over it and again at the drop ("outside"), or leaves without a
+        // drop ("outside-cancel")
         if (mime->hasFormat(QStringLiteral("text/uri-list")))
         {
-          QJsonArray files;
+          QJsonArray files, again;
           for (const QUrl &u : mime->urls())
             files.append(u.toLocalFile());
+          for (const QUrl &u : mime->urls())
+            again.append(u.toLocalFile());
           o["files"] = files;
-          a = Qt::CopyAction;
+          o["files_again"] = again;
+          *dropped = files;
+          if (to.toString() == QLatin1String("outside") && !files.isEmpty())
+            a = Qt::CopyAction;
         }
       }
       else
@@ -662,6 +674,14 @@ public:
     nm.iItem = (int)SendMessageW(list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_FOCUSED);
     SendMessageW(GetParent(list), WM_NOTIFY, nm.hdr.idFrom, (LPARAM)&nm);
     NShim::SetDragHook(NShim::CDragHook());
+    // whether the files that the target got are there after the drag
+    if (!dropped->isEmpty())
+    {
+      QJsonArray exist;
+      for (const QJsonValue &f : *dropped)
+        exist.append(QFile::exists(f.toString()));
+      g_Driver.Write(QJsonObject{ { "event", "drag_end" }, { "exist", exist } });
+    }
   }
 
   void ClickHeader(const QJsonObject &c)
