@@ -362,10 +362,22 @@ class Parser:
     while True:
       if self.accept_op("+"):
         v += self.mul_expr()
+      elif self.rc_drops_subtraction():
+        # "(a) - (b)" is a: rc.exe ignores "- (b)" after a closing
+        # parenthesis. Seen in 7zG.exe 26.05: the "Current" and "Resulting"
+        # labels of IDD_BENCH, width (xSize - g4x) = (58) - (8 + 8), are 58
+        # dialog units wide, while "8 - (...)" elsewhere subtracts normally.
+        self.next()
+        self.unary()
       elif self.accept_op("-"):
         v -= self.mul_expr()
       else:
         return v
+
+  def rc_drops_subtraction(self):
+    prev = self.toks[self.pos - 1] if self.pos > 0 else None
+    return (prev is not None and prev.kind == "op" and prev.value == ")"
+            and self.is_op("-") and self.is_op("(", k=1))
 
   def mul_expr(self):
     v = self.unary()

@@ -188,6 +188,19 @@ END
     self.assertEqual(d.controls[8].cls, "msctls_updown32")
     self.assertEqual(d.controls[9].x, -1)
 
+  def test_rc_exe_subtraction(self):
+    # rc.exe ignores "- (b)" after a closing parenthesis, but not after a
+    # number (verified against the IDD_BENCH template of 7zG.exe 26.05)
+    res = parse_text(HEADER + '''
+10 DIALOG 0, 0, 100, 100
+BEGIN
+  LTEXT "a", 1, 0, 0, ((50 + 8) - 8) - (8 + 8), 8
+  LTEXT "b", 2, 0, 0, 100 - (8 + 8), 8
+  LTEXT "c", 3, 0, 0, (100) - 16, 8
+END
+''')
+    self.assertEqual([c.w for c in res.dialogs[10].controls], [50, 84, 84])
+
   def test_dialogex(self):
     res = parse_text(HEADER + '''
 11 DIALOGEX 0, 0, 100, 50, 77
