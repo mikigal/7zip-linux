@@ -220,9 +220,11 @@ releases does: every changed upstream line can conflict.
   Email uses `xdg-email --attach`.
 - **Associations:** `.desktop` `MimeType=` entries. The System options page
   sets defaults through `mimeapps.list` (`xdg-mime default`).
-- **File manager context menus:** a Dolphin service menu first, then a
-  `KAbstractFileItemActionPlugin` for dynamic labels, then a Nautilus Python
-  extension, Thunar custom actions and Nemo actions.
+- **File manager context menus:** a `KAbstractFileItemActionPlugin` for KDE
+  file managers that shows the menu of upstream `Explorer/ContextMenu.cpp`
+  (dynamic labels, the options and language of 7-Zip); a Dolphin service
+  menu where the plugin is not built; later Nemo actions, Thunar custom
+  actions and a Nautilus extension, which can run `7zG --context`.
 
 ## 6. Testing strategy (autonomous)
 
@@ -743,13 +745,18 @@ Findings:
 - [x] App ID, `.desktop`, icons, MIME associations.
 - [x] Drag and drop in and out (Ark protocol, lazy `uri-list`, internal MIME),
       covered by Wayland scenario tests with Dolphin and a probe app.
-- [ ] Clipboard, taskbar progress, notifications, portal "Open with" and file
-      dialogs, `xdg-email`.
-- [ ] Context menus: Dolphin service menu, then the KDE plugin and the
-      Nautilus, Thunar and Nemo integrations.
+- [x] Clipboard, taskbar progress, portal "Open with", file dialogs
+      (`QFileDialog` since Phase 3), `xdg-email`. No notifications: 7-Zip
+      shows none on Windows either.
+- [x] Context menus: the KDE plugin with the upstream menu, and the Dolphin
+      service menu where the plugin is not built.
+- [ ] Nemo, Thunar and Nautilus integrations: deferred. None of them is
+      installed here, and testing them needs a root install that the user
+      has not approved yet. They can run `7zG --context ACTION FILE...`.
 
 Exit: the drag-and-drop and clipboard scenarios pass in nested KWin, and the
-user signs off on the real session.
+user signs off on the real session. Status: the scenarios pass
+(`wayland_dnd`); the sign-off on the real session is pending.
 
 What is where:
 - `linux/platform/AppId.h`: the application IDs, `io.github.mikigal.SevenZip`
@@ -773,6 +780,39 @@ What is where:
 - `unit_packaging`: every extension of the System page has a MIME type
   (with the package installed in a database of its own) that the .desktop
   file lists; `desktop_files`: desktop-file-validate.
+- `linux/shim/ShimShellFolder.cpp`: `SHGetDesktopFolder()` and the shell
+  verbs of the file context menu that upstream invokes: "cut" and "copy"
+  (the files on the clipboard as `text/uri-list`,
+  `x-special/gnome-copied-files`, `application/x-kde-cutselection` and
+  "Preferred DropEffect"), "properties"
+  (`org.freedesktop.FileManager1.ShowItemProperties`) and "openas" (the
+  portal's `OpenURI.OpenFile` with `ask`). Paste is the upstream
+  `PanelMenu.cpp` edit: `OleGetClipboard()` and the dropped-files code.
+- `linux/shim/ShimTaskbar.cpp`: `CLSID_TaskbarList`, whose `ITaskbarList3`
+  sends the progress as `com.canonical.Unity.LauncherEntry` updates for the
+  program's .desktop file.
+- Email: the upstream `UI/Common/Update.cpp` edit runs `xdg-email --attach`.
+- `linux/gui/ContextCommand.cpp`: `7zG --context ACTION FILE...`, the
+  commands of menus that cannot build their own (the service menus);
+  `linux/gui/GuiCommand.h`: the 7zG arguments of the context menu commands,
+  for both.
+- `linux/kde/` (`sevenzipfileitemaction`, built when KF6 KIO is found): the
+  KFileItemActions plugin. `FileItemAction.cpp` fills a `CZipContextMenu`
+  with the selection as the 7zFM panel does, lets `QueryContextMenu()` build
+  a shim HMENU, turns it into `QAction`s (icons from the menu bitmaps), and
+  calls `InvokeCommand()` for the chosen one. `CompressCallPosix.cpp`
+  implements `CompressCall.h` by starting 7zG; `ShellExtension.cpp` defines
+  what `DllExportsExplorer.cpp` defines on Windows. The program folder is
+  the install bindir, or `$Z7_PROGRAM_DIR` for tests.
+- `linux/packaging/*.servicemenu-*.desktop`: the KIO service menus,
+  installed only without the plugin (both would show the menu twice).
+- Tests: `kde_menus` (z7-servicemenu-probe lists what KFileItemActions
+  builds, for the service menus and for the plugin with options and a
+  language file, and runs actions with stand-ins for 7zG and 7zFM whose
+  arguments the oracle then runs); `gui_7zg` runs `7zG --context`;
+  `wayland_dnd` has the clipboard scenario (libei Ctrl+C and Ctrl+V,
+  wl-paste and wl-copy as the other program) and Open With with a
+  stand-in portal; `wayland_7zg` watches the taskbar signals.
 
 Findings:
 - KWin shows the window icon (xdg-toplevel-icon) even without the .desktop
@@ -804,6 +844,34 @@ Findings:
 - shared-mime-info 2.5 has no types for `.001`, `.esd`, `.fat`, `.ntfs`,
   `.hfs` and `.apfs`, and no globs for `.gzip`, `.bzip2` and `.tpz`; the
   package adds them (`application/x-split-archive`, ...).
+- The Windows code of the clipboard verbs is commented out upstream (it
+  copies names as text); the POSIX branch uses the shell verbs. QTreeView
+  handles Ctrl+C itself (it copies the current cell's text), so the list
+  view leaves Ctrl+C and Ctrl+Insert to 7-Zip.
+- The task manager matches LauncherEntry updates by the .desktop file name,
+  so the programs set `QGuiApplication::setDesktopFileName()`.
+- The 7-Zip menu of the plugin comes from the same upstream code as the
+  7-Zip submenu of 7zFM. Upstream starts 7zG and 7zFM by their Windows names
+  (`7zFM.exe`); `CProcess::Create()` drops the suffix. CompressCall.cpp
+  passes the file names in shared memory (`-i#`); here they are `-iw-!`
+  and `-aiw-!` switches (no wildcards: names on Linux can contain `*` and
+  `?`). With the names after `--`, 7-Zip takes the first as the archive and
+  the rest as names inside it.
+- The plugin runs inside the file manager. It links the 7-Zip libraries
+  statically, the core as an archive (`z7_core_lib`), so only the code of
+  the menu goes in (no archive handlers, about 1.3 MB of code), and exports
+  only the Qt plugin entry points (`--exclude-libs,ALL`, hidden visibility).
+  It never applies the 7-Zip theme: its message boxes follow the desktop.
+- Upstream defaults apply: a cascaded "7-Zip" submenu and no icons
+  ("Icons in context menu" on the 7-Zip options page turns the 7-Zip logo
+  on). The language is the one 7-Zip uses: the locale or the "Lang"
+  setting, with `Lang/` in the program folder. KIO sorts service menu
+  actions by their text; the plugin keeps the upstream order.
+- "Integrate 7-Zip to shell context menu" on the 7-Zip options page stays
+  disabled: the page looks for `7-zip.dll` in the program folder and
+  `ContextMenuRegistration.cpp` is a stub. The plugin is switched on and
+  off in Dolphin's settings (`kservicemenurc`, `[Show]`); the install
+  layout (Phase 7) could connect the two.
 
 ### Phase 7: Packaging and upstream sync
 - [ ] Install layout, `PKGBUILD` (Arch/CachyOS), AppStream metadata, `Lang`
@@ -818,7 +886,7 @@ Findings:
 
 | Windows | Linux |
 |---|---|
-| Explorer context menu (`UI/Explorer`) | File manager service menus and plugins (Phase 6) |
+| Explorer context menu (`UI/Explorer`) | The KFileItemActions plugin with the upstream menu; KIO service menus |
 | Registry file associations, System page | `.desktop` `MimeType=` and `mimeapps.list` |
 | Shell icons (`SHGetFileInfo`) | Theme icons through `QMimeDatabase`, plus the 7-Zip archive icons |
 | OLE drag and drop, `SetTargetFolder` | Wayland drag and drop, the Ark/KIO protocol, lazy `uri-list` |
