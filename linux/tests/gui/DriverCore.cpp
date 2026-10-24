@@ -15,6 +15,7 @@
 #include <QPixmap>
 #include <QRegularExpression>
 #include <QSet>
+#include <QTabWidget>
 #include <QTimer>
 #include <QUrl>
 
@@ -107,6 +108,27 @@ QJsonObject ControlState(HWND c)
   return o;
 }
 
+// The controls of a dialog, and those of its child dialogs (the pages of a
+// property sheet) after them, with the index of the page.
+static void AddControlStates(HWND dlg, QJsonArray &controls, int page = -1)
+{
+  int numPages = 0;
+  for (HWND c : dlg->Children)
+  {
+    if (!NShim::FromHandle(c))
+      continue;
+    if (strcmp(NShim::ClassName(c), "#32770") == 0)
+    {
+      AddControlStates(c, controls, numPages++);
+      continue;
+    }
+    QJsonObject o = ControlState(c);
+    if (page >= 0)
+      o["page"] = page;
+    controls.append(o);
+  }
+}
+
 QJsonObject DialogState(const char *event, HWND dlg)
 {
   QJsonObject o;
@@ -114,16 +136,31 @@ QJsonObject DialogState(const char *event, HWND dlg)
   o["name"] = DialogName(dlg);
   o["caption"] = WindowText(dlg);
   QJsonArray controls;
-  for (HWND c : dlg->Children)
-    if (NShim::FromHandle(c))
-      controls.append(ControlState(c));
+  AddControlStates(dlg, controls);
   o["controls"] = controls;
   return o;
+}
+
+// The page of a property sheet that is shown, or NULL.
+static HWND VisiblePage(HWND dlg)
+{
+  for (HWND c : dlg->Children)
+    if (NShim::FromHandle(c) && !c->Children.empty() && IsWindowVisible(c)
+        && strcmp(NShim::ClassName(c), "#32770") == 0)
+      return c;
+  return NULL;
 }
 
 HWND Control(HWND dlg, const QJsonValue &id)
 {
   HWND c = GetDlgItem(dlg, id.toInt());
+  // the controls of a property sheet page
+  if (!c)
+  {
+    HWND page = VisiblePage(dlg);
+    if (page)
+      c = GetDlgItem(page, id.toInt());
+  }
   if (!c)
     g_Driver.Fail(QStringLiteral("%1: no control %2").arg(DialogName(dlg)).arg(id.toInt()));
   return c;
@@ -217,6 +254,16 @@ bool Apply(HWND dlg, const QJsonObject &a)
       g_Driver.Fail(QStringLiteral("%1: control %2 is \"%3\", expected /%4/")
           .arg(name).arg(c->Id).arg(text, p[1].toString()));
     }
+  }
+  else if (a.contains("tab"))
+  {
+    QWidget *w = NShim::WidgetOf(dlg);
+    QTabWidget *tabs = w ? w->findChild<QTabWidget *>(QStringLiteral("z7PropertySheetTabs")) : NULL;
+    const int i = a["tab"].toInt();
+    if (!tabs || i < 0 || i >= tabs->count())
+      g_Driver.Fail(QStringLiteral("%1: no tab %2").arg(name).arg(i));
+    else
+      tabs->setCurrentIndex(i);
   }
   else if (a.contains("wait_file"))
   {

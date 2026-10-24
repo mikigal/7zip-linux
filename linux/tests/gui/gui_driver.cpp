@@ -19,6 +19,9 @@
 //   {"wait_file": "path"}         waits until the file exists (a test that
 //                                 looks at the screen tells the script to go on)
 //   {"screenshot": "name.png"}    saves a picture of the dialog in --shots
+//   {"tab": index}                shows a page of a property sheet; the
+//                                 actions then find the controls of the
+//                                 page too
 // Dialogs named in "passive" ({"passive": ["IDD_PROGRESS"]} as the first
 // element; IDD_PROGRESS by default) run on their own unless a step names
 // them. Anything else that the script does not expect fails it.

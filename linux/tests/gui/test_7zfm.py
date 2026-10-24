@@ -106,6 +106,8 @@ class FmTest(unittest.TestCase):
         "XDG_RUNTIME_DIR": self.home,
         # the temporary folders of 7-Zip (7zO*, 7zE*) go with the test
         "TMPDIR": self.tmpdir,
+        # "all users" settings (mimeapps.list of the System options page)
+        "XDG_CONFIG_DIRS": os.path.join(self.tmp, "etc-xdg"),
         "LANG": "C.UTF-8",
         "QT_QPA_PLATFORM": "offscreen",
         "QT_FORCE_STDERR_LOGGING": "1",
@@ -964,6 +966,191 @@ class FmTest(unittest.TestCase):
     urls = [e["url"] for e in run.of("open_url")]
     b = "file://" + os.path.join(self.data, "b.txt")
     self.assertEqual(urls, [b, b, "file://" + os.path.join(self.data, "docs") + "/"])
+
+  # ---------- Options and Help ----------
+
+  def test_options_pages(self):
+    actions = []
+    for i in range(6):
+      actions += [{"tab": i}, {"screenshot": "options-%d.png" % i}]
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": actions + [
+            {"click": ID("IDCANCEL")}]},
+    ], self.data)
+    self.assertRun(run)
+    sheet = run.of("dialog_closed", "PropertySheet")[0]
+    self.assertEqual(sheet["caption"], "Options")
+    pages = sorted({c["page"] for c in sheet["controls"] if "page" in c})
+    self.assertEqual(pages, [0, 1, 2, 3, 4, 5])
+    states = {(c["page"], c["id"]): c for c in sheet["controls"] if "page" in c}
+    # Windows only: Zone.Identifier streams (7-Zip page), large pages (Settings)
+    self.assertFalse(states[(1, ID("IDC_SYSTEM_ZONE"))]["enabled"])
+    self.assertFalse(states[(4, ID("IDX_SETTINGS_LARGE_PAGES"))]["enabled"])
+
+  def system_rows(self, run):
+    sheet = run.of("dialog_closed", "PropertySheet")[-1]
+    rows = [c for c in sheet["controls"] if c["id"] == ID("IDL_SYSTEM_ASSOCIATE")][0]["rows"]
+    return {r[0]: r[1:] for r in rows}
+
+  def test_system_page_associations(self):
+    config = os.path.join(self.home, "config")
+    os.makedirs(config)
+    mimeapps = os.path.join(config, "mimeapps.list")
+    with open(mimeapps, "w") as f:
+      f.write("# kept\n[Default Applications]\napplication/zip=org.kde.ark.desktop;\n"
+              "text/plain=org.kde.kate.desktop;\n")
+    app = "io.github.mikigal.SevenZip.desktop"
+    # nothing selected: "+" works on all types; a type of another program
+    # is kept while there are types without a program, as on Windows
+    first = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": [
+            {"click": ID("IDB_SYSTEM_CURRENT")},
+            {"click": ID("IDOK")}]},
+    ], self.data)
+    self.assertRun(first)
+    with open(mimeapps) as f:
+      text = f.read()
+    self.assertTrue(text.startswith("# kept\n[Default Applications]\n"), text)
+    self.assertIn("application/zip=org.kde.ark.desktop;\n", text)
+    self.assertIn("application/x-7z-compressed=%s;\n" % app, text)
+    self.assertIn("application/x-extension-001=%s;\n" % app, text)
+    self.assertIn("text/plain=org.kde.kate.desktop;\n", text)
+    self.assertIn("[Added Associations]\napplication/x-7z-compressed=%s;\n" % app, text)
+
+    # the page reads them back; "+" takes the other program's type too,
+    # then clears all
+    second = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": [
+            {"screenshot": "system.png"},
+            {"click": ID("IDB_SYSTEM_CURRENT")},
+            {"click": ID("IDB_SYSTEM_CURRENT")},
+            {"click": ID("IDOK")}]},
+    ], self.data)
+    self.assertRun(second)
+    sheet = second.of("dialog", "PropertySheet")[0]
+    rows = [c for c in sheet["controls"] if c["id"] == ID("IDL_SYSTEM_ASSOCIATE")][0]["rows"]
+    rows = {r[0]: r[1] for r in rows}
+    self.assertEqual(rows["7z"], "7-Zip")
+    self.assertEqual(rows["001"], "7-Zip")
+    self.assertEqual(rows["zip"], "org.kde.ark.desktop")
+    with open(mimeapps) as f:
+      text = f.read()
+    self.assertNotIn(app, text)
+    self.assertIn("application/zip=org.kde.ark.desktop;\n", text)
+    self.assertNotIn("application/x-7z-compressed", text)
+    self.assertIn("text/plain=org.kde.kate.desktop;\n", text)
+
+  def test_system_page_all_users(self):
+    # the system file belongs to root: the change fails with an error
+    etc = os.path.join(self.tmp, "etc-xdg")
+    os.makedirs(etc)
+    os.chmod(etc, 0o555)
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": [
+            {"click": ID("IDB_SYSTEM_ALL")},
+            {"click": ID("IDOK")}]},
+        {"on": "messagebox", "contains": "denied"},
+    ], self.data)
+    os.chmod(etc, 0o755)
+    self.assertRun(run)
+    self.assertEqual(os.listdir(etc), [])
+
+  def test_help_and_about(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "F1"},
+            {"command": ID("IDM_OPTIONS")}),
+        {"on": "dialog", "name": "PropertySheet", "actions": [
+            {"tab": 4},
+            {"click": ID("IDHELP")},
+            {"click": ID("IDCANCEL")}]},
+        main_step({"command": ID("IDM_ABOUT")}),
+        {"on": "dialog", "name": "IDD_ABOUT", "actions": [
+            {"screenshot": "about.png"},
+            {"click": ID("IDB_ABOUT_HOMEPAGE")},
+            {"click": ID("IDOK")}]},
+    ], self.data)
+    self.assertRun(run)
+    urls = [e["url"] for e in run.of("open_url")]
+    self.assertEqual(len(urls), 3, urls)
+    # the online copy of the help, as there is no CHM file
+    self.assertTrue(urls[0].endswith("/chm/fm/index.htm"), urls)
+    self.assertTrue(urls[1].endswith("/chm/fm/options.htm#settings"), urls)
+    self.assertEqual(urls[2], "https://www.7-zip.org/")
+    about = run.of("dialog", "IDD_ABOUT")[0]
+    version = [c["text"] for c in about["controls"] if c["id"] == ID("IDT_ABOUT_VERSION")][0]
+    self.assertIn("7-Zip", version)
+
+  def test_seven_zip_menu(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"choose": [0, "7-Zip", 'Add to "b.7z"']},
+            {"wait_file": os.path.join(self.data, "b.7z")},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"choose": [0, "7-Zip", "CRC SHA", "SHA-256 -> b.txt.sha256"]},
+            {"wait_file": os.path.join(self.data, "b.txt.sha256")},
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"choose": [0, "7-Zip", 'Extract to "arc/"']},
+            {"wait_file": os.path.join(self.data, "arc", "inner", "x.txt")},
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"choose": [0, "7-Zip", "Test archive"]}),
+        {"on": "messagebox", "contains": "There are no errors"},
+    ], self.data)
+    self.assertRun(run)
+    self.assertIn("Path = b.txt", oracle("l", "-slt", os.path.join(self.data, "b.7z")).stdout)
+    import hashlib
+    with open(os.path.join(self.data, "b.txt"), "rb") as f:
+      digest = hashlib.sha256(f.read()).hexdigest()
+    with open(os.path.join(self.data, "b.txt.sha256")) as f:
+      self.assertIn(digest, f.read())
+
+  def test_diff(self):
+    # the diff program of the Editor page gets both files
+    script = os.path.join(self.tmp, "diff.sh")
+    out = os.path.join(self.tmp, "diff-args")
+    with open(script, "w") as f:
+      f.write('#!/bin/sh\nprintf "%%s\\n" "$@" > "%s"\n' % out)
+    os.chmod(script, 0o755)
+    self.write_settings('[Software/7-Zip/FM]\n"Diff"="%s"\n' % script)
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"click": {"panel": 0, "item": "c10.bin", "mods": "ctrl"}},
+            {"command": ID("IDM_DIFF")},
+            {"wait_file": out}),
+    ], self.data)
+    self.assertRun(run)
+    with open(out) as f:
+      self.assertEqual(sorted(f.read().split("\n")[:2]),
+                       [os.path.join(self.data, "b.txt"), os.path.join(self.data, "c10.bin")])
+
+  def test_alternate_streams_are_windows_only(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"menu": 0}),
+    ], self.data)
+    self.assertRun(run)
+    items = {i["text"]: i for i in run.of("menu")[0]["items"]}
+    self.assertFalse(items["&Alternate streams"]["enabled"])
 
   # ---------- Window ----------
 

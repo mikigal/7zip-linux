@@ -636,17 +636,23 @@ Findings:
 - Left for Phase 6: drag and drop, and the app ID: on Wayland the windows
   have the generic icon until a `.desktop` file names them.
 
-### Phase 5: 7zFM operations
+### Phase 5: 7zFM operations (done)
 - [x] Copy and Move (F5, F6) across file systems and archives.
 - [x] Delete to Trash, and Shift+Delete for permanent deletion.
 - [x] New folder and new file, rename, properties, comments.
 - [x] Hashes, split and combine, links.
 - [x] Add, Extract and Test from the toolbar, run in-process.
 - [x] Open inside and outside, Edit (F4) with the change watcher.
-- [ ] All option pages (with a Linux System page), and Help opening the
+- [x] All option pages (with a Linux System page), and Help opening the
       online docs.
 
-Exit: the parity checklist in Appendix A is complete.
+Exit: the parity checklist in Appendix A is complete. Done for the file
+manager: every command of the File, Edit, View, Favorites, Tools and Help
+menus works or is disabled where it is Windows-only (alternate streams,
+junction and WSL links, Zone.Id, large pages), covered by `gui_7zfm`
+(52 scenarios) and `unit_folders`; the items of Appendix A that remain
+(Explorer context menu, drag and drop, taskbar progress, email) belong to
+Phase 6.
 
 What is where:
 - `linux/platform/FSFolderCopyPosix.cpp`: `CFSFolder::CopyTo()` and
@@ -654,6 +660,10 @@ What is where:
 - `linux/shim/ShimShell.cpp`: `SHFileOperation(FO_DELETE)` with the trash;
   `ShimSystem.cpp`: the modules that `GetModuleHandle()` finds and the
   functions that `GetProcAddress()` gives for them.
+- `linux/fm/RegistryAssociationsLinux.cpp` (library `z7_fm_qt`: file
+  manager code that uses Qt, built without the force-included
+  `windows.h`): the associations of the System page in mimeapps.list.
+  `linux/platform/AppId.h`: the application ID.
 - `linux/shim/ShimShellFolder.cpp`: `SHGetDesktopFolder()`, item ID lists
   that hold paths, and the context menu of files ("open", "properties"):
   the "System" submenu (Settings: "Show system menu") and Properties of file
@@ -714,6 +724,20 @@ Findings:
   through `GetProcAddress()` since the Delete fix.
 - The POSIX `CTempDir` (7zO*, 7zE* folders) honours `$TMPDIR`; upstream
   `MyGetTempPath()` returns /tmp only.
+- The option pages are upstream code. The System page keeps its layout
+  (current user, all users) over mimeapps.list: the user's file, and the
+  one in `$XDG_CONFIG_DIRS` (/etc/xdg), which only root can change (the
+  page reports the error, as Windows does without admin rights). The bulk
+  "+" follows Windows: it skips types of other programs while some types
+  have no program, so every type needs a MIME type:
+  `application/x-extension-<ext>` for the ones shared-mime-info lacks
+  (`.001`, ...); Phase 6 ships a MIME package that defines them.
+- Help (F1, the Help buttons) opens the online help; About opens
+  www.7-zip.org. The "7-Zip" submenu of the File menu (Explorer's context
+  menu commands, `ContextMenu.cpp`) works in-process; "Compress and email"
+  waits for `xdg-email` (Phase 6).
+- File system folders implement `IFolderAltStreams` with no support, so
+  the panel disables "Alternate streams".
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.

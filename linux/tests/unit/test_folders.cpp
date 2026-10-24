@@ -646,6 +646,14 @@ private slots:
     QVERIFY(QFile::exists(QString::fromUtf8(_root) + "ops/descript.ion"));
     items = List(f);
     QCOMPARE(GetString(f, items["commented"], kpidComment), QString("a comment"));
+
+    // no alternate streams on POSIX
+    CMyComPtr<IFolderAltStreams> alt;
+    f.QueryInterface(IID_IFolderAltStreams, &alt);
+    QVERIFY(alt);
+    Int32 supported = 1;
+    QCOMPARE(alt->AreAltStreamsSupported(items["commented"], &supported), S_OK);
+    QCOMPARE(supported, (Int32)0);
   }
 
   void copy()

@@ -77,6 +77,7 @@ class CFSFolder Z7_final:
   public IFolderCalcItemFullSize,
   public IFolderClone,
   public IFolderSetFlatMode,
+  public IFolderAltStreams,
   public CMyUnknownImp
 {
   Z7_COM_QI_BEGIN2(IFolderFolder)
@@ -86,6 +87,7 @@ class CFSFolder Z7_final:
     Z7_COM_QI_ENTRY(IFolderCalcItemFullSize)
     Z7_COM_QI_ENTRY(IFolderClone)
     Z7_COM_QI_ENTRY(IFolderSetFlatMode)
+    Z7_COM_QI_ENTRY(IFolderAltStreams)
   Z7_COM_QI_END
   Z7_COM_ADDREF_RELEASE
 
@@ -96,6 +98,8 @@ class CFSFolder Z7_final:
   Z7_IFACE_COM7_IMP(IFolderCalcItemFullSize)
   Z7_IFACE_COM7_IMP(IFolderClone)
   Z7_IFACE_COM7_IMP(IFolderSetFlatMode)
+  // POSIX file systems have no alternate streams: the panel disables them
+  Z7_IFACE_COM7_IMP(IFolderAltStreams)
 
   bool _flatMode;
   bool _commentsAreLoaded;

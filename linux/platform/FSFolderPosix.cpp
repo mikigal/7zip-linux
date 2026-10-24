@@ -619,6 +619,24 @@ Z7_COM7F_IMF(CFSFolder::SetFlatMode(Int32 flatMode))
   return S_OK;
 }
 
+Z7_COM7F_IMF(CFSFolder::BindToAltStreams(UInt32 /* index */, IFolderFolder **resultFolder))
+{
+  *resultFolder = NULL;
+  return E_NOTIMPL;
+}
+
+Z7_COM7F_IMF(CFSFolder::BindToAltStreams(const wchar_t * /* name */, IFolderFolder **resultFolder))
+{
+  *resultFolder = NULL;
+  return E_NOTIMPL;
+}
+
+Z7_COM7F_IMF(CFSFolder::AreAltStreamsSupported(UInt32 /* index */, Int32 *isSupported))
+{
+  *isSupported = BoolToInt(false);
+  return S_OK;
+}
+
 
 // ---------- IFolderOperations ----------
 

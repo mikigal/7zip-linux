@@ -21,6 +21,8 @@
 #include "../../CPP/7zip/UI/GUI/CompressDialogRes.h"
 #include "../../CPP/7zip/UI/GUI/ExtractDialogRes.h"
 #include "../../CPP/7zip/UI/FileManager/LinkDialogRes.h"
+#include "../../CPP/7zip/UI/FileManager/MenuPageRes.h"
+#include "../../CPP/7zip/UI/FileManager/SettingsPageRes.h"
 
 namespace NShim {
 
@@ -495,7 +497,13 @@ static const CLinuxOption kWindowsOnlyOptions[] =
   { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_ALT_STREAMS, true }, // NTFS alternate streams
   { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_SECUR, true },       // NTFS security
   { IDD_LINK, IDR_LINK_TYPE_JUNCTION, false },                 // NTFS junctions
-  { IDD_LINK, IDR_LINK_TYPE_WSL, false }                       // WSL links
+  { IDD_LINK, IDR_LINK_TYPE_WSL, false },                      // WSL links
+  { IDD_MENU, IDT_SYSTEM_ZONE, false },                        // Zone.Identifier streams
+  { IDD_MENU, IDC_SYSTEM_ZONE, false },
+  { IDD_MENU_2, IDT_SYSTEM_ZONE, false },
+  { IDD_MENU_2, IDC_SYSTEM_ZONE, false },
+  { IDD_SETTINGS, IDX_SETTINGS_LARGE_PAGES, false },           // large pages
+  { IDD_SETTINGS_2, IDX_SETTINGS_LARGE_PAGES, false }
 };
 
 static void ApplyLinuxOptions(UInt32 dialogId, HWND c)
