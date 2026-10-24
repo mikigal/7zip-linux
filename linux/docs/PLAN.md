@@ -17,8 +17,9 @@ update a section when a decision changes.
 - Stay mergeable with upstream: this repo is a fork of `ip7z/7zip`, and new
   upstream releases must be easy to bring in.
 
-Non-goals: reimplementing the Win32 API in general, Wine, or X11-only features
-(for example XDND Direct Save).
+Non-goals: reimplementing the Win32 API in general, Wine, X11-only features
+(for example XDND Direct Save), or keeping this fork buildable for Windows: it
+is built and used on Linux only.
 
 ## 2. Findings from the code analysis
 
@@ -117,9 +118,17 @@ linux/
 
 ### Upstream patch policy
 
-- Edit upstream files (`C/`, `CPP/`) only when it cannot be avoided, and keep
-  every edit minimal and guarded (`#ifndef _WIN32` or `#ifdef Z7_QT_GUI`) so
-  the Windows build is unchanged.
+The Windows build of this fork does not matter, but merging new upstream
+releases does: every changed upstream line can conflict.
+
+- Edit upstream files (`C/`, `CPP/`) only when it cannot be avoided; prefer a
+  Linux-side solution (force-included `Win32Compat.h`, shim headers, Linux
+  implementations of upstream classes). Keep edits small. The file's own
+  `#ifdef _WIN32` / `#else` style is usually the smallest diff, and in a merge
+  conflict it shows the Windows and POSIX variants side by side; replacing
+  Windows code outright is fine too.
+- Edits must keep the upstream console `7zz` building and working: it is the
+  test oracle, built by `check.sh` with the upstream makefile.
 - Quoted relative includes (`#include "../../../Windows/Control/Dialog.h"`)
   cannot be shadowed through include paths. Headers whose Win32 content must be
   replaced therefore get a **redirect guard**: a few lines at the top that
@@ -127,8 +136,8 @@ linux/
   the original body in the `#else` branch. Nothing else in the file changes.
 - Angle-bracket system headers (`<CommCtrl.h>`, `<ShlObj.h>`) are shadowed by
   stub headers in `linux/shim/win32/` on the include path.
-- Each upstream patch is its own small commit, and `linux/docs/UPSTREAM-PATCHES.md`
-  lists them.
+- Upstream edits are committed separately from changes under `linux/`, with
+  the reason in the commit message. Git is the inventory (Appendix B).
 
 ## 4. Design: the original 7-Zip look, in dark
 
@@ -319,10 +328,8 @@ What is where (`linux/platform`):
 
 Findings:
 - Only three upstream files needed patches (`Agent.cpp`, `AgentOut.cpp`,
-  `ArchiveFolderOut.cpp`, see `UPSTREAM-PATCHES.md`); everything else is
-  handled on the Linux side. They are not built by the upstream 7zz makefile,
-  so the Windows build of these files is only checked by review until
-  mingw-w64 is available.
+  `ArchiveFolderOut.cpp`, 31 lines in all); everything else is handled on the
+  Linux side.
 - The tree has 40 dialog templates, not 65: 25 in 7zFM, 13 in 7zG (all of
   them also in 7zFM), plus SFX, installer and Windows CE variants. Two Windows
   CE variants do not build upstream either (`IDD_MENU_2`: string 3441 is
@@ -438,7 +445,8 @@ user signs off on the real session.
       files; Flatpak is optional (portal FileTransfer for drag and drop).
 - [ ] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
-      consistency checks, then the full test suite.
+      consistency checks, review the upstream edits (Appendix B), then the
+      full test suite.
 
 ## Appendix A: Windows features and their Linux counterparts
 
@@ -463,8 +471,16 @@ user signs off on the real session.
 
 ## Appendix B: Upstream patch inventory
 
-Maintained in `linux/docs/UPSTREAM-PATCHES.md`, which is created with the
-first upstream edit.
+Git keeps it; each commit message says why the edit is needed. After
+`git fetch upstream`, these list the edits since the last merged upstream
+release (today that release is commit `b88c6bc`, 26.05):
+
+```sh
+git diff --stat $(git merge-base HEAD upstream/main) HEAD -- C CPP Asm DOC
+git log --oneline $(git merge-base HEAD upstream/main)..HEAD -- C CPP Asm DOC
+```
+
+After merging a release, check that each edit is still needed.
 
 ## Appendix C: Open questions
 
@@ -474,5 +490,4 @@ first upstream edit.
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.
 - **mingw-w64** (`mingw-w64-gcc`, which needs root to install) would enable
-  Windows reference screenshots under Wine and a check that upstream patches do
-  not break the Windows build.
+  Windows reference screenshots under Wine (section 4, "Fidelity check").

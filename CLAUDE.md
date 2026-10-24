@@ -13,14 +13,20 @@ rendered in a dark theme. The full plan and phase checklist are in
 ## Where code goes
 - Linux-specific code lives under `linux/` (`platform/`, `shim/`, `fm/`,
   `gui/`, `theme/`, `tools/`, `tests/`, `packaging/`).
-- Upstream trees (`C/`, `CPP/`, `Asm/`, `DOC/`) are edited only when
-  unavoidable:
-  - keep each edit minimal and guarded with `#ifndef _WIN32` or
-    `#ifdef Z7_QT_GUI`, so the Windows build is unchanged;
-  - make each edit its own commit and record it in
-    `linux/docs/UPSTREAM-PATCHES.md`;
+- This fork is built for Linux only; its Windows build does not matter.
+  Upstream trees (`C/`, `CPP/`, `Asm/`, `DOC/`) are still edited only when
+  unavoidable, because every changed line can conflict when a new upstream
+  release is merged:
+  - prefer a Linux-side solution (`linux/platform/Win32Compat.h`, shim
+    headers, Linux implementations of upstream classes);
+  - keep edits small; the file's own `#ifdef _WIN32` / `#else` style is
+    usually the smallest diff, but replacing Windows code is fine too;
+  - edits must keep the upstream console `7zz` (the test oracle that
+    `check.sh` builds) building and working;
   - to replace a Win32 header, use a redirect guard at the top of that header
-    (see `PLAN.md`, "Upstream patch policy").
+    (see `PLAN.md`, "Upstream patch policy");
+  - commit upstream edits separately from `linux/` changes, with the reason
+    in the commit message. Git is the inventory: see `PLAN.md`, Appendix B.
 - Match upstream style in code that touches 7-Zip types: 2-space indent, no
   tabs, LF endings, braces on their own line for functions, `C`-prefixed
   classes, `UString`/`AString`, `CObjectVector`, `Z7_` macros.
