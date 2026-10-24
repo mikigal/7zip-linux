@@ -20,6 +20,11 @@ void InitModuleDirPrefix(const char *argv0);
    directory of 7zG, 7zFM and Lang/. */
 void SetModuleDir(const FString &dir);
 
+/* Keeps a folder that a CTempDir would remove until the program exits: a
+   drop target that copies the files of a drag after the drag has ended
+   (GTK file managers) still reads what 7-Zip extracted for it there. */
+void KeepTempDirUntilExit(const FString &path);
+
 /* The home directory ($HOME, else the password database), without a
    trailing '/'. */
 FString GetHomeDir();

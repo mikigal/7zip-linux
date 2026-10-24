@@ -55,6 +55,7 @@ add_library(z7_platform STATIC
   FSFolderPosix.cpp
   Globals.cpp
   Instance.cpp
+  LinuxOptions.cpp
   Locale.cpp
   Program.cpp
   RcTables.cpp

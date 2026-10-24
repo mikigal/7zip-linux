@@ -42,6 +42,18 @@ inline bool ConvertUtcFileTimeToString(const CFiTime &ts, wchar_t *s, int level 
   return ConvertUtcFileTimeToString(ft, s, level);
 }
 
+// The options that the Linux port adds (LinuxOptions.cpp): whether archive
+// items dragged to programs other than KDE's are extracted at their first
+// request (linux/shim/ShimDragDrop.cpp); on by default.
+bool ReadDragFilesToOtherPrograms();
+void SaveDragFilesToOtherPrograms(bool enable);
+
+// The Linux items of the Settings page of the options, for
+// FileManager/SettingsPage.cpp (linux/fm/SettingsPageLinux.cpp): the check
+// box of the option above and the text that describes it.
+void InitLinuxSettings(HWND page, int dragFilesId, int dragFilesInfoId);
+void ApplyLinuxSettings(HWND page, int dragFilesId);
+
 // The events of Windows/Synchronization.h have no HANDLE on POSIX: this
 // waits for one at most (milliseconds), and returns WAIT_OBJECT_0 when it
 // is set, else WAIT_TIMEOUT (0 and 258, as on Windows).

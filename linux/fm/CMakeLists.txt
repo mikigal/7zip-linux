@@ -69,6 +69,7 @@ add_library(z7_fm_linux STATIC
   ContextMenuRegistration.cpp
   PendingCommands.cpp
   RootFolderNames.cpp
+  SettingsPageLinux.cpp
 )
 z7_port_target(z7_fm_linux)
 # Upstream COM interfaces have no virtual destructors by design.

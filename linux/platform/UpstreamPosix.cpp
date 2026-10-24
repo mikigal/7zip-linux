@@ -8,11 +8,16 @@
 #include <stdlib.h>
 #include <time.h>
 
+#include <mutex>
+#include <set>
+#include <string>
+
 #include "../../CPP/Windows/FileDir.h"
 #include "../../CPP/Windows/FileFind.h"
 #include "../../CPP/Windows/FileName.h"
 #include "../../CPP/Windows/MemoryLock.h"
 
+#include "Platform.h"
 #include "UpstreamPosix.h"
 
 // The C event inside CBaseEvent (a protected member, reached through a
@@ -127,6 +132,32 @@ static bool GetTempDirPath(FString &path)
   return MyGetTempPath(path);
 }
 
+// The folders that CTempDir leaves for the end of the program
+// (NPlatform::KeepTempDirUntilExit()); never destroyed, as exit() uses them.
+static std::mutex g_KeptDirsMutex;
+static std::set<std::string> *g_KeptDirs;
+
+static std::string KeptDirKey(const FString &path)
+{
+  std::string s (path.Ptr(), path.Len());
+  while (s.size() > 1 && s.back() == '/')
+    s.pop_back();
+  return s;
+}
+
+static void RemoveKeptDirs()
+{
+  std::lock_guard<std::mutex> lock(g_KeptDirsMutex);
+  for (const std::string &dir : *g_KeptDirs)
+    RemoveDirWithSubItems(FString(dir.c_str()));
+}
+
+static bool IsKeptDir(const FString &path)
+{
+  std::lock_guard<std::mutex> lock(g_KeptDirsMutex);
+  return g_KeptDirs && g_KeptDirs->count(KeptDirKey(path)) != 0;
+}
+
 bool CTempDir::Create(CFSTR prefix)
 {
   if (!Remove())
@@ -149,11 +180,37 @@ bool CTempDir::Remove()
 {
   if (!_mustBeDeleted)
     return true;
+  if (IsKeptDir(_path))
+  {
+    // removed when the program exits
+    _mustBeDeleted = false;
+    return true;
+  }
   _mustBeDeleted = !RemoveDirWithSubItems(_path);
   return !_mustBeDeleted;
 }
 
 }}
+
+}
+
+namespace NPlatform {
+
+void KeepTempDirUntilExit(const FString &path)
+{
+  using namespace NWindows::NFile::NDir;
+  std::lock_guard<std::mutex> lock(g_KeptDirsMutex);
+  if (!g_KeptDirs)
+  {
+    g_KeptDirs = new std::set<std::string>;
+    atexit(RemoveKeptDirs);
+  }
+  g_KeptDirs->insert(KeptDirKey(path));
+}
+
+}
+
+namespace NWindows {
 
 namespace NSecurity {
 
