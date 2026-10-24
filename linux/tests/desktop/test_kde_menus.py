@@ -66,6 +66,10 @@ class KdeMenus(unittest.TestCase):
         "QT_QPA_PLATFORM": "offscreen",
         "DBUS_SESSION_BUS_ADDRESS": "unix:path=" + os.path.join(self.home, "no-bus"),
     }
+    # the sanitizer options of the ASan build (check.sh --asan)
+    for name in ("ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
+      if name in os.environ:
+        env[name] = os.environ[name]
     env.update(self.extra_env)
     return env
 

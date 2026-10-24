@@ -181,13 +181,6 @@ if(Qt6Widgets_FOUND)
   endif()
 endif()
 
-# Sanitizer builds: leaks of system libraries are suppressed (lsan.supp).
-if(Z7_SANITIZE)
-  get_property(z7_tests DIRECTORY PROPERTY TESTS)
-  set_property(TEST ${z7_tests} APPEND PROPERTY ENVIRONMENT
-    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=0")
-endif()
-
 # The desktop files of linux/packaging (label "unit").
 find_program(Z7_DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(Z7_DESKTOP_FILE_VALIDATE)
@@ -240,4 +233,12 @@ if(TARGET z7_gtk_menu)
             --tool $<TARGET_FILE:7z-context-menu> --probe $<TARGET_FILE:z7-gtk-menu-probe>
             --oracle "${Z7_GTK_ORACLE}")
   set_tests_properties(gtk_menus PROPERTIES LABELS "unit" TIMEOUT 120)
+endif()
+
+# Sanitizer builds: leaks of system libraries are suppressed (lsan.supp),
+# for every test above.
+if(Z7_SANITIZE)
+  get_property(z7_tests DIRECTORY PROPERTY TESTS)
+  set_property(TEST ${z7_tests} APPEND PROPERTY ENVIRONMENT
+    "LSAN_OPTIONS=suppressions=${CMAKE_CURRENT_SOURCE_DIR}/lsan.supp:print_suppressions=0")
 endif()
