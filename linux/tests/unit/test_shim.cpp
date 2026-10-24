@@ -32,6 +32,8 @@
 #include "../../../CPP/Windows/Control/ListView.h"
 #include "../../../CPP/Windows/Control/PropertyPage.h"
 
+#include "../../../CPP/7zip/UI/GUI/CompressDialogRes.h"
+#include "../../../CPP/7zip/UI/GUI/ExtractDialogRes.h"
 #include "../../../CPP/7zip/UI/FileManager/ComboDialogRes.h"
 #include "../../../CPP/7zip/UI/FileManager/EditPageRes.h"
 #include "../../../CPP/7zip/UI/FileManager/FoldersPageRes.h"
@@ -289,6 +291,34 @@ private slots:
       QVERIFY(!IsWindow(dlg));
       QCoreApplication::sendPostedEvents(NULL, QEvent::DeferredDelete);
     }
+  }
+
+  void windowsOnlyOptions()
+  {
+    // the SFX option stays in the layout but cannot be enabled; the NTFS
+    // security option of the extract dialog cannot be shown
+    const HWND compress = NShim::CreateDialogFromTemplate(NRc::FindDialog(IDD_COMPRESS), NULL, TrivialProc, 0);
+    QVERIFY(compress);
+    const HWND sfx = GetDlgItem(compress, IDX_COMPRESS_SFX);
+    QVERIFY(sfx);
+    EnableWindow(sfx, TRUE);
+    ShowWindow(sfx, SW_SHOW);
+    QVERIFY(!IsWindowEnabled(sfx));
+    QVERIFY(!(GetWindowLongW(sfx, GWL_STYLE) & WS_TABSTOP));
+    QVERIFY(DestroyWindow(compress));
+
+    const HWND extract = NShim::CreateDialogFromTemplate(NRc::FindDialog(IDD_EXTRACT), NULL, TrivialProc, 0);
+    QVERIFY(extract);
+    ShowWindow(extract, SW_SHOW);
+    const HWND secur = GetDlgItem(extract, IDX_EXTRACT_NT_SECUR);
+    QVERIFY(secur);
+    ShowWindow(secur, SW_SHOW);
+    EnableWindow(secur, TRUE);
+    QVERIFY(!IsWindowVisible(secur));
+    QVERIFY(!IsWindowEnabled(secur));
+    QVERIFY(IsWindowVisible(GetDlgItem(extract, IDX_EXTRACT_ELIM_DUP)));
+    QVERIFY(DestroyWindow(extract));
+    QCoreApplication::sendPostedEvents(NULL, QEvent::DeferredDelete);
   }
 
   void iconResources()

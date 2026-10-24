@@ -17,6 +17,9 @@
 
 #include "RcTables.h"
 
+#include "../../CPP/7zip/UI/GUI/CompressDialogRes.h"
+#include "../../CPP/7zip/UI/GUI/ExtractDialogRes.h"
+
 namespace NShim {
 
 class CDialogWnd: public HWND__
@@ -471,6 +474,44 @@ void SetModalHook(const CModalHook &hook)
   g_ModalHook = hook;
 }
 
+/* Controls of options that have no meaning on Linux (see Appendix A of
+   linux/docs/PLAN.md). They are created, so that the dialog code works
+   unchanged, but they stay disabled, or hidden where that leaves no gap
+   in the original layout, whatever the code does. */
+struct CLinuxOption
+{
+  UInt32 DialogId;
+  UInt32 ControlId;
+  bool Hide;
+};
+
+static const CLinuxOption kWindowsOnlyOptions[] =
+{
+  { IDD_EXTRACT, IDX_EXTRACT_NT_SECUR, true },                 // NTFS security
+  { IDD_COMPRESS, IDX_COMPRESS_SFX, false },                   // no SFX module for Linux
+  { IDD_COMPRESS, IDX_COMPRESS_SHARED, false },                // files open for writing (-ssw)
+  { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_ALT_STREAMS, true }, // NTFS alternate streams
+  { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_SECUR, true }        // NTFS security
+};
+
+static void ApplyLinuxOptions(UInt32 dialogId, HWND c)
+{
+  for (const CLinuxOption &o : kWindowsOnlyOptions)
+  {
+    if (o.DialogId != dialogId || o.ControlId != c->Id)
+      continue;
+    c->Style = (c->Style & ~(DWORD)WS_TABSTOP) | WS_DISABLED;
+    c->Widget->setEnabled(false);
+    c->AlwaysDisabled = true;
+    if (o.Hide)
+    {
+      c->Style &= ~(DWORD)WS_VISIBLE;
+      c->Widget->hide();
+      c->AlwaysHidden = true;
+    }
+  }
+}
+
 HWND CreateDialogFromTemplate(const NRc::CDialog *t, HWND parent, DLGPROC proc, LPARAM param)
 {
   HWND parentWnd = FromHandle(parent);
@@ -543,7 +584,10 @@ HWND CreateDialogFromTemplateIn(const NRc::CDialog *t, HWND parent, QWidget *qtP
   }
 
   for (HWND c : std::vector<HWND>(d->Children))
+  {
     c->OnDialogCreated();
+    ApplyLinuxOptions(t->Id, c);
+  }
   SetupLabelBuddies(d);
 
   d->DlgProc = proc;

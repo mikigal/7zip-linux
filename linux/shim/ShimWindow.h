@@ -63,6 +63,9 @@ public:
   WNDPROC WndProc;             // GWLP_WNDPROC; NULL selects the built-in procedure
   bool Destroying;
   bool Dead;                   // destroyed; deleted when Locks drops to 0
+  // controls of Windows-only options (see ShimDialog.cpp)
+  bool AlwaysDisabled;         // EnableWindow() cannot enable it
+  bool AlwaysHidden;           // ShowWindow() cannot show it (and it is disabled)
   int Locks;                   // calls into the object that are in progress
   NShim::CEventProxy *Proxy;   // receives the widget's signals and events
   QString TextValue;           // the window text of a child without its own text

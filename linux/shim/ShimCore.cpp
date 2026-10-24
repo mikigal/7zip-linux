@@ -203,6 +203,8 @@ HWND__::HWND__(NShim::EKind kind):
     WndProc(NULL),
     Destroying(false),
     Dead(false),
+    AlwaysDisabled(false),
+    AlwaysHidden(false),
     Locks(0),
     Proxy(NULL)
 {
@@ -802,6 +804,8 @@ BOOL EnableWindow(HWND wnd, BOOL enable)
       return FALSE;
     // the result tells whether the window was disabled before
     const BOOL wasDisabled = (wnd->Style & WS_DISABLED) ? TRUE : FALSE;
+    if (wnd->AlwaysDisabled || wnd->AlwaysHidden)
+      return wasDisabled;
     if (enable)
       wnd->Style &= ~(DWORD)WS_DISABLED;
     else
@@ -822,6 +826,8 @@ BOOL ShowWindow(HWND wnd, int cmdShow)
       return FALSE;
     QWidget *w = wnd->Widget;
     const BOOL wasVisible = (wnd->Style & WS_VISIBLE) ? TRUE : FALSE;
+    if (wnd->AlwaysHidden && cmdShow != SW_HIDE)
+      return wasVisible;
     switch (cmdShow)
     {
       case SW_HIDE:
