@@ -30,6 +30,10 @@ The build goes to `build/linux`. It contains:
 - `tests/z7-probe`: the test window;
 - `tests/z7-test-*`: the unit tests (QtTest, label `unit`);
 - `tools/z7-gallery`: renders every dialog with the dark theme;
+- `gui/7zG`: the 7-Zip dialogs program (add, extract, test, hash,
+  benchmark);
+- `tests/z7-gui-driver`: 7zG with its dialogs answered by a script (label
+  `gui` for the offscreen tests, `wayland` for the nested KWin ones);
 - `platform/RcFm.cpp`, `platform/RcGui.cpp`: resource tables generated from
   the upstream `.rc` files by `tools/rcgen.py`.
 
@@ -77,6 +81,26 @@ update the golden ones:
 linux/tests/render/test_gallery.py --gallery build/linux/tools/z7-gallery --artifacts build/linux/test-artifacts/render_gallery --update
 ```
 
+## 7zG
+
+`gui/` builds `7zG` from the upstream `GUI/GUI.cpp` and dialogs on top of the
+shim; it takes the upstream command line:
+
+```sh
+build/linux/gui/7zG a -ad /tmp/new.7z README.md
+```
+
+```sh
+build/linux/gui/7zG x -ad /tmp/new.7z -o/tmp/out
+```
+
+The `gui_7zg` test runs commands through `tests/z7-gui-driver`: a JSON script
+answers the dialogs (control IDs come from the upstream resource headers
+through `rcgen.py`), and the driver logs every dialog, message box and file
+dialog with the state of its controls. Screenshots and logs of each scenario
+are in `build/linux/test-artifacts/gui_7zg/`. See
+[docs/PLAN.md](docs/PLAN.md), Phase 3.
+
 ## Windows reference pictures (Wine)
 
 `tools/winref/` compares the port with the official 7-Zip release for
@@ -113,6 +137,14 @@ cmake --build build/linux --target winref
 linux/tools/winref/wine_reference.py --release build/windows-release/26.05 --helper build/linux/tools/winref/winref.exe --out build/linux/test-artifacts/wine_reference --gallery build/linux/test-artifacts/render_gallery/rendered
 ```
 
+`--live` runs 7zG.exe of the release (compress, extract, benchmark) on small
+test data and takes screenshots of its dialogs as the program fills them,
+to compare with the `gui_7zg` screenshots:
+
+```sh
+linux/tools/winref/wine_reference.py --release build/windows-release/26.05 --out build/linux/test-artifacts/wine_reference --live
+```
+
 ## Upstream source lists
 
 `cmake/UpstreamSources.cmake` is generated from the upstream makefiles. After
@@ -135,6 +167,7 @@ linux/tools/wlsession.py --artifacts /tmp/wl -- build/linux/tests/z7-probe
 ```
 
 Python tests use it as a context manager (`with wlsession.Session() as s:`),
-with `s.spawn()`, `s.screenshot()`, `s.place_window()` and `s.kwin_script()`.
+with `s.spawn()`, `s.screenshot()`, `s.place_window()`, `s.kwin_script()` and
+`s.kwin_query()` (the value of a KWin JavaScript expression, as JSON).
 Inside the session, `tools/ei-input` injects input, for example
 `ei-input move 100 200 click right type abc key ctrl+a drag 10 10 500 10`.

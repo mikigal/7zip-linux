@@ -229,6 +229,7 @@ Every change is verified locally before it is committed. A single entry point
 | L0 Build | Linux targets build warning-free (`-Werror` for `linux/`), Debug and ASan/UBSan presets | CMake + Ninja. Whenever upstream files are touched, also rebuild upstream `7zz` with `Bundles/Alone2/makefile.gcc`. |
 | L1 Unit | Registry backend, rcgen parser (every template parses, every control type is known), POSIX folders (symlinks, permissions, Unicode and invalid UTF-8 names), Agent operations, `FolderModel` (`QAbstractItemModelTester`), shim dispatch and thread marshalling, lazy MIME extraction, Ark D-Bus adaptor | QtTest + ctest with `QT_QPA_PLATFORM=offscreen`. Archive results are checked against the `7zz` oracle (`7zz l -slt`, `7zz t`). |
 | L2 Render | Every dialog and the main window render with fixed data | A gallery tool renders PNGs offscreen. Golden images are compared with ImageMagick `compare` within a tolerance. When images change on purpose, they are reviewed visually and then regenerated. |
+| L2b GUI | Program commands through their dialogs (`7zG a/x/t/h/b`, later 7zFM operations), with passwords, overwrite questions, errors and cancel | `z7-gui-driver` runs the program offscreen with a JSON script that answers its dialogs, message boxes and file dialogs and logs what they show (label `gui`); archives are checked with the `7zz` oracle. |
 | L3 Wayland | Real Wayland code paths: windows, activation, parenting, drag and drop with Dolphin and a probe app, clipboard, scaling | Nested headless KWin (`kwin_wayland --virtual`) under `dbus-run-session`, Spectacle screenshots, and input injection through libei (`org.kde.KWin.EIS.RemoteDesktop.connectToEIS`; fallback: `org_kde_kwin_fake_input`). Verified working: nested KWin 6.8.1 running Dolphin with a full-screen capture. |
 | L4 Manual | Sign-off on the real Plasma session at milestones | A short checklist per phase, run by the user. |
 
@@ -479,16 +480,83 @@ Findings:
   visible difference was the group box: Windows draws the title on the top
   line of the frame, Fusion above it; the theme now draws it as Windows.
 
-### Phase 3: 7zG
-- [ ] Compile `GUI.cpp`.
-- [ ] Extract, Compress (with options), Hash (results list), Benchmark,
-      Progress, Overwrite, Password, Messages and Memory-limit dialogs.
-- [ ] A test hook that answers dialogs from a script, so `7zG a/x/t/h/b` can
-      be tested end to end against the `7zz` oracle.
-- [ ] Wayland checks: activation, dialog parenting, screenshots.
+### Phase 3: 7zG (done)
+- [x] Compile `GUI.cpp`: `7zG` is the upstream `GUI.cpp` and dialogs on top
+      of the shim, with a Linux `main()`.
+- [x] Extract, Compress (with options), Hash (results list), Benchmark,
+      Progress (with its messages list), Overwrite, Password and
+      Memory-limit dialogs; Help buttons and the "..." file dialogs.
+- [x] A test hook that answers dialogs from a script (`z7-gui-driver`), so
+      `7zG a/x/t/h/b` is tested end to end against the `7zz` oracle.
+- [x] Wayland checks: activation, modality and dialog parenting through
+      KWin scripting, keyboard input through libei, screenshots.
 
 Exit: `7zG` matches Windows `7zG` (minus Appendix A items) and is covered by
-tests.
+tests. Done: `gui_7zg` (19 scenarios, offscreen) and `wayland_7zg` (nested
+KWin) pass, also under ASan; the dialogs that 7zG.exe of the release fills
+under Wine (`wine_reference.py --live`) show the same values and layout.
+
+What is where:
+- `linux/gui/`: `Main.cpp` (command line, program directory, Qt with the
+  7-Zip arguments kept away from it, theme, then `WinMain()` of
+  `GUI/GUI.cpp`). The dialog sources shared with 7zFM are in `z7_gui`
+  (`linux/shim/CMakeLists.txt`).
+- `linux/shim/win32/`: `winbase.h`, `objbase.h`, `commdlg.h`, `shellapi.h`,
+  `ShlObj.h`, `ShObjIdl.h`, `HtmlHelp.h`, `Shlwapi.h`; `winuser.h` sets
+  `Z7_WIN32_WINNT_MIN` to Vista.
+- `linux/shim/ShimShell.cpp`: `SHGetFileInfo()` (theme icons by MIME type,
+  one system image list per icon size, index 0 for unknown types),
+  special folders, `HtmlHelp()` (a local `help/` copy of the pages next to
+  the program, else the online help at 7-zip.opensource.jp/chm/), the
+  folder browser of `Windows/Shell.h` and the file dialogs of
+  `Windows/CommonDialog.h` as `QFileDialog`s, and the text clipboard of
+  `Windows/Clipboard.h`. `ShimSystem.cpp`: kernel32 and ole32 calls.
+- `linux/shim/ShimDialog.cpp`: the table of Windows-only options
+  (NTFS security and streams, -ssw, SFX), which stay disabled or hidden.
+- `linux/platform/CommandLine.cpp`: `GetCommandLineW()` and a POSIX
+  `SplitCommandLine()` that give back every argument unchanged.
+  `ZoneId.cpp`: the Zone.Identifier helpers of `ArchiveExtractCallback`.
+  `Instance.cpp`: `g_hInstance` apart from `Globals.cpp`, because `GUI.cpp`
+  defines it.
+- `linux/tests/gui/`: `gui_driver.cpp` (7zG with a JSON script for dialogs,
+  message boxes and file dialogs, and a JSON log of what they show) and
+  `test_7zg.py`. `linux/tests/wayland/test_7zg_wayland.py`;
+  `wlsession.Session.kwin_query()` returns values from KWin scripts.
+- `linux/core/oracle.mak`: the oracle build with header dependencies.
+
+Findings:
+- Five upstream files needed POSIX branches (`Windows/System.h`,
+  `ProgressDialog2.cpp`, `OverwriteDialog.cpp`, `BrowseDialog.cpp`,
+  `ExtractCallback.cpp`): `CFileInfo` has `timespec` times and no
+  `Attrib` on POSIX, threads cannot be waited on with a timeout, and the
+  custom browse dialog for very long paths is Windows-only.
+- `ProgressDialog2` `WaitMode` (only 7zFM sets it: show the dialog only if
+  the operation takes long) waits on a thread handle. On POSIX the dialog
+  is shown at once for now; Phase 4 needs a POSIX wait for it.
+- Win32 behaviour the dialog code relies on: typing in a combo box clears
+  the selection of its list (`ExtractDialog` reads the typed path only
+  when `CB_GETCURSEL` is `CB_ERR`); `MoveWindow()` sends `WM_SIZE` at once,
+  also for a hidden window during `WM_INITDIALOG` (`CListViewDialog`).
+- QApplication takes its own options (`-style`, `-platform`, ...) out of
+  argv, so it gets only the program name; Qt settings come from the
+  environment.
+- "Background" in the progress dialog runs the threads with `SCHED_IDLE`.
+  Going back needs a `RLIMIT_NICE` that allows nice 0 (the default limit
+  is 0), so "Foreground" usually keeps the idle policy.
+- The memory-limit dialog is asked for by the RAR5 and WIM handlers only;
+  the test crafts a small RAR5 archive whose header asks for a 2 GB
+  dictionary.
+- 7zG creates no SFX archives: the GUI looks for the Windows module
+  `7z.sfx` (see Appendix C).
+- On Wayland, KWin decides the title bar buttons: dialogs without
+  `WS_MINIMIZEBOX` still get a minimize button (no protocol removes it);
+  fixed-size dialogs are not maximizable, and modal ones are modal for KWin.
+- The upstream makefile has no header dependencies, so the oracle was not
+  rebuilt after an upstream header edit; `oracle.mak` adds them.
+- Under ASan, fontconfig leaks (`linux/tests/lsan.supp`).
+- Taskbar progress comes for free once `CoCreateInstance(CLSID_TaskbarList)`
+  returns an object (Phase 6): `ProgressDialog2` already drives
+  `ITaskbarList3`.
 
 ### Phase 4: 7zFM core
 - [ ] Redirect `Panel.h` to the Qt version, the list view adapter, a virtual
@@ -578,6 +646,14 @@ After merging a release, check that each edit is still needed.
 - **`Lang/*.txt` translations** are not in the source repo. They ship in the
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.
+- **SFX archives:** 7zG looks for `7z.sfx`, the Windows GUI module, so
+  "Create SFX archive" is disabled on Linux. The upstream console SFX
+  (`Bundles/SFXCon/makefile.gcc`) builds on Linux; shipping it as the module
+  would make self-extracting ELF archives possible.
+- **Help pages:** Help opens the online copy of the help
+  (7-zip.opensource.jp/chm/). The release's `7-zip.chm` could be unpacked
+  with `7zz` into a `help/` directory next to the program for offline help,
+  which `HtmlHelp()` already prefers; this goes with the Lang decision.
 - **Windows reference screenshots** (section 4, "Fidelity check"): resolved
   without mingw-w64. The user approved downloading the official release for
   Windows (26.05, `7z2605-x64.exe`, SHA-256 checked against the GitHub
