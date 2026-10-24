@@ -549,11 +549,13 @@ HWND CreateDialogFromTemplateIn(const NRc::CDialog *t, HWND parent, QWidget *qtP
   d->DlgProc = proc;
   CWindowLock lock(d);
   const HWND first = NextTabItem(d, NULL, false);
+  // size changes notify from WM_INITDIALOG on: the dialog object of the
+  // NWindows wrappers is attached then
+  d->InitDone = true;
+  d->LastSize = w->size();
   const LRESULT setFocus = Send(d, WM_INITDIALOG, (WPARAM)first, param);
   if (!FromHandle(d))
     return NULL;
-  d->InitDone = true;
-  d->LastSize = w->size();
   if (setFocus && first && FromHandle(first) && first->Widget)
   {
     QWidget *fw = first->Widget->focusProxy() ? first->Widget->focusProxy() : first->Widget.data();

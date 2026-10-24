@@ -888,9 +888,22 @@ BOOL InvalidateRect(HWND wnd, const RECT *rect, BOOL /* erase */)
   });
 }
 
+// Qt delivers the resize event of a hidden widget when it is shown; Win32
+// sends WM_SIZE at once, and dialog code that resizes itself in
+// WM_INITDIALOG lays out its controls in WM_SIZE.
+static void SendResizeOfHidden(QWidget *w, const QSize &oldSize)
+{
+  if (!w->isVisible() && w->size() != oldSize)
+  {
+    QResizeEvent e(w->size(), oldSize);
+    QCoreApplication::sendEvent(w, &e);
+  }
+}
+
 static void MoveWidget(HWND wnd, int x, int y, int width, int height, bool move, bool size)
 {
   QWidget *w = wnd->Widget;
+  const QSize oldSize = w->size();
   if (width < 0)
     width = 0;
   if (height < 0)
@@ -905,6 +918,7 @@ static void MoveWidget(HWND wnd, int x, int y, int width, int height, bool move,
     if (wnd->Kind == kKind_ComboBox)
       r.setHeight(ComboBoxClosedHeight(wnd));
     w->setGeometry(r);
+    SendResizeOfHidden(w, oldSize);
     return;
   }
   // A top-level window cannot place itself on Wayland; the size still applies.
@@ -912,6 +926,7 @@ static void MoveWidget(HWND wnd, int x, int y, int width, int height, bool move,
     w->resize(width, height);
   if (move && QGuiApplication::platformName() != QLatin1String("wayland"))
     w->move(x, y);
+  SendResizeOfHidden(w, oldSize);
 }
 
 BOOL MoveWindow(HWND wnd, int x, int y, int width, int height, BOOL /* repaint */)

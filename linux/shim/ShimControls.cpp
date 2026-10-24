@@ -759,7 +759,20 @@ public:
 class CComboWnd: public HWND__
 {
 public:
-  CComboWnd(): HWND__(kKind_ComboBox) {}
+  // Typing in the edit field of a Win32 combo box clears the selection of
+  // its list (CB_GETCURSEL returns CB_ERR), and dialog code relies on it to
+  // tell a typed text from a chosen item. A QComboBox keeps its current
+  // index, so the cleared selection is kept here.
+  bool SelectionCleared;
+
+  CComboWnd(): HWND__(kKind_ComboBox), SelectionCleared(false) {}
+
+  int CurSel() const { return SelectionCleared ? CB_ERR : Combo()->currentIndex(); }
+  void Select(int index)
+  {
+    SelectionCleared = false;
+    Combo()->setCurrentIndex(index);
+  }
 
   CComboWidget *Combo() const { return static_cast<CComboWidget *>(Widget.data()); }
   bool IsEditable() const { return (Style & 3) != CBS_DROPDOWNLIST; }
@@ -851,6 +864,7 @@ public:
         c->removeItem(index);
         return c->count();
       case CB_RESETCONTENT:
+        SelectionCleared = false;
         c->clear();
         if (c->isEditable())
           c->setEditText(QString());
@@ -858,16 +872,16 @@ public:
       case CB_GETCOUNT:
         return c->count();
       case CB_GETCURSEL:
-        return c->currentIndex();
+        return CurSel();
       case CB_SETCURSEL:
         if (index < 0 || index >= c->count())
         {
-          c->setCurrentIndex(-1);
+          Select(-1);
           if (c->isEditable())
             c->setEditText(QString());
           return CB_ERR;
         }
-        c->setCurrentIndex(index);
+        Select(index);
         return index;
       case CB_GETLBTEXTLEN:
         if (index < 0 || index >= c->count())
@@ -898,7 +912,7 @@ public:
       {
         const int i = Find(index, FromW((LPCWSTR)lParam), false);
         if (i >= 0)
-          c->setCurrentIndex(i);
+          Select(i);
         return i;
       }
       case CB_SHOWDROPDOWN:
@@ -991,11 +1005,16 @@ HWND CreateComboBox(DWORD style, QWidget *parent)
     c->setCompleter(nullptr);
     Connect(w, c->lineEdit(), &QLineEdit::textEdited, [](CComboWnd *self, const QString &)
     {
+      self->SelectionCleared = true;
       self->NotifyCommand(CBN_EDITUPDATE);
       self->NotifyCommand(CBN_EDITCHANGE);
     });
   }
-  Connect(w, c, &QComboBox::activated, [](CComboWnd *self, int) { self->NotifyCommand(CBN_SELCHANGE); });
+  Connect(w, c, &QComboBox::activated, [](CComboWnd *self, int)
+  {
+    self->SelectionCleared = false;
+    self->NotifyCommand(CBN_SELCHANGE);
+  });
   SetFocusPolicy(c, style, true);
   return w;
 }

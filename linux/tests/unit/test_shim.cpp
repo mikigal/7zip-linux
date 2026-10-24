@@ -431,6 +431,11 @@ private slots:
       QVERIFY(dlg.HasCommand(IDC_COMBO, CBN_SELCHANGE));
       QTest::keyClicks(qc->lineEdit(), QStringLiteral("x"));
       QVERIFY(dlg.HasCommand(IDC_COMBO, CBN_EDITCHANGE));
+      // typing clears the selection of the list, as on Windows: dialogs
+      // read the typed text when there is no selection (ExtractDialog.cpp)
+      QCOMPARE(combo.GetCurSel(), CB_ERR);
+      QTest::keyClick(qc, Qt::Key_Up);
+      QCOMPARE(combo.GetCurSel(), 1);
 
       // window text of the drop-down combo box is the edit text
       CWindow w(GetDlgItem(d, IDC_COMBO));
