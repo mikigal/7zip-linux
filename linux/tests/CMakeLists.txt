@@ -223,3 +223,21 @@ if(KF6KIO_FOUND AND TARGET Qt6::Widgets)
 else()
   message(STATUS "kde_menus test disabled (need KF6 KIO)")
 endif()
+
+# The 7-Zip menu of GTK file managers: 7z-context-menu read by the shared
+# code of the extensions (linux/gtk), and each extension that is built
+# (label "unit").
+if(TARGET z7_gtk_menu)
+  add_executable(z7-gtk-menu-probe desktop/gtk_menu_probe.c)
+  target_compile_options(z7-gtk-menu-probe PRIVATE ${Z7_PORT_C_WARNINGS})
+  target_link_libraries(z7-gtk-menu-probe PRIVATE z7_gtk_menu)
+  set(Z7_GTK_ORACLE $<TARGET_FILE:7zz>)
+  if(Z7_BUILD_ORACLE)
+    set(Z7_GTK_ORACLE "${Z7_ORACLE_7ZZ}")
+  endif()
+  add_test(NAME gtk_menus
+    COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/desktop/test_gtk_menus.py"
+            --tool $<TARGET_FILE:7z-context-menu> --probe $<TARGET_FILE:z7-gtk-menu-probe>
+            --oracle "${Z7_GTK_ORACLE}")
+  set_tests_properties(gtk_menus PROPERTIES LABELS "unit" TIMEOUT 120)
+endif()

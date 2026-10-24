@@ -2,7 +2,6 @@
 // file managers: as CompressCall.cpp does on Windows, the commands run 7zG
 // from the program folder, with the arguments of linux/gui/GuiCommand.h.
 
-#include <QProcess>
 #include <QStringList>
 
 #include <windows.h>
@@ -15,6 +14,7 @@
 #include "../../CPP/7zip/UI/Common/CompressCall.h"
 
 #include "GuiCommand.h"
+#include "ShimDialog.h"
 #include "ShimWindow.h"
 
 UString GetQuotedString(const UString &s)
@@ -32,7 +32,7 @@ static HRESULT Call7zGui(const UStringVector &params)
   QStringList args;
   FOR_VECTOR (i, params)
     args.append(NShim::FromU(params[i]));
-  if (QProcess::startDetached(program, args))
+  if (NShim::StartProgram(program, args))
     return S_OK;
   const QString message = QStringLiteral("Cannot start %1").arg(program);
   MessageBoxW(NULL, (LPCWSTR)NShim::ToU(message), L"7-Zip", MB_ICONERROR | MB_OK);

@@ -12,8 +12,12 @@ set(Z7_UPSTREAM_WARNINGS -Wall -Wextra)
 
 # Linux port code: stricter, and errors when Z7_WERROR is on.
 set(Z7_PORT_WARNINGS -Wall -Wextra -Wpedantic -Wshadow -Wnon-virtual-dtor)
+# Port code in C (the GTK file manager extensions): without the C++ ones,
+# and without -Wpedantic, which the GObject macros do not pass.
+set(Z7_PORT_C_WARNINGS -Wall -Wextra -Wshadow)
 if(Z7_WERROR)
   list(APPEND Z7_PORT_WARNINGS -Werror)
+  list(APPEND Z7_PORT_C_WARNINGS -Werror)
 endif()
 
 if(Z7_SANITIZE)
