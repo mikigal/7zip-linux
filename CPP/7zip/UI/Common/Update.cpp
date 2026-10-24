@@ -6,6 +6,12 @@
 
 #include "Update.h"
 
+#ifndef _WIN32
+#include <spawn.h>
+#include <sys/wait.h>
+extern char **environ;
+#endif
+
 #include "../../../Common/StringConvert.h"
 
 #include "../../../Windows/DLL.h"
@@ -1848,6 +1854,45 @@ Z7_DIAGNOSTIC_IGNORE_CAST_FUNCTION
    }
   }
   
+  #endif
+
+  #ifndef _WIN32
+  /* POSIX: the desktop's mail program gets the archives through xdg-email,
+     which returns once it has started that program. */
+  if (options.EMailMode)
+  {
+    AStringVector args;
+    args.Add(AString("xdg-email"));
+    for (unsigned i = 0; i < options.Commands.Size(); i++)
+    {
+      const FString finalPath = us2fs(options.Commands[i].ArchivePath.GetFinalPath());
+      FString fullPath;
+      if (!MyGetFullPathName(finalPath, fullPath))
+        return errorInfo.SetFromLastError("GetFullPathName error", finalPath);
+      args.Add(AString("--attach"));
+      args.Add(fullPath);
+    }
+    if (!options.EMailAddress.IsEmpty())
+      args.Add(GetAnsiString(options.EMailAddress));
+    CRecordVector<char *> argv;
+    for (unsigned i = 0; i < args.Size(); i++)
+      argv.Add(args[i].Ptr_non_const());
+    argv.Add(NULL);
+    pid_t pid;
+    const int res = posix_spawnp(&pid, "xdg-email", NULL, NULL, argv.NonConstData(), environ);
+    if (res != 0)
+    {
+      errorInfo.SystemError = (DWORD)res;
+      errorInfo.Message = "cannot start xdg-email";
+      return errorInfo.Get_HRESULT_Error();
+    }
+    int status = 0;
+    if (waitpid(pid, &status, 0) != pid || !WIFEXITED(status) || WEXITSTATUS(status) != 0)
+    {
+      errorInfo.Message = "xdg-email failed";
+      return E_FAIL;
+    }
+  }
   #endif
 
   if (options.DeleteAfterCompressing)
