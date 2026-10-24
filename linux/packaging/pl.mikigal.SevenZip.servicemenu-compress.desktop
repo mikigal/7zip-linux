@@ -2,22 +2,22 @@
 Type=Service
 MimeType=all/all;
 X-KDE-Submenu=7-Zip
-Icon=io.github.mikigal.SevenZip
+Icon=pl.mikigal.SevenZip
 Actions=add;add7z;addzip;email;email7z;emailzip;sha256;crc32;allhashes
 
 [Desktop Action add]
 Name=Add to archive...
-Icon=io.github.mikigal.SevenZip
+Icon=pl.mikigal.SevenZip
 Exec=7zG --context add %F
 
 [Desktop Action add7z]
 Name=Add to 7z archive
-Icon=io.github.mikigal.SevenZip
+Icon=pl.mikigal.SevenZip
 Exec=7zG --context add7z %F
 
 [Desktop Action addzip]
 Name=Add to zip archive
-Icon=io.github.mikigal.SevenZip
+Icon=pl.mikigal.SevenZip
 Exec=7zG --context addzip %F
 
 [Desktop Action email]

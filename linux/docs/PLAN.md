@@ -181,9 +181,9 @@ releases does: every changed upstream line can conflict.
 
 ## 5. Desktop integration (Wayland)
 
-- **Identity:** the app ID is set through `QGuiApplication::setDesktopFileName`
-  and must be a valid D-Bus name (open question, see Appendix C). It provides
-  matching `.desktop` files and hicolor icons.
+- **Identity:** the app ID (`pl.mikigal.SevenZip`) is set through
+  `QGuiApplication::setDesktopFileName` and must be a valid D-Bus name. It
+  provides matching `.desktop` files and hicolor icons.
 - **Windows:** no global positioning on Wayland, so only size and maximized
   state are restored. Dialogs get a transient parent. `XDG_ACTIVATION_TOKEN`
   from the launching file manager is honoured, which Qt does automatically.
@@ -758,10 +758,10 @@ user signs off on the real session. Status: the scenarios pass
 (`wayland_dnd`); the sign-off on the real session is pending.
 
 What is where:
-- `linux/platform/AppId.h`: the application IDs, `io.github.mikigal.SevenZip`
-  (7zFM) and `io.github.mikigal.SevenZip.Gui` (7zG): the Wayland app IDs
+- `linux/platform/AppId.h`: the application IDs, `pl.mikigal.SevenZip`
+  (7zFM) and `pl.mikigal.SevenZip.Gui` (7zG): the Wayland app IDs
   (`QGuiApplication::setDesktopFileName`) and the names of the .desktop
-  files. Provisional, see Appendix C.
+  files, the MIME package, the icon and the service menus.
 - `linux/packaging/`: the .desktop files (7zFM opens the archive types;
   7zG is NoDisplay), the MIME package with the types that 7-Zip associates
   and shared-mime-info lacks, and the install rules. The application icon
@@ -934,10 +934,9 @@ After merging a release, check that each edit is still needed.
 
 ## Appendix C: Open questions
 
-- **App ID:** it must be a valid D-Bus name, and segments cannot start with a
-  digit, so `org.7-zip.*` is invalid. Used for now (one place to change:
-  `platform/AppId.h`, the file names in `linux/packaging/`):
-  `io.github.mikigal.SevenZip`, waiting for the user's confirmation.
+- **App ID:** resolved: `pl.mikigal.SevenZip` (the user's choice). It must
+  be a valid D-Bus name, and segments cannot start with a digit, so
+  `org.7-zip.*` is invalid.
 - **`Lang/*.txt` translations** are not in the source repo. They ship in the
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.

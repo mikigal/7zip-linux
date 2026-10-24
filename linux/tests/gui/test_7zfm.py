@@ -1002,7 +1002,7 @@ class FmTest(unittest.TestCase):
     with open(mimeapps, "w") as f:
       f.write("# kept\n[Default Applications]\napplication/zip=org.kde.ark.desktop;\n"
               "text/plain=org.kde.kate.desktop;\n")
-    app = "io.github.mikigal.SevenZip.desktop"
+    app = "pl.mikigal.SevenZip.desktop"
     # nothing selected: "+" works on all types; a type of another program
     # is kept while there are types without a program, as on Windows
     first = self.run_fm([

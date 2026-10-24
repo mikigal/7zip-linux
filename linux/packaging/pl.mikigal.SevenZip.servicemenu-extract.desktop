@@ -1,13 +1,30 @@
 [Desktop Entry]
-Type=Application
-Name=7-Zip File Manager
-GenericName=Archive Manager
-Comment=Browse, create and extract archives
-Exec=7zFM %f
-TryExec=7zFM
-Icon=io.github.mikigal.SevenZip
-Terminal=false
-StartupNotify=true
-Categories=Qt;Utility;Archiving;Compression;
-Keywords=7z;zip;rar;tar;gzip;xz;archive;compress;extract;
+Type=Service
 MimeType=application/x-7z-compressed;application/zip;application/vnd.rar;application/vnd.ms-cab-compressed;application/vnd.efi.iso;application/x-xz;application/x-xz-compressed-tar;application/x-lzma;application/x-tar;application/x-cpio;application/x-bzip2;application/x-bzip2-compressed-tar;application/x-bzip1-compressed-tar;application/gzip;application/x-compressed-tar;application/x-compress;application/x-tarz;application/x-lha;application/x-rpm;application/vnd.debian.binary-package;application/x-arj;application/x-vhd-disk;application/x-vhdx-disk;application/x-ms-wim;application/x-apple-diskimage;application/x-xar;application/vnd.squashfs;application/zstd;application/x-zstd-compressed-tar;application/x-split-archive;application/x-ms-esd;application/x-fat-image;application/x-ntfs-image;application/x-hfs-image;application/x-apfs-image;
+X-KDE-Submenu=7-Zip
+Icon=pl.mikigal.SevenZip
+Actions=open;extract;extracthere;extractto;test
+
+[Desktop Action open]
+Name=Open archive
+Icon=pl.mikigal.SevenZip
+Exec=7zFM %f
+
+[Desktop Action extract]
+Name=Extract files...
+Icon=archive-extract
+Exec=7zG --context extract %F
+
+[Desktop Action extracthere]
+Name=Extract Here
+Icon=archive-extract
+Exec=7zG --context extracthere %F
+
+[Desktop Action extractto]
+Name=Extract to folder
+Icon=archive-extract
+Exec=7zG --context extractto %F
+
+[Desktop Action test]
+Name=Test archive
+Exec=7zG --context test %F

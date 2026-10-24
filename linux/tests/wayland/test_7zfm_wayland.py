@@ -106,7 +106,7 @@ class Wayland7zFM(unittest.TestCase):
       self.assertTrue(main["decorated"], main)
       self.assertFalse(main["transient"], main)
       # the app ID names the .desktop file (linux/packaging)
-      self.assertEqual(main["desktopFileName"], "io.github.mikigal.SevenZip", main)
+      self.assertEqual(main["desktopFileName"], "pl.mikigal.SevenZip", main)
       s.screenshot(os.path.join(self.artifacts, "main.png"))
 
       # the first item has the focus; Space selects it, Enter opens it

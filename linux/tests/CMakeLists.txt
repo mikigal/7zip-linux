@@ -202,8 +202,8 @@ endif()
 find_program(Z7_DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(Z7_DESKTOP_FILE_VALIDATE)
   # the applications; the service menus (Type=Service) are KDE's own format
-  file(GLOB Z7_DESKTOP_FILES "${Z7_ROOT}/linux/packaging/io.github.mikigal.SevenZip.desktop"
-       "${Z7_ROOT}/linux/packaging/io.github.mikigal.SevenZip.Gui.desktop")
+  file(GLOB Z7_DESKTOP_FILES "${Z7_ROOT}/linux/packaging/pl.mikigal.SevenZip.desktop"
+       "${Z7_ROOT}/linux/packaging/pl.mikigal.SevenZip.Gui.desktop")
   add_test(NAME desktop_files COMMAND "${Z7_DESKTOP_FILE_VALIDATE}" ${Z7_DESKTOP_FILES})
   set_tests_properties(desktop_files PROPERTIES LABELS "unit" TIMEOUT 60)
 else()

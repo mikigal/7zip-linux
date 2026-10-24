@@ -26,7 +26,7 @@ TOOL = None
 PROBE = None
 ORACLE = None
 EXTENSIONS = {}   # name: (probe, module)
-APP_ID = "io.github.mikigal.SevenZip"
+APP_ID = "pl.mikigal.SevenZip"
 
 
 def oracle(*args, cwd=None):

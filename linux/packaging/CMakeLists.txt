@@ -8,7 +8,7 @@
 
 include(GNUInstallDirs)
 
-set(Z7_APP_ID "io.github.mikigal.SevenZip")
+set(Z7_APP_ID "pl.mikigal.SevenZip")
 
 install(TARGETS 7zFM 7zG RUNTIME DESTINATION "${CMAKE_INSTALL_BINDIR}")
 install(FILES ${Z7_APP_ID}.desktop ${Z7_APP_ID}.Gui.desktop

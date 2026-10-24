@@ -141,7 +141,7 @@ class Wayland7zG(unittest.TestCase):
       self.assertTrue(password["transient"], windows)
       self.assertRegex(password["transientFor"] or "", "Extracting", windows)
       self.assertTrue(password["decorated"], windows)
-      self.assertEqual(password["desktopFileName"], "io.github.mikigal.SevenZip.Gui", windows)
+      self.assertEqual(password["desktopFileName"], "pl.mikigal.SevenZip.Gui", windows)
       s.screenshot(os.path.join(self.artifacts, "password.png"))
       s.run([EI_INPUT, "type", "secret", "key", "enter"], timeout=30)
       self.assertEqual(self.finish(p), 0)
@@ -165,7 +165,7 @@ class Wayland7zG(unittest.TestCase):
       time.sleep(0.5)
     with open(monitor_log) as f:
       text = f.read()
-    self.assertIn('string "application://io.github.mikigal.SevenZip.Gui.desktop"', text)
+    self.assertIn('string "application://pl.mikigal.SevenZip.Gui.desktop"', text)
     self.assertIn('string "progress"', text)
     self.assertRegex(text, r'string "progress-visible"\s+variant\s+boolean true')
     # hidden at the end
