@@ -395,7 +395,10 @@ Findings:
       `.rc` files. The archive type icons (`Archive/Icons/*.ico`) come with
       the file list in Phase 4.
 - [x] Dialog gallery and golden-image tests.
-- [ ] Wine reference screenshots: mingw-w64 is not installed (see Appendix C).
+- [x] Wine reference pictures, from the official 7-Zip 26.05 release for
+      Windows (`linux/tools/winref`): every template rendered by the Windows
+      dialog manager of Wine, next to the gallery; and a test that compares
+      the compiled templates of the release with the rcgen tables.
 
 Exit: every dialog renders in the dark theme with the original layout, and
 the golden tests are in ctest. Done: `render_gallery` covers the 25 templates
@@ -426,6 +429,9 @@ What is where:
 - `linux/theme/`: `NTheme::Apply()` and `ToolbarIcon()`; the SVG icons.
 - `linux/tools/gallery/`, `linux/tests/render/`: the gallery and its golden
   pictures.
+- `linux/tools/winref/`: `winref.c` (a Winelib program, target `winref`) and
+  `wine_reference.py` (reference pictures, side-by-side comparisons, and the
+  template check behind the optional `rcgen_windows_release` test).
 
 Findings:
 - The upstream wrappers (`Window.h`, `Control/*.h`) are thin inline calls of
@@ -461,6 +467,17 @@ Findings:
 - Rendering offscreen with a private `HOME` (no user fontconfig) and a fixed
   font is deterministic: the golden test allows 16 differing pixels, so a
   change of a single line is caught.
+- The release's 7zFM.exe is built from `UI/FileManager` and runs 7zG.exe to
+  add and extract, so it lacks the Compress, Extract and Benchmark dialogs
+  that the Linux 7zFM (`Bundles/Fm`) has; its 7zG.exe has them.
+- All 33 templates of 7zFM.exe and 7zG.exe 26.05 match the rcgen tables,
+  after one rcgen change: rc.exe ignores `- (b)` after a closing parenthesis
+  (`(a) - (b)` is `a`, while `n - (b)` subtracts). It shows in the labels of
+  `IDD_BENCH`, the only place that uses it.
+- Next to Wine (Tahoma 8 at 96 dpi: base units 6 x 13) the layouts match
+  control for control; the port is larger by the ratio of the fonts. The one
+  visible difference was the group box: Windows draws the title on the top
+  line of the frame, Fusion above it; the theme now draws it as Windows.
 
 ### Phase 3: 7zG
 - [ ] Compile `GUI.cpp`.
@@ -516,8 +533,9 @@ user signs off on the real session.
       files; Flatpak is optional (portal FileTransfer for drag and drop).
 - [ ] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
-      consistency checks, review the upstream edits (Appendix B), then the
-      full test suite.
+      consistency checks, check the templates against the new Windows release
+      (`rcgen_windows_release`) and look at the Wine reference pictures,
+      review the upstream edits (Appendix B), then the full test suite.
 
 ## Appendix A: Windows features and their Linux counterparts
 
@@ -560,7 +578,9 @@ After merging a release, check that each edit is still needed.
 - **`Lang/*.txt` translations** are not in the source repo. They ship in the
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.
-- **Windows reference screenshots** (section 4, "Fidelity check"): Wine is
-  installed, but mingw-w64 (`mingw-w64-gcc`, which needs root) is not. The
-  alternative is the official 7-Zip release for Windows (same version as the
-  merged upstream) under Wine, which needs the user's approval to download.
+- **Windows reference screenshots** (section 4, "Fidelity check"): resolved
+  without mingw-w64. The user approved downloading the official release for
+  Windows (26.05, `7z2605-x64.exe`, SHA-256 checked against the GitHub
+  release); a Winelib helper renders its templates (see Phase 2). The
+  release also contains the `Lang/*.txt` files; shipping them is still open
+  (see the item above).
