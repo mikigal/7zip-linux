@@ -693,6 +693,132 @@ class FmTest(unittest.TestCase):
     self.assertEqual(items[0]["text"], "System")
     self.assertEqual([i["text"] for i in items[0]["items"]], ["&Open", "-", "P&roperties"])
 
+  # ---------- Hashes, split and combine, links ----------
+
+  def hash_rows(self, run):
+    dialog = run.of("dialog_closed", "IDD_LISTVIEW")[-1]
+    rows = [c for c in dialog["controls"] if c["class"] == "SysListView32"][0]["rows"]
+    return {r[0]: r[1] for r in rows if len(r) > 1}
+
+  def test_hash_files(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"command": ID("IDM_SHA256")}),
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [
+            {"screenshot": "hash.png"},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"click": {"panel": 0, "item": "c10.bin", "mods": "ctrl"}},
+            {"choose": [0, "CRC", "CRC-32"]}),
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [{"click": ID("IDOK")}]},
+    ], self.data)
+    self.assertRun(run)
+    import hashlib, zlib
+    with open(os.path.join(self.data, "b.txt"), "rb") as f:
+      b = f.read()
+    with open(os.path.join(self.data, "c10.bin"), "rb") as f:
+      c = f.read()
+    first = run.of("dialog_closed", "IDD_LISTVIEW")[0]
+    rows = [c2 for c2 in first["controls"] if c2["class"] == "SysListView32"][0]["rows"]
+    self.assertEqual(first["caption"], "Checksum information")
+    self.assertEqual(rows, [["Name", "b.txt"], ["Size", "21 bytes"],
+                            ["SHA256", hashlib.sha256(b).hexdigest()]])
+    # several files: the sum of their checksums, with the carry
+    values = self.hash_rows(run)
+    total = zlib.crc32(b) + zlib.crc32(c)
+    self.assertEqual(values.get("CRC32 checksum for data"),
+                     "%08X-%08X" % (total & 0xFFFFFFFF, total >> 32), values)
+    self.assertEqual(values.get("Files"), "2")
+
+  def test_hash_in_archive(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"command": ID("IDM_CRC32")}),
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [{"click": ID("IDOK")}]},
+    ], archive)
+    self.assertRun(run)
+    import zlib
+    self.assertEqual(self.hash_rows(run).get("CRC32"), "%08X" % zlib.crc32(b"top\n"))
+
+  def test_split_and_combine(self):
+    out = os.path.join(self.tmp, "parts")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "c10.bin"}},
+            {"command": ID("IDM_SPLIT")}),
+        {"on": "dialog", "name": "IDD_SPLIT", "actions": [
+            {"text": [ID("IDC_SPLIT_PATH"), out + "/"]},
+            {"text": [ID("IDC_SPLIT_VOLUME"), "300"]},
+            {"screenshot": "split.png"},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait_file": os.path.join(out, "c10.bin.004")},
+            {"address": out},
+            {"wait": {"items": ["c10.bin.001", "c10.bin.002", "c10.bin.003", "c10.bin.004"]}},
+            {"click": {"panel": 0, "item": "c10.bin.001"}},
+            {"command": ID("IDM_COMBINE")}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [
+            {"text": [ID("IDC_COPY"), os.path.join(self.tmp, "joined") + "/"]},
+            {"click": ID("IDOK")}]},
+        main_step({"wait_file": os.path.join(self.tmp, "joined", "c10.bin")}),
+    ], self.data)
+    self.assertRun(run)
+    sizes = [os.path.getsize(os.path.join(out, "c10.bin.%03d" % i)) for i in range(1, 5)]
+    self.assertEqual(sizes, [300, 300, 300, 100])
+    with open(os.path.join(self.tmp, "joined", "c10.bin"), "rb") as f:
+      self.assertEqual(f.read(), b"\0" * 1000)
+    self.assertEqual(run.of("dialog", "IDD_COPY")[0]["caption"], "Combine Files c10.bin.001")
+
+  def test_links(self):
+    b = os.path.join(self.data, "b.txt")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"command": ID("IDM_LINK")}),
+        {"on": "dialog", "name": "IDD_LINK", "actions": [
+            {"expect": [ID("IDC_LINK_PATH_TO"), "^" + re.escape(b) + "$"]},
+            {"screenshot": "link.png"},
+            {"text": [ID("IDC_LINK_PATH_FROM"), os.path.join(self.data, "hard.txt")]},
+            {"check": [ID("IDR_LINK_TYPE_HARD"), True]},
+            {"click": ID("IDB_LINK_LINK")}]},
+        main_step(
+            {"command": ID("IDM_LINK")}),
+        {"on": "dialog", "name": "IDD_LINK", "actions": [
+            # relative to the folder of the link
+            {"text": [ID("IDC_LINK_PATH_FROM"), "sym.txt"]},
+            {"text": [ID("IDC_LINK_PATH_TO"), "b.txt"]},
+            {"check": [ID("IDR_LINK_TYPE_SYM_FILE"), True]},
+            {"click": ID("IDB_LINK_LINK")}]},
+        main_step(
+            {"wait": {"items": ["docs", "sub", "b.txt", "c10.bin", "hard.txt", "sym.txt"]}},
+            {"click": {"panel": 0, "item": "sym.txt"}},
+            {"command": ID("IDM_LINK")}),
+        {"on": "dialog", "name": "IDD_LINK", "actions": [
+            # an existing link: its target, and it can be pointed elsewhere
+            {"expect": [ID("IDT_LINK_PATH_TO_CUR"), "^b.txt$"]},
+            {"expect": [ID("IDC_LINK_PATH_FROM"), "^" + re.escape(os.path.join(self.data, "sym.txt")) + "$"]},
+            {"text": [ID("IDC_LINK_PATH_TO"), "c10.bin"]},
+            {"click": ID("IDB_LINK_LINK")}]},
+        main_step({"wait": {"focused": "sym.txt"}}),
+    ], self.data)
+    self.assertRun(run)
+    self.assertEqual(os.stat(os.path.join(self.data, "hard.txt")).st_ino, os.stat(b).st_ino)
+    self.assertEqual(os.readlink(os.path.join(self.data, "sym.txt")), "c10.bin")
+    dialog = run.of("dialog", "IDD_LINK")[0]
+    states = {c["id"]: c for c in dialog["controls"]}
+    self.assertFalse(states[ID("IDR_LINK_TYPE_JUNCTION")]["enabled"])
+    self.assertFalse(states[ID("IDR_LINK_TYPE_WSL")]["enabled"])
+    self.assertTrue(states[ID("IDR_LINK_TYPE_HARD")]["checked"])
+    third = run.of("dialog", "IDD_LINK")[2]
+    self.assertTrue({c["id"]: c for c in third["controls"]}[ID("IDR_LINK_TYPE_SYM_FILE")]["checked"])
+
   # ---------- Window ----------
 
   def test_two_panels(self):

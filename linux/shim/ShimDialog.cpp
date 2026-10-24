@@ -20,6 +20,7 @@
 
 #include "../../CPP/7zip/UI/GUI/CompressDialogRes.h"
 #include "../../CPP/7zip/UI/GUI/ExtractDialogRes.h"
+#include "../../CPP/7zip/UI/FileManager/LinkDialogRes.h"
 
 namespace NShim {
 
@@ -492,7 +493,9 @@ static const CLinuxOption kWindowsOnlyOptions[] =
   { IDD_COMPRESS, IDX_COMPRESS_SFX, false },                   // no SFX module for Linux
   { IDD_COMPRESS, IDX_COMPRESS_SHARED, false },                // files open for writing (-ssw)
   { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_ALT_STREAMS, true }, // NTFS alternate streams
-  { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_SECUR, true }        // NTFS security
+  { IDD_COMPRESS_OPTIONS, IDX_COMPRESS_NT_SECUR, true },       // NTFS security
+  { IDD_LINK, IDR_LINK_TYPE_JUNCTION, false },                 // NTFS junctions
+  { IDD_LINK, IDR_LINK_TYPE_WSL, false }                       // WSL links
 };
 
 static void ApplyLinuxOptions(UInt32 dialogId, HWND c)

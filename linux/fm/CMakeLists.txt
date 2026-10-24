@@ -25,6 +25,7 @@ set(Z7_FM_SOURCES
   CPP/7zip/UI/FileManager/FM.cpp
   CPP/7zip/UI/FileManager/FoldersPage.cpp
   CPP/7zip/UI/FileManager/LangPage.cpp
+  CPP/7zip/UI/FileManager/LinkDialog.cpp
   CPP/7zip/UI/FileManager/MenuPage.cpp
   CPP/7zip/UI/FileManager/MessagesDialog.cpp
   CPP/7zip/UI/FileManager/MyLoadMenu.cpp

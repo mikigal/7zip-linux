@@ -640,7 +640,7 @@ Findings:
 - [x] Copy and Move (F5, F6) across file systems and archives.
 - [x] Delete to Trash, and Shift+Delete for permanent deletion.
 - [x] New folder and new file, rename, properties, comments.
-- [ ] Hashes, split and combine, links.
+- [x] Hashes, split and combine, links.
 - [ ] Add, Extract and Test from the toolbar, run in-process.
 - [ ] Open inside and outside, Edit (F4) with the change watcher.
 - [ ] All option pages (with a Linux System page), and Help opening the
@@ -697,6 +697,10 @@ Findings:
   `LVKF_ALT` in `NMITEMACTIVATE`); 7zFM opens Properties from there.
 - Unit tests run without a session bus (`DBUS_SESSION_BUS_ADDRESS` points to
   no socket), so shell code cannot reach the user's desktop.
+- Hashes (in-process, also of archive items), split and combine work as
+  upstream. `LinkDialog.cpp` has POSIX branches (upstream edit): hard links
+  and symbolic links (an existing link is replaced through a temporary link
+  and `rename()`); "Directory Junction" and "WSL" stay disabled.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.
