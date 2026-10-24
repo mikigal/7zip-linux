@@ -11,6 +11,7 @@
 #include "../../../Windows/Shell.h"
 #endif
 
+#include "../../../Windows/FileDir.h"
 #include "../../../Windows/FileName.h"
 #include "../../../Windows/FileFind.h"
 
@@ -20,7 +21,9 @@
 
 #include "BrowseDialog.h"
 
+#ifdef _WIN32
 #define USE_MY_BROWSE_DIALOG
+#endif
 
 #ifdef USE_MY_BROWSE_DIALOG
 

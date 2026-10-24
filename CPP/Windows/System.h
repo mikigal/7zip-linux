@@ -142,6 +142,25 @@ struct CProcessAffinity
   UInt32 GetNumSystemThreads() const { return (UInt32)numSysThreads; }
   BOOL Get();
 
+  // it returns normilized number of threads
+  void Get_and_return_NumProcessThreads_and_SysThreads(UInt32 &numProcessThreads, UInt32 &numSystemThreads)
+  {
+    UInt32 num1 = 0, num2 = 0;
+    if (Get())
+    {
+      num1 = GetNumProcessThreads();
+      num2 = GetNumSystemThreads();
+    }
+    if (num1 == 0)
+      num1 = NSystem::GetNumberOfProcessors();
+    if (num1 == 0)
+        num1 = 1;
+    if (num2 < num1)
+        num2 = num1;
+    numProcessThreads = num1;
+    numSystemThreads = num2;
+  }
+
   #ifdef Z7_AFFINITY_SUPPORTED
 
   CCpuSet cpu_set;

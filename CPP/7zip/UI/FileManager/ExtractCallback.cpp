@@ -756,10 +756,12 @@ Z7_COM7F_IMF(CExtractCallbackImp::AskWrite(
         const int slashPos = destPathSpec.ReverseFind_PathSepar();
         destPathSpec.DeleteFrom((unsigned)(slashPos + 1));
         destPathSpec += fs2us(destFileInfo.Name);
+        FILETIME destMTime;
+        FiTime_To_FILETIME(destFileInfo.MTime, destMTime);
 
         RINOK(AskOverwrite(
             destPathSpec,
-            &destFileInfo.MTime, &destFileInfo.Size,
+            &destMTime, &destFileInfo.Size,
             srcPath,
             srcTime, srcSize,
             &overwriteResult))
@@ -1210,6 +1212,7 @@ HRESULT CVirtFileSystem::FlushToDisk(bool closeLast)
 
     if (!_newVirtFileStream_IsReadyToWrite)
     {
+      #ifdef _WIN32
       if (file.ColonWasUsed)
       {
         NFind::CFileInfo parentFi;
@@ -1221,6 +1224,7 @@ HRESULT CVirtFileSystem::FlushToDisk(bool closeLast)
           NDir::SetFileAttrib(basePath, parentFi.Attrib & ~(DWORD)FILE_ATTRIBUTE_READONLY);
         }
       }
+      #endif
       _outFileStream.Create_if_Empty();
       _needWriteToRealFile = _outFileStream->Create_NEW(path);
       if (!_needWriteToRealFile)
@@ -1251,10 +1255,23 @@ HRESULT CVirtFileSystem::FlushToDisk(bool closeLast)
       if (file.CTime_Defined ||
           file.ATime_Defined ||
           file.MTime_Defined)
+      {
+        #ifdef _WIN32
         _outFileStream->SetTime(
           file.CTime_Defined ? &file.CTime : NULL,
           file.ATime_Defined ? &file.ATime : NULL,
           file.MTime_Defined ? &file.MTime : NULL);
+        #else
+        CFiTime cTime, aTime, mTime;
+        FILETIME_To_timespec(file.CTime, cTime);
+        FILETIME_To_timespec(file.ATime, aTime);
+        FILETIME_To_timespec(file.MTime, mTime);
+        _outFileStream->SetTime(
+          file.CTime_Defined ? &cTime : NULL,
+          file.ATime_Defined ? &aTime : NULL,
+          file.MTime_Defined ? &mTime : NULL);
+        #endif
+      }
       _outFileStream->Close();
     }
     
@@ -1272,11 +1289,13 @@ HRESULT CVirtFileSystem::FlushToDisk(bool closeLast)
       _needWriteToRealFile = false;
     }
       
+    #ifdef _WIN32
     if (_altStream_NeedRestore_Attrib_bool)
     {
       _altStream_NeedRestore_Attrib_bool = false;
       NDir::SetFileAttrib(basePath, _altStream_NeedRestore_AttribVal);
     }
+    #endif
   }
   return S_OK;
 }

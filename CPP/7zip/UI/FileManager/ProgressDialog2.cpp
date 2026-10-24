@@ -964,6 +964,7 @@ INT_PTR CProgressDialog::Create(const UString &title, NWindows::CThread &thread,
   INT_PTR res = 0;
   try
   {
+    #ifdef _WIN32
     if (WaitMode)
     {
       CWaitCursor waitCursor;
@@ -973,6 +974,7 @@ INT_PTR CProgressDialog::Create(const UString &title, NWindows::CThread &thread,
       if (res2 == WAIT_OBJECT_0 && !Sync.ThereIsMessage())
         return 0;
     }
+    #endif
     _title = title;
     BIG_DIALOG_SIZE(360, 192);
     res = CModalDialog::Create(SIZED_DIALOG(IDD_PROGRESS), wndParent);

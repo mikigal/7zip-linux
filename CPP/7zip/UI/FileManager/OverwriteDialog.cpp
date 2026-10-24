@@ -193,8 +193,13 @@ void COverwriteDialog::SetFileInfoControl(
     if (fileInfo.Is_FileSystemFile)
     {
       NFile::NFind::CFileInfo fi;
+      #ifdef _WIN32
       if (fi.Find(us2fs(fileInfo.Path)) && !fi.IsAltStream && !fi.IsDir())
         attrib = fi.Attrib;
+      #else
+      if (fi.Find(us2fs(fileInfo.Path)) && !fi.IsDir())
+        attrib = fi.GetWinAttrib();
+      #endif
     }
 
     SHFILEINFO shFileInfo;
