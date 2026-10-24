@@ -46,16 +46,19 @@ target_compile_options(z7_ui PRIVATE ${Z7_UPSTREAM_WARNINGS} -include "${Z7_COMP
 
 add_library(z7_platform STATIC
   ClassDefs.cpp
+  CommandLine.cpp
   DirWatcher.cpp
   FolderCompare.cpp
   FSFolderPosix.cpp
   Globals.cpp
+  Instance.cpp
   Locale.cpp
   Program.cpp
   RcTables.cpp
   Registry.cpp
   ResourceString.cpp
   RootFolderPosix.cpp
+  ZoneId.cpp
 )
 z7_port_target(z7_platform)
 # Upstream COM interfaces have no virtual destructors by design.

@@ -5,6 +5,8 @@
 
 #include "Win32Compat.h"
 
+#include "../../CPP/Common/MyString.h"
+
 namespace NPlatform {
 
 /* Sets NWindows::NDLL::GetModuleDirPrefix() -- the directory with Lang/ and
@@ -12,6 +14,10 @@ namespace NPlatform {
    (/proc/self/exe), or of argv0 if that cannot be read. Call it at program
    start. */
 void InitModuleDirPrefix(const char *argv0);
+
+/* Sets the command line that GetCommandLineW() returns from the arguments
+   of main() (argv[0] included). Call it at program start. */
+void SetCommandLine(int argc, const char * const *argv);
 
 /* Maps a POSIX locale name ("pl_PL.UTF-8", "sr_RS@latin", "C") to the
    Windows LANGID whose 7-Zip language file names (see kLangs in

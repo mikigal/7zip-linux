@@ -60,6 +60,25 @@ else()
   message(STATUS "Unit tests disabled (need Qt6 Test)")
 endif()
 
+# z7-gui-driver: 7zG with the dialogs answered by a script (gui/gui_driver.cpp),
+# for the end-to-end tests of 7zG.
+if(TARGET 7zG)
+  add_executable(z7-gui-driver gui/gui_driver.cpp)
+  z7_port_target(z7-gui-driver)
+  # Upstream COM interfaces have no virtual destructors by design.
+  target_compile_options(z7-gui-driver PRIVATE -Wno-non-virtual-dtor)
+  z7_link_ui(z7-gui-driver GUI)
+  target_link_libraries(z7-gui-driver PRIVATE z7_7zg_main z7_gui z7_theme)
+
+  if(Z7_BUILD_ORACLE)
+    add_test(NAME gui_7zg
+      COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/gui/test_7zg.py"
+              --driver $<TARGET_FILE:z7-gui-driver> --oracle "${Z7_ORACLE_7ZZ}"
+              --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/gui_7zg")
+    set_tests_properties(gui_7zg PROPERTIES LABELS "gui" TIMEOUT 600)
+  endif()
+endif()
+
 find_program(Z7_MAGICK magick)
 
 # Render tests (label "render"): every dialog of the gallery against the

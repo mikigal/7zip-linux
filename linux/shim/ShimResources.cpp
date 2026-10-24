@@ -180,7 +180,7 @@ HIMAGELIST ImageList_Create(int cx, int cy, UINT /* flags */, int /* initial */,
 
 BOOL ImageList_Destroy(HIMAGELIST list)
 {
-  if (!list)
+  if (!list || list->System)
     return FALSE;
   delete list;
   return TRUE;

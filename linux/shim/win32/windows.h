@@ -614,8 +614,14 @@
 #define PM_REMOVE   0x0001
 
 #if !defined(RC_INVOKED) && defined(__cplusplus)
-/* Types and functions: the user32 subset that linux/shim implements over Qt. */
+/* Types and functions: the user32 subset that linux/shim implements over Qt,
+   and the kernel32, ole32, comdlg32 and shell32 calls that <windows.h>
+   also declares on Windows. */
 #include "winuser.h"
+#include "winbase.h"
+#include "objbase.h"
+#include "commdlg.h"
+#include "shellapi.h"
 #endif
 
 #endif

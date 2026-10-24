@@ -34,6 +34,11 @@ typedef void *HINSTANCE;
 // FileManager code assumes the Windows (wchar_t) API on NT.
 extern bool g_IsNT;
 
+// The command line of the program (linux/platform/CommandLine.cpp): the
+// arguments quoted so that NCommandLineParser::SplitCommandLine() gives
+// them back unchanged.
+WCHAR *GetCommandLineW();
+
 // Window handles are opaque here; the GUI shim defines HWND__.
 struct HWND__;
 typedef HWND__ *HWND;

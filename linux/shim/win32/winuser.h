@@ -22,6 +22,12 @@
 #define _WIN64
 #endif
 
+/* The API level of the subset, as C/Precomp.h sets it on Windows: Vista
+   (comctl32 6), so the GUI code takes no run-time paths for older systems. */
+#ifndef Z7_WIN32_WINNT_MIN
+#define Z7_WIN32_WINNT_MIN 0x0600
+#endif
+
 #ifndef CONST
 #define CONST const
 #endif

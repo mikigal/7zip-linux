@@ -7,6 +7,7 @@
 #include <QFont>
 #include <QIcon>
 #include <QString>
+#include <QStringList>
 
 #include <functional>
 
@@ -58,6 +59,22 @@ typedef std::function<void(HWND)> CModalHook;
 typedef std::function<int(HWND owner, const QString &text, const QString &caption, UINT type)> CMessageBoxHook;
 void SetModalHook(const CModalHook &hook);
 void SetMessageBoxHook(const CMessageBoxHook &hook);
+
+/* The file dialog hook runs instead of the Qt file dialogs (the folder
+   browser and the open and save dialogs). It returns false for Cancel, or
+   true with the chosen path in Path (and the filter in FilterIndex). */
+struct CFileDialogRequest
+{
+  enum EKind { kFolder, kOpenFile, kSaveFile };
+  EKind Kind;
+  HWND Owner;
+  QString Title;
+  QString Path;          // in: the initial folder or file; out: the result
+  QStringList Filters;   // Qt name filters ("7z archive (*.7z)")
+  int FilterIndex;       // in and out; -1: none
+};
+typedef std::function<bool(CFileDialogRequest &request)> CFileDialogHook;
+void SetFileDialogHook(const CFileDialogHook &hook);
 
 }
 

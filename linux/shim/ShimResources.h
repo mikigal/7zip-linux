@@ -22,6 +22,7 @@ struct _IMAGELIST
   int Cx;
   int Cy;
   QList<QIcon> Icons;
+  bool System = false;   // a system image list (SHGetFileInfo): never destroyed
 };
 
 struct HFONT__
@@ -36,6 +37,9 @@ QIcon ResourceIcon(UInt32 id);
 
 // A handle for an icon that the caller owns (DestroyIcon() frees it).
 HICON NewIconHandle(const QIcon &icon);
+
+// The system image list of small (16 px) or large (32 px) icons.
+HIMAGELIST SystemImageList(bool smallIcons);
 
 }
 
