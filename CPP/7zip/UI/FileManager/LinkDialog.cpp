@@ -40,6 +40,7 @@ static const UInt32 kLangIDs[] =
 #endif
 
 
+#ifdef _WIN32
 static bool GetSymLink(CFSTR path, CReparseAttr &attr, UString &errorMessage)
 {
   CByteBuffer buf;
@@ -65,6 +66,7 @@ static bool GetSymLink(CFSTR path, CReparseAttr &attr, UString &errorMessage)
   }
   return true;
 }
+#endif
 
 
 static const unsigned k_LinkType_Buttons[] =
@@ -102,6 +104,29 @@ bool CLinkDialog::OnInit()
       linkType = IDR_LINK_TYPE_SYM_FILE;
     else
     {
+      #ifndef _WIN32
+      // a symbolic link: its target
+      if (fi.IsPosixLink())
+      {
+        CByteBuffer buf;
+        UString s;
+        if (NIO::GetReparseData(us2fs(FilePath), buf))
+        {
+          FString target;
+          target.SetFrom((const char *)(const Byte *)buf, (unsigned)buf.Size());
+          s = fs2us(target);
+        }
+        else
+          s = UString("ERROR: ") + NError::MyFormatMessage(GetLastError());
+        SetItemText(IDT_LINK_PATH_TO_CUR, s);
+        _pathFromCombo.SetText(FilePath);
+        _pathToCombo.SetText(s);
+        linkType = NFind::DoesDirExist_FollowLink(us2fs(FilePath)) ?
+            IDR_LINK_TYPE_SYM_DIR :
+            IDR_LINK_TYPE_SYM_FILE;
+      }
+      else
+      #else
       if (fi.HasReparsePoint())
       {
         CReparseAttr attr;
@@ -159,6 +184,7 @@ bool CLinkDialog::OnInit()
         }
       }
       else
+      #endif
       {
         // no ReparsePoint
         _pathFromCombo.SetText(AnotherPath);
@@ -288,6 +314,13 @@ void CLinkDialog::OnButton_Link()
 
   const bool isWSL = (idb == IDR_LINK_TYPE_WSL);
 
+  #ifndef _WIN32
+  // a symbolic link has the type of its target, as on Windows
+  const bool fromIsLink = finded1 && info1.IsPosixLink();
+  if (fromIsLink && NFind::DoesDirExist_FollowLink(us2fs(from)))
+    info1.SetAsDir();
+  #endif
+
   if (!isWSL)
   if ((finded1 && info1.IsDir() != isDirLink) ||
       (finded2 && info2.IsDir() != isDirLink))
@@ -305,6 +338,25 @@ void CLinkDialog::OnButton_Link()
     }
   }
   else
+  #ifndef _WIN32
+  {
+    // a symbolic link; an existing one is replaced
+    if (to.IsEmpty() || (finded1 && !fromIsLink))
+    {
+      ShowError(to.IsEmpty() ? L"Incorrect link" : L"The file exists");
+      return;
+    }
+    const FString temp = us2fs(from) + FTEXT(".7z-link-tmp");
+    if (!NIO::SetSymLink(finded1 ? temp : us2fs(from), us2fs(to))
+        || (finded1 && !NDir::MyMoveFile(temp, us2fs(from))))
+    {
+      ShowLastErrorMessage();
+      if (finded1)
+        NDir::DeleteFileAlways(temp);
+      return;
+    }
+  }
+  #else
   {
     if (finded1 && !info1.IsDir() && !info1.HasReparsePoint() && info1.Size != 0)
     {
@@ -346,6 +398,7 @@ void CLinkDialog::OnButton_Link()
       return;
     }
   }
+  #endif
 
   End(IDOK);
 }
