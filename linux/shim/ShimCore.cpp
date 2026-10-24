@@ -226,6 +226,16 @@ HWND__::~HWND__()
     Unregister(this);
 }
 
+void NShim::ReactivateOwner(QWidget *owner)
+{
+  if (!owner || !owner->isVisible())
+    return;
+  QWidget *active = QApplication::activeWindow();
+  // the owner itself: an activation of the closed window can be pending
+  if (!active || !active->isVisible() || active == owner)
+    owner->activateWindow();
+}
+
 HWND HWND__::TopLevel()
 {
   HWND w = this;
@@ -455,9 +465,37 @@ LRESULT DefWindowProcImpl(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam)
 
 // ---------- Input ----------
 
+// The platforms whose native scan codes are XKB key codes (evdev codes + 8).
+static bool HasXkbKeycodes()
+{
+  const QString p = QGuiApplication::platformName();
+  return p == QLatin1String("xcb") || p.startsWith(QLatin1String("wayland"));
+}
+
+static bool g_RightCtrlDown = false;
+
+void TrackModifierKey(const QKeyEvent *e)
+{
+  const quint32 kRightCtrl = 105; // KEY_RIGHTCTRL + 8
+  if (e->key() != Qt::Key_Control || !HasXkbKeycodes())
+    return;
+  if (e->type() == QEvent::KeyPress)
+    g_RightCtrlDown = (e->nativeScanCode() == kRightCtrl);
+  else if (e->nativeScanCode() == kRightCtrl)
+    g_RightCtrlDown = false;
+}
+
 UINT VirtualKeyFromQt(const QKeyEvent *e)
 {
   const int key = e->key();
+  // The digit keys of the main keyboard are VK '0'...'9' whatever character
+  // they give (Shift+1 is Qt::Key_Exclam on a US layout).
+  if (HasXkbKeycodes() && !(e->modifiers() & Qt::KeypadModifier))
+  {
+    const quint32 code = e->nativeScanCode();
+    if (code >= 10 && code <= 19) // KEY_1...KEY_0 + 8
+      return (UINT)(code == 19 ? '0' : '1' + (code - 10));
+  }
   if (key >= Qt::Key_A && key <= Qt::Key_Z)
     return (UINT)('A' + (key - Qt::Key_A));
   if (key >= Qt::Key_0 && key <= Qt::Key_9)
@@ -841,9 +879,22 @@ BOOL EnableWindow(HWND wnd, BOOL enable)
       wnd->Style &= ~(DWORD)WS_DISABLED;
     else
       wnd->Style |= WS_DISABLED;
+    // A disabled window loses the focus, but a control inside it keeps it
+    // (the owner of a modal dialog). Qt moves the focus out of a disabled
+    // widget, so it is given back when the window is enabled again.
+    QWidget *focus = wnd->Widget->window()->focusWidget();
+    if (!enable && !wasDisabled && focus && focus != wnd->Widget && wnd->Widget->isAncestorOf(focus))
+      wnd->FocusWhenDisabled = focus;
     wnd->Widget->setEnabled(enable != FALSE);
     if (!enable && wnd->Widget->hasFocus() && !wnd->IsChild())
       wnd->Widget->clearFocus();
+    if (enable)
+    {
+      QWidget *saved = wnd->FocusWhenDisabled;
+      wnd->FocusWhenDisabled.clear();
+      if (saved && !saved->window()->focusWidget() && saved->isEnabled() && saved->isVisible())
+        saved->setFocus(Qt::OtherFocusReason);
+    }
     return wasDisabled;
   });
 }
@@ -1257,6 +1308,8 @@ SHORT GetKeyState(int virtKey)
   {
     case VK_SHIFT: down = (m & Qt::ShiftModifier) != 0; break;
     case VK_CONTROL: down = (m & Qt::ControlModifier) != 0; break;
+    case VK_LCONTROL: down = (m & Qt::ControlModifier) != 0 && !g_RightCtrlDown; break;
+    case VK_RCONTROL: down = (m & Qt::ControlModifier) != 0 && g_RightCtrlDown; break;
     case VK_MENU: down = (m & Qt::AltModifier) != 0; break;
     case VK_LWIN:
     case VK_RWIN: down = (m & Qt::MetaModifier) != 0; break;

@@ -20,6 +20,7 @@
 #include <QRadioButton>
 #include <QRegularExpressionValidator>
 #include <QResizeEvent>
+#include <QScreen>
 #include <QScrollBar>
 #include <QSignalBlocker>
 #include <QSlider>
@@ -1106,8 +1107,13 @@ public:
     const QSignalBlocker block(c);
     c->setCurrentIndex(-1);
     c->setEditText(s);
-    if (c->lineEdit())
-      c->lineEdit()->setModified(false);
+    if (QLineEdit *e = c->lineEdit())
+    {
+      e->setModified(false);
+      // as a Windows edit control, it shows the start of a long text
+      if (!e->hasFocus())
+        e->setCursorPosition(0);
+    }
   }
 
   QString Text() const override
@@ -2115,6 +2121,21 @@ HWND CreateWindowImpl(DWORD exStyle, const QString &className, const QString &te
     q->setGeometry(x, y, width, height);
   else if (width != CW_USEDEFAULT)
     q->resize(width, height);
+  else if (!child && !(style & WS_POPUP))
+  {
+    // Windows gives an overlapped window a default size: 3/4 of the screen
+    // (as Wine does)
+    QScreen *screen = q->screen() ? q->screen() : QGuiApplication::primaryScreen();
+    if (screen)
+    {
+      const QRect r = screen->availableGeometry();
+      q->resize(r.width() * 3 / 4, r.height() * 3 / 4);
+    }
+  }
+  // The client area has its size at WM_CREATE already (7zFM places the
+  // splitter of the panels there).
+  if (q->layout())
+    q->layout()->activate();
   g->LastSize = q->size();
   if (child)
     g->TextValue = text;

@@ -9,6 +9,7 @@
 #include <QFontMetrics>
 #include <QKeyEvent>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QResizeEvent>
 
@@ -692,7 +693,10 @@ INT_PTR RunModalDialog(HWND dlg)
     d->Loop = NULL;
   }
   const INT_PTR result = d->Result;
+  HWND owner = FromHandle(d->Parent);
+  QPointer<QWidget> ownerWindow = (owner && owner->Widget) ? owner->Widget->window() : NULL;
   DestroyWindowTree(d);
+  ReactivateOwner(ownerWindow);
   return result;
 }
 

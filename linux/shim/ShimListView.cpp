@@ -35,6 +35,7 @@
 #include <algorithm>
 #include <vector>
 
+#include "ShimDialog.h"
 #include "ShimResources.h"
 #include "ShimWindow.h"
 
@@ -710,6 +711,17 @@ public:
 
   // ---------- Columns ----------
 
+  /* Column widths of the program are pixels for the font of Windows (the
+     dialog font, Tahoma 8 at 96 dpi: base unit 6); on screen they grow
+     with the font, as the dialog layouts do, and the program reads back
+     the widths it set. */
+  double WidthScale() const
+  {
+    return ComputeBaseUnits(Widget->font()).X / 6.0;
+  }
+  int ToScreen(int w) const { return (int)(w * WidthScale() + 0.5); }
+  int FromScreen(int w) const { return (int)(w / WidthScale() + 0.5); }
+
   void ApplyColumnWidths()
   {
     if (!Tree)
@@ -732,7 +744,7 @@ public:
     CLvColumn col;
     col.Fmt = (c->mask & LVCF_FMT) ? c->fmt : LVCFMT_LEFT;
     col.Text = ((c->mask & LVCF_TEXT) && c->pszText) ? FromW(c->pszText) : QString();
-    col.Width = (c->mask & LVCF_WIDTH) ? c->cx : 60;
+    col.Width = ToScreen((c->mask & LVCF_WIDTH) ? c->cx : 60);
     // the texts of the items move with the columns; the first column takes
     // the place of the model column that a list without columns has
     const bool first = (n == 0);
@@ -823,7 +835,7 @@ public:
   {
     if (col < 0 || col >= NumColumns())
       return;
-    int w = cx;
+    int w = ToScreen(cx);
     if (cx == LVSCW_AUTOSIZE)
       w = ContentWidth(col);
     else if (cx == LVSCW_AUTOSIZE_USEHEADER)
@@ -1533,13 +1545,15 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
   const int index = (int)(INT_PTR)wParam;
   switch (message)
   {
+    case WM_SYSKEYDOWN:
     case WM_KEYDOWN:
     {
+      // keys with Alt are notified too (Alt+Enter, Alt+digit, Alt+arrows)
       NMLVKEYDOWN nm;
       memset(&nm, 0, sizeof(nm));
       nm.wVKey = (WORD)wParam;
       NotifyParent(&nm.hdr, LVN_KEYDOWN);
-      if (!FromHandle(this))
+      if (!FromHandle(this) || message == WM_SYSKEYDOWN)
         return 0;
       switch (wParam)
       {
@@ -1560,6 +1574,9 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
           return 0;
       }
     }
+    case WM_SYSCHAR:
+      // no incremental search with Alt; Qt has the menu mnemonics already
+      return 0;
     case LVM_GETITEMCOUNT:
       return Count();
     case LVM_INSERTITEMW:
@@ -1639,7 +1656,7 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
       if (c->mask & LVCF_FMT)
         c->fmt = col.Fmt;
       if (c->mask & LVCF_WIDTH)
-        c->cx = ColumnWidth(index);
+        c->cx = FromScreen(ColumnWidth(index));
       if (c->mask & LVCF_TEXT)
         CopyToW(col.Text, c->pszText, c->cchTextMax);
       if (c->mask & LVCF_SUBITEM)
@@ -1654,7 +1671,7 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
       SetColumnWidth(index, (short)LOWORD(lParam));
       return TRUE;
     case LVM_GETCOLUMNWIDTH:
-      return ColumnWidth(index);
+      return FromScreen(ColumnWidth(index));
     case LVM_SETCOLUMNORDERARRAY:
     {
       const int *order = (const int *)lParam;

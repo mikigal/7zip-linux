@@ -310,7 +310,10 @@ static bool RunFileDialog(CFileDialogRequest &r)
       dialog.selectFile(fi.fileName());
     }
   }
-  if (dialog.exec() != QDialog::Accepted)
+  QPointer<QWidget> ownerWindow = parent;
+  const int code = dialog.exec();
+  ReactivateOwner(ownerWindow);
+  if (code != QDialog::Accepted)
     return false;
   const QStringList files = dialog.selectedFiles();
   if (files.isEmpty())

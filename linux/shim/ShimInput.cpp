@@ -21,6 +21,7 @@
 #include <QWidget>
 
 #include <map>
+#include <unordered_set>
 
 #include "ShimWindow.h"
 
@@ -165,6 +166,7 @@ static bool SendInputMessage(HWND wnd, UINT message, WPARAM wParam, LPARAM lPara
 static bool DispatchKey(HWND wnd, QObject *watched, QKeyEvent *e)
 {
   const bool up = (e->type() == QEvent::KeyRelease);
+  TrackModifierKey(e);
   const UINT vk = VirtualKeyFromQt(e);
   const bool alt = (e->modifiers() & Qt::AltModifier) != 0;
   if (!up && vk != 0 && TranslateAcceleratorKey(wnd, vk, e->modifiers()))
@@ -369,6 +371,18 @@ bool DispatchInputEvent(HWND wnd, QObject *watched, QEvent *event)
 
 using namespace NShim;
 
+// The tables that the program has not destroyed: Windows frees them when
+// the program ends (7zFM keeps its table until then).
+static std::unordered_set<HACCEL> g_AccelTables;
+
+static void FreeAccelTables()
+{
+  for (HACCEL h : g_AccelTables)
+    delete h;
+  g_AccelTables.clear();
+  g_Accelerators.clear();
+}
+
 HACCEL LoadAcceleratorsW(HINSTANCE /* instance */, LPCWSTR name)
 {
   if (!IS_INTRESOURCE(name))
@@ -376,9 +390,19 @@ HACCEL LoadAcceleratorsW(HINSTANCE /* instance */, LPCWSTR name)
   const NRc::CAccelTable *t = NRc::FindAccelTable((UInt32)(uintptr_t)name);
   if (!t)
     return NULL;
-  HACCEL h = new HACCEL__;
-  h->Table = t;
-  return h;
+  return OnGuiThread<HACCEL>([=]()
+  {
+    static bool s_FreeAtEnd = false;
+    if (!s_FreeAtEnd)
+    {
+      s_FreeAtEnd = true;
+      qAddPostRoutine(FreeAccelTables);
+    }
+    HACCEL h = new HACCEL__;
+    h->Table = t;
+    g_AccelTables.insert(h);
+    return h;
+  });
 }
 
 HACCEL LoadAcceleratorsA(HINSTANCE instance, LPCSTR name)
@@ -407,11 +431,14 @@ int TranslateAcceleratorA(HWND wnd, HACCEL accel, LPMSG msg)
 
 BOOL DestroyAcceleratorTable(HACCEL accel)
 {
-  if (!accel)
-    return FALSE;
-  RunOnGuiThread([=]() { ForgetAccelerators(accel); });
-  delete accel;
-  return TRUE;
+  return OnGuiThread<BOOL>([=]()
+  {
+    if (!accel || g_AccelTables.erase(accel) == 0)
+      return FALSE;
+    ForgetAccelerators(accel);
+    delete accel;
+    return TRUE;
+  });
 }
 
 UINT MapVirtualKeyW(UINT code, UINT mapType)

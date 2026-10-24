@@ -103,7 +103,9 @@ static int MessageBoxImpl(HWND owner, const QString &text, const QString &captio
     box.setDefaultButton(qobject_cast<QPushButton *>(buttons[def]));
   if (parent)
     box.setWindowModality(Qt::WindowModal);
+  QPointer<QWidget> ownerWindow = parent;
   box.exec();
+  ReactivateOwner(ownerWindow);
   QAbstractButton *clicked = box.clickedButton();
   if (!clicked)
     return escape ? escape->property("z7Id").toInt() : IDCANCEL;

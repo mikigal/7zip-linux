@@ -81,6 +81,9 @@ public:
   // Set when an input message (WM_KEYDOWN, WM_CHAR, mouse messages) reaches
   // the default processing (DefWindowProc): Qt then handles the event.
   bool InputDefault;
+  // The focus widget inside the window when EnableWindow() disabled it:
+  // Win32 keeps the focus there, Qt clears it (see EnableWindow()).
+  QPointer<QWidget> FocusWhenDisabled;
 
   HWND__(NShim::EKind kind);
   virtual ~HWND__();
@@ -188,6 +191,11 @@ QWidget *ParentWidgetFor(HWND parent);
 
 // Destroys a window and its children (WM_DESTROY, WM_NCDESTROY).
 bool DestroyWindowTree(HWND wnd);
+// After a modal window of the owner window closed: Windows activates the
+// owner (EndDialog, MessageBox), whose WM_ACTIVATE gives the focus back.
+// Without a window manager (offscreen) nothing would be active, and the
+// closed window can still be the active one.
+void ReactivateOwner(QWidget *owner);
 
 // ---------- Messages ----------
 
@@ -262,6 +270,8 @@ void ClickButton(HWND wnd);
 
 // The Win32 virtual key of a Qt key event, or 0.
 UINT VirtualKeyFromQt(const QKeyEvent *e);
+// Follows the left and right Ctrl keys for GetKeyState(VK_RCONTROL).
+void TrackModifierKey(const QKeyEvent *e);
 
 // Turns a Qt input or focus event of a window's widget into window
 // messages (WM_KEYDOWN, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, ...) and the

@@ -67,13 +67,6 @@ static HMENU Live(HMENU menu)
   return (menu && g_Menus.find(menu) != g_Menus.end()) ? menu : NULL;
 }
 
-static HMENU NewMenu(bool popup)
-{
-  HMENU m = new HMENU__(popup);
-  g_Menus.insert(m);
-  return m;
-}
-
 static void DestroyMenuTree(HMENU menu)
 {
   if (!Live(menu))
@@ -86,6 +79,27 @@ static void DestroyMenuTree(HMENU menu)
   if (menu->Window && FromHandle(menu->Window) && menu->Window->Menu == menu)
     menu->Window->Menu = NULL;
   delete menu;
+}
+
+// Windows frees the menus of a program when it ends; 7zFM keeps some
+// (the copy of the File menu) until then.
+static void FreeAllMenus()
+{
+  while (!g_Menus.empty())
+    DestroyMenuTree(*g_Menus.begin());
+}
+
+static HMENU NewMenu(bool popup)
+{
+  static bool s_FreeAtEnd = false;
+  if (!s_FreeAtEnd)
+  {
+    s_FreeAtEnd = true;
+    qAddPostRoutine(FreeAllMenus);
+  }
+  HMENU m = new HMENU__(popup);
+  g_Menus.insert(m);
+  return m;
 }
 
 /* Finds an item by position or (recursively, as Windows does) by command:
