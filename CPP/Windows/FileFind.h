@@ -142,6 +142,7 @@ public:
   }
  
   bool IsPosixLink() const { return S_ISLNK(mode); }
+  bool HasReparsePoint() const { return IsPosixLink(); }
 
  #endif
 
@@ -305,6 +306,9 @@ public:
   void SetDirPrefix(const FString &dirPrefix);
 
   bool Next(CDirEntry &fileInfo, bool &found);
+  // like the Windows version: the items themselves (links are not followed)
+  bool Next(CFileInfo &fileInfo, bool &found);
+  bool Next(CFileInfo &fileInfo);
   bool Fill_FileInfo(const CDirEntry &de, CFileInfo &fileInfo, bool followLink) const;
   bool DirEntry_IsDir(const CDirEntry &de, bool followLink) const
   {

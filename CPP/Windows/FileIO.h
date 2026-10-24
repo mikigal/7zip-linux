@@ -415,6 +415,7 @@ public:
   off_t seekToBegin() const throw();
   off_t seekToCur() const throw();
   // bool SeekToBegin() throw();
+  bool SeekToBegin() const throw() { return seekToBegin() == 0; }
   int my_fstat(struct stat *st) const  { return fstat(_handle, st); }
   /*
   int my_ioctl_BLKGETSIZE64(unsigned long long *val);
@@ -440,6 +441,14 @@ public:
   ssize_t read_part(void *data, size_t size) throw();
   // ssize_t read_full(void *data, size_t size, size_t &processed);
   bool ReadFull(void *data, size_t size, size_t &processedSize) throw();
+  // the Windows form, as the file manager code calls it
+  bool Read(void *data, UInt32 size, UInt32 &processedSize) throw()
+  {
+    size_t processed;
+    const bool res = ReadFull(data, size, processed);
+    processedSize = (UInt32)processed;
+    return res;
+  }
 };
 
 class COutFile: public CFileBase
@@ -486,6 +495,15 @@ public:
     if (res == -1)
       return false;
     return processed == size;
+  }
+
+  // the Windows form, as the file manager code calls it
+  bool Write(const void *data, UInt32 size, UInt32 &processedSize) throw()
+  {
+    size_t processed;
+    const ssize_t res = write_full(data, size, processed);
+    processedSize = (UInt32)processed;
+    return res != -1;
   }
 
   bool SetLength(UInt64 length) throw();

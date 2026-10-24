@@ -86,6 +86,18 @@ public:
 
   HMODULE Get_HMODULE() const { return _module; }
 
+  void Attach(HMODULE m)
+  {
+    Free();
+    _module = m;
+  }
+  HMODULE Detach()
+  {
+    const HMODULE m = _module;
+    _module = NULL;
+    return m;
+  }
+
   bool Free() throw();
   bool Load(CFSTR path) throw();
   // FARPROC

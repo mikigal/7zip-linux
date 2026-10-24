@@ -1432,6 +1432,29 @@ bool CEnumerator::Next(CDirEntry &fileInfo, bool &found)
 }
 */
 
+bool CEnumerator::Next(CFileInfo &fileInfo, bool &found)
+{
+  CDirEntry de;
+  for (;;)
+  {
+    if (!Next(de, found))
+      return false;
+    if (!found)
+      return true;
+    // an item that was deleted after readdir() is skipped
+    if (Fill_FileInfo(de, fileInfo, false))
+      return true;
+  }
+}
+
+bool CEnumerator::Next(CFileInfo &fileInfo)
+{
+  bool found;
+  if (!Next(fileInfo, found))
+    return false;
+  return found;
+}
+
 bool CEnumerator::Fill_FileInfo(const CDirEntry &de, CFileInfo &fileInfo, bool followLink) const
 {
   // printf("\nCEnumerator::Fill_FileInfo()\n");
