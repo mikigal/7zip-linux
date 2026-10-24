@@ -8,7 +8,7 @@ target_compile_options(z7_7zg_main PRIVATE ${Z7_UPSTREAM_WARNINGS} -include "${Z
 target_link_libraries(z7_7zg_main PRIVATE z7_gui)
 
 # Linux parts of 7zG: the commands of file manager context menus.
-add_library(z7_7zg_linux STATIC ContextCommand.cpp)
+add_library(z7_7zg_linux STATIC ContextCommand.cpp GuiCommand.cpp)
 z7_port_target(z7_7zg_linux)
 target_compile_options(z7_7zg_linux PRIVATE -Wno-non-virtual-dtor)
 target_compile_definitions(z7_7zg_linux PUBLIC ${Z7_BASE_DEFINITIONS} Z7_LANG)

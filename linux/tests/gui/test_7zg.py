@@ -486,10 +486,13 @@ class GuiTest(unittest.TestCase):
             {"click": ID("IDCANCEL")}]},
     ], "--context", "extract", archive)
     self.assertEqual(run.code, K_USER_BREAK, run.stderr)
-    # "*": a folder named after the archive
-    run = self.run_7zg([], "--context", "extractto", archive)
+    # "*": a folder named after each archive
+    other = self.make_archive("b*.7z")
+    self.assertEqual(os.path.dirname(other), folder)
+    run = self.run_7zg([], "--context", "extractto", archive, other)
     self.assertRun(run)
     self.assertEqual(snapshot(os.path.join(folder, "a")), snapshot(self.src))
+    self.assertEqual(snapshot(os.path.join(folder, "b*")), snapshot(self.src))
     run = self.run_7zg([
         {"on": "messagebox", "contains": "There are no errors", "answer": ID("IDOK")},
     ], "--context", "test", archive)
