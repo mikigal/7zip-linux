@@ -32,10 +32,14 @@ rendered in a dark theme. The full plan and phase checklist are in
 - Never push without asking the user.
 
 ## Verification (do this yourself before every commit)
-- Build the Linux targets and run the tests; `linux/tools/check.sh` becomes
-  the single entry point once Phase 0 lands.
-- If upstream files changed, also rebuild upstream `7zz`
-  (`CPP/7zip/Bundles/Alone2`, `make -f makefile.gcc`).
+- Run `linux/tools/check.sh`: it configures, builds (including the upstream
+  `7zz` oracle through the upstream makefile, which also catches breakage in
+  upstream files) and runs every test. It takes a few seconds incrementally.
+- Use `--no-wayland` only for quick iterations; run the full suite before
+  committing. Use `--asan` after larger changes in C++ code.
+- Logs and screenshots are in `build/linux/test-artifacts/`. Look at the
+  screenshots when a change affects what is on screen.
+- After merging an upstream release, run `linux/tools/upstream_sources.py`.
 - UI changes: render the dialog gallery, look at the PNGs, and update golden
   images only after a visual review.
 - Wayland and desktop integration: run the scenario tests in a nested headless

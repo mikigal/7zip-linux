@@ -232,18 +232,39 @@ any golden-image change has been reviewed.
 
 ## 7. Phases
 
-### Phase 0: Foundations and test harness
-- [ ] Work branch `linux-port`; add an `upstream` remote (`ip7z/7zip`).
-- [ ] `CLAUDE.md` and this plan.
-- [ ] CMake: a static core library from the upstream source lists (derived
-      from `Bundles/Format7zF/Arc_gcc.mak`, with a consistency check).
-- [ ] Build of the `7zz` oracle with the upstream makefile, out of tree.
-- [ ] `linux/tools/check.sh` as the single verification entry point.
-- [ ] `linux/tools/wlsession.py`: nested KWin, isolation, screenshots, cleanup,
-      and a smoke test with a trivial Qt window.
-- [ ] `linux/tools/ei-input`: a libei helper for pointer move, press and
-      release and for keys, with a smoke test (a synthetic click reaches the
-      test window).
+### Phase 0: Foundations and test harness (done)
+- [x] Work branch `linux-port`; add an `upstream` remote (`ip7z/7zip`).
+- [x] `CLAUDE.md` and this plan.
+- [x] CMake: the `z7_core` OBJECT library from the upstream source lists.
+      `tools/upstream_sources.py` evaluates the upstream GNU makefiles and
+      writes them to `cmake/UpstreamSources.cmake`; ctest checks that the file
+      is current. The 7zz object set matches the upstream build 1:1 (322
+      objects).
+- [x] Build of the `7zz` oracle with the upstream makefile, out of tree
+      (`oracle_7zz` target), plus a CMake-built `7zz`. The `core_roundtrip`
+      test checks both directions for 7z, 7z with encrypted headers, zip,
+      zip AES, tar and wim, and that both binaries report identical formats
+      and codecs.
+- [x] `linux/tools/check.sh` as the single verification entry point.
+- [x] `linux/tools/wlsession.py`: nested KWin, isolation, Spectacle
+      screenshots, window placement through KWin scripting, cleanup through a
+      marker environment variable. Smoke test with `z7-probe`.
+- [x] `linux/tools/ei-input`: a libei helper (move, press, release, click,
+      drag, key, type, wait). Smoke tests: a synthetic click and keys reach the
+      probe, and a drag between two Wayland clients delivers `text/uri-list`.
+
+Findings:
+- GCC 16 reports `-Warray-bounds` false positives in upstream code, so
+  upstream sources are built without `-Werror`; port code keeps `-Werror`.
+- Qt 6.12 routes file drag and drop through the portal FileTransfer interface
+  (`application/vnd.portal.filetransfer`). When the portal is missing, the
+  receiver gets **empty** `text/uri-list` data (it does not fall back). The
+  real document portal cannot mount FUSE in the sandbox, so the test session
+  D-Bus-activates `tools/fake_filetransfer_portal.py` instead. Phase 6 must
+  handle both paths, and 7-Zip's own drag sources must keep working when the
+  portal is unavailable.
+- Qt logs to journald unless `QT_FORCE_STDERR_LOGGING=1`; the harness sets it
+  so logs land in the test artifacts.
 
 Exit: `check.sh` passes, and an automatic screenshot plus a synthetic click
 work in nested KWin.
