@@ -38,6 +38,8 @@ _DROP_VARS = (
     "SESSION_MANAGER", "XDG_SESSION_ID", "XDG_SESSION_TYPE", "XDG_SESSION_CLASS",
     "XDG_SEAT", "XDG_VTNR", "XDG_ACTIVATION_TOKEN", "DESKTOP_STARTUP_ID",
     "KDE_SESSION_UID", "XAUTHORITY", "QT_QPA_PLATFORMTHEME",
+    "XDG_SEAT_PATH", "XDG_SESSION_PATH", "XDG_SESSION_DESKTOP",
+    "KDE_APPLICATIONS_AS_SCOPE", "QT_WAYLAND_RECONNECT",
     "MANGOHUD", "MANGOHUD_DLSYM", "LD_PRELOAD",
 )
 
@@ -105,6 +107,10 @@ class Session:
         "XDG_DATA_HOME": self._mkdir("home/.local/share"),
         "XDG_CACHE_HOME": self._mkdir("home/.cache"),
         "XDG_STATE_HOME": self._mkdir("home/.local/state"),
+        # the system defaults only: not the theme defaults of the user's
+        # session (~/.config/kdedefaults) or their Flatpak exports
+        "XDG_CONFIG_DIRS": "/etc/xdg",
+        "XDG_DATA_DIRS": "/usr/local/share:/usr/share",
         "XDG_CURRENT_DESKTOP": "KDE",
         "KDE_FULL_SESSION": "true",
         "WAYLAND_DISPLAY": SOCKET_NAME,
@@ -118,7 +124,8 @@ class Session:
                 "--nopidfile"], log="dbus")
     wait_until(lambda: os.path.exists(os.path.join(runtime, "bus")), 10, "D-Bus socket")
 
-    kwin = ["kwin_wayland", "--virtual", "--socket", SOCKET_NAME,
+    # KWin 6.8 locks a new session at once; tests have no use for the lock screen
+    kwin = ["kwin_wayland", "--virtual", "--no-lockscreen", "--socket", SOCKET_NAME,
             "--width", str(self.width), "--height", str(self.height)]
     if self.xwayland:
       kwin.append("--xwayland")
