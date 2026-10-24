@@ -777,6 +777,11 @@ HWND CreateListView(DWORD style, DWORD exStyle, QWidget *parent)
   t->headerItem()->setText(0, QString());
   t->setHeaderHidden((style & LVS_NOCOLUMNHEADER) != 0);
   t->header()->setStretchLastSection(false);
+  // QTreeWidget always has a column; until the first LVM_INSERTCOLUMN it has
+  // no width, so the header is empty as on Windows. Windows also allows a
+  // column of width 0.
+  t->header()->setMinimumSectionSize(0);
+  t->header()->resizeSection(0, 0);
   t->header()->setSectionsClickable(!(style & LVS_NOSORTHEADER));
   t->header()->setSectionsMovable(false);
   t->setSelectionMode((style & LVS_SINGLESEL) ? QAbstractItemView::SingleSelection : QAbstractItemView::ExtendedSelection);

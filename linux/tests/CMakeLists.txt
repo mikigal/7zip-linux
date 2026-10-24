@@ -50,11 +50,24 @@ else()
   message(STATUS "Unit tests disabled (need Qt6 Test)")
 endif()
 
+find_program(Z7_MAGICK magick)
+
+# Render tests (label "render"): every dialog of the gallery against the
+# golden pictures in render/golden.
+if(TARGET z7-gallery AND Z7_MAGICK)
+  add_test(NAME render_gallery
+    COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/render/test_gallery.py"
+            --gallery $<TARGET_FILE:z7-gallery>
+            --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/render_gallery")
+  set_tests_properties(render_gallery PROPERTIES LABELS "render" TIMEOUT 180 SKIP_RETURN_CODE 77)
+else()
+  message(STATUS "Render tests disabled (need z7-gallery and ImageMagick)")
+endif()
+
 # Wayland scenario tests run in a nested headless KWin (label "wayland").
 find_package(Qt6 COMPONENTS Widgets)
 find_program(Z7_KWIN kwin_wayland)
 find_program(Z7_SPECTACLE spectacle)
-find_program(Z7_MAGICK magick)
 
 if(Qt6Widgets_FOUND)
   add_executable(z7-probe wayland/probe_window.cpp)

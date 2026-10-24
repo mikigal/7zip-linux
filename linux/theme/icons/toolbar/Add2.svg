@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24">
+  <!-- Add2.bmp of 7-Zip, redrawn for a dark background: the same shape,
+       black outline and gray shadow. -->
+  <path d="M9.5,2.5 L15.5,2.5 L15.5,8.5 L21.5,8.5 L21.5,14.5 L15.5,14.5 L15.5,20.5 L9.5,20.5 L9.5,14.5 L3.5,14.5 L3.5,8.5 L9.5,8.5 Z" transform="translate(1 1)" fill="#6e6e6e" stroke="#6e6e6e"/>
+  <path d="M9.5,2.5 L15.5,2.5 L15.5,8.5 L21.5,8.5 L21.5,14.5 L15.5,14.5 L15.5,20.5 L9.5,20.5 L9.5,14.5 L3.5,14.5 L3.5,8.5 L9.5,8.5 Z" fill="#00ff00" stroke="#000000"/>
+</svg>
