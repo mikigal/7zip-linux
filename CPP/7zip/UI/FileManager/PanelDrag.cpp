@@ -2070,6 +2070,23 @@ bool CDropTarget::IsItSameDrive() const
   if (!IsFsFolderPath())
     return false;
 
+  #ifndef _WIN32
+  /* POSIX: every path starts with "/". The same file system (device)
+     stands for the same drive. */
+  {
+    NFile::NFind::CFileInfo target;
+    if (m_SourcePaths.Size() == 0 || !target.Find_FollowLink(us2fs(GetTargetPath())))
+      return false;
+    FOR_VECTOR (i, m_SourcePaths)
+    {
+      NFile::NFind::CFileInfo fi;
+      if (!fi.Find(us2fs(m_SourcePaths[i])) || fi.dev != target.dev)
+        return false;
+    }
+    return true;
+  }
+  #endif
+
   UString drive;
   
   if (m_Panel->IsFSFolder())
