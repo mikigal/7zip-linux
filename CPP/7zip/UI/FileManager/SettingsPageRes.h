@@ -17,6 +17,11 @@
 #define IDC_SETTINGS_MEM_SPIN      102
 #define IDT_SETTINGS_MEM_GB        103
 
+#ifndef _WIN32
+#define IDX_SETTINGS_DRAG_FILES      104
+#define IDT_SETTINGS_DRAG_FILES_INFO 105
+#endif
+
 // #define IDT_SETTINGS_MEM     100
 // #define IDC_SETTINGS_MEM     101
 // #define IDT_SETTINGS_MEM_RAM 102

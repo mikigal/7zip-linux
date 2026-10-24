@@ -27,6 +27,12 @@ BEGIN
       "4", m + 30, spin_y, spin_x_size)
   LTEXT "GB", IDT_SETTINGS_MEM_GB, m + 30 + spin_x_size + 8, spin_y + 2, xc - m - 30 - spin_x_size - 8, 8
 
+#ifndef _WIN32
+  MY_CONTROL_CHECKBOX ( "Drag archive items to other programs (browsers, GTK programs)", IDX_SETTINGS_DRAG_FILES, m, 182, xc)
+  LTEXT "Browsers and GTK programs read the files of a drag while the pointer moves over their window, before the drop. With this option, archive items dragged to them are extracted into the temporary folder at that moment.\n+ Archive items can be dropped into browsers, Thunar, Nemo, Nautilus and other programs.\n- The extraction starts even without a drop: large items take time, and space in the temporary folder (often in RAM). After a drop the files stay there until 7-Zip exits, as the program copies them later.\nDolphin and the other KDE programs always get the items directly, without this option.",
+        IDT_SETTINGS_DRAG_FILES_INFO, m + 12, 196, xc - 12, yc - 196
+#endif
+
   // LTEXT     "Memory usage for Compressing:", IDT_COMPRESS_MEMORY, m, 140, xc, 8
   // COMBOBOX  IDC_SETTINGS_MEM, m , 152, g1xs, yc - 152, MY_COMBO
   // LTEXT     "/ RAM", IDT_SETTINGS_MEM_RAM, m + g1xs + m, 154, xc - g1xs - m, MY_TEXT_NOPREFIX

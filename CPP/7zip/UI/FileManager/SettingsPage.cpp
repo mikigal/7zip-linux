@@ -196,6 +196,9 @@ bool CSettingsPage::OnInit()
   
   // EnableSubItems();
 
+#ifndef _WIN32
+  InitLinuxSettings(*this, IDX_SETTINGS_DRAG_FILES, IDT_SETTINGS_DRAG_FILES_INFO);
+#endif
 
   {
     size_t ramSize = (size_t)sizeof(size_t) << 29;
@@ -285,6 +288,9 @@ LONG CSettingsPage::OnApply()
     st.ShowSystemMenu = IsButtonCheckedBool(IDX_SETTINGS_SHOW_SYSTEM_MENU);
 
     st.Save();
+#ifndef _WIN32
+    ApplyLinuxSettings(*this, IDX_SETTINGS_DRAG_FILES);
+#endif
     _wasChanged = false;
   }
 
@@ -430,6 +436,9 @@ bool CSettingsPage::OnButtonClicked(unsigned buttonID, HWND buttonHWND)
     case IDX_SETTINGS_FULL_ROW:
     case IDX_SETTINGS_SHOW_GRID:
     case IDX_SETTINGS_ALTERNATIVE_SELECTION:
+#ifndef _WIN32
+    case IDX_SETTINGS_DRAG_FILES:
+#endif
       _wasChanged = true;
       break;
 
