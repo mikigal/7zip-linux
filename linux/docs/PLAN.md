@@ -223,8 +223,8 @@ releases does: every changed upstream line can conflict.
 - **File manager context menus:** a `KAbstractFileItemActionPlugin` for KDE
   file managers that shows the menu of upstream `Explorer/ContextMenu.cpp`
   (dynamic labels, the options and language of 7-Zip); a Dolphin service
-  menu where the plugin is not built; later Nemo actions, Thunar custom
-  actions and a Nautilus extension, which can run `7zG --context`.
+  menu where the plugin is not built; extension modules for Nemo, Thunar
+  and Nautilus that show the same menu through `7z-context-menu`.
 
 ## 6. Testing strategy (autonomous)
 
@@ -750,9 +750,8 @@ Findings:
       shows none on Windows either.
 - [x] Context menus: the KDE plugin with the upstream menu, and the Dolphin
       service menu where the plugin is not built.
-- [ ] Nemo, Thunar and Nautilus integrations: deferred. None of them is
-      installed here, and testing them needs a root install that the user
-      has not approved yet. They can run `7zG --context ACTION FILE...`.
+- [x] Nemo, Thunar and Nautilus: extension modules with the same upstream
+      menu (Nautilus itself is not installed here: probe tests only).
 
 Exit: the drag-and-drop and clipboard scenarios pass in nested KWin, and the
 user signs off on the real session. Status: the scenarios pass
@@ -796,20 +795,31 @@ What is where:
   commands of menus that cannot build their own (the service menus);
   `linux/gui/GuiCommand.h`: the 7zG arguments of the context menu commands,
   for both.
+- `linux/shell/`: the menu shared by all file managers. `ShellMenu.h` fills
+  a `CZipContextMenu` with the selection as the 7zFM panel does, lets
+  `QueryContextMenu()` build a shim HMENU and reads it as a tree; a chosen
+  item goes to `InvokeCommand()`. `CompressCallPosix.cpp` implements
+  `CompressCall.h` by starting 7zG (`NShim::StartProgram()`);
+  `ShellGuids.cpp` defines what `DllExportsExplorer.cpp` defines on
+  Windows. `7z-context-menu` (libexec) prints the tree with the command of
+  each item, recorded by the start hook, for the GTK extensions (about
+  8 ms). The program folder is the install bindir, or `$Z7_PROGRAM_DIR`.
 - `linux/kde/` (`sevenzipfileitemaction`, built when KF6 KIO is found): the
-  KFileItemActions plugin. `FileItemAction.cpp` fills a `CZipContextMenu`
-  with the selection as the 7zFM panel does, lets `QueryContextMenu()` build
-  a shim HMENU, turns it into `QAction`s (icons from the menu bitmaps), and
-  calls `InvokeCommand()` for the chosen one. `CompressCallPosix.cpp`
-  implements `CompressCall.h` by starting 7zG; `ShellExtension.cpp` defines
-  what `DllExportsExplorer.cpp` defines on Windows. The program folder is
-  the install bindir, or `$Z7_PROGRAM_DIR` for tests.
+  KFileItemActions plugin, the tree as `QAction`s.
+- `linux/gtk/`: `MenuTool.c` (GIO) runs `7z-context-menu` and starts the
+  command of an item; `NemoExtension.c`, `ThunarExtension.c`,
+  `NautilusExtension.c` are the menu providers, built when the extension
+  library is found and installed in its extension folder.
 - `linux/packaging/*.servicemenu-*.desktop`: the KIO service menus,
   installed only without the plugin (both would show the menu twice).
 - Tests: `kde_menus` (z7-servicemenu-probe lists what KFileItemActions
   builds, for the service menus and for the plugin with options and a
   language file, and runs actions with stand-ins for 7zG and 7zFM whose
-  arguments the oracle then runs); `gui_7zg` runs `7zG --context`;
+  arguments the oracle then runs); `gtk_menus` (7z-context-menu, and each
+  GTK module loaded by z7-<name>-probe with probe file infos);
+  `wayland_gtk_fm` (the real Nemo and Thunar in nested KWin, their fixed
+  extension folder bind-mounted in a user namespace, extract an archive
+  from the menu with the libei keyboard); `gui_7zg` runs `7zG --context`;
   `wayland_dnd` has the clipboard scenario (libei Ctrl+C and Ctrl+V,
   wl-paste and wl-copy as the other program) and Open With with a
   stand-in portal; `wayland_7zg` watches the taskbar signals.
@@ -872,6 +882,12 @@ Findings:
   `ContextMenuRegistration.cpp` is a stub. The plugin is switched on and
   off in Dolphin's settings (`kservicemenurc`, `[Show]`); the install
   layout (Phase 7) could connect the two.
+- GTK file managers cannot load Qt, hence `7z-context-menu`. Labels are
+  GTK mnemonic texts ("_" doubled). Nemo needs a non-NULL tip; only Nemo
+  has separators; GTK3 menus show no icons by default and Nautilus 4 none.
+  Nemo and Thunar load extensions from fixed folders (`THUNARX_DIRS` lists
+  modules but thunarx loads them from its own folder). NautilusMenu and
+  ThunarxMenu never drop their items: lsan.supp names the libraries.
 
 ### Phase 7: Packaging and upstream sync
 - [ ] Install layout, `PKGBUILD` (Arch/CachyOS), AppStream metadata, `Lang`
