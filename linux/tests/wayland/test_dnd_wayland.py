@@ -7,7 +7,9 @@ headless KWin, with a real pointer from libei:
 - items of a folder panel dragged to another program arrive as
   text/uri-list;
 - archive items dragged to Dolphin are extracted by 7zFM into Dolphin's
-  folder: Dolphin names it through the Ark protocol (org.kde.ark.DndExtract).
+  folder: Dolphin names it through the Ark protocol (org.kde.ark.DndExtract);
+- Open With of the System menu asks the desktop portal (a stand-in that
+  records the call) which application opens the file.
 
 7zFM runs as z7-fm-driver (tests/gui/fm_driver.cpp); its script logs where
 the items are and waits while the test drags.
@@ -237,6 +239,36 @@ class WaylandDnD(unittest.TestCase):
       self.finish(p, s, arc_title)
     with open(os.path.join(target, "top.txt")) as f:
       self.assertEqual(f.read(), "top\n")
+
+
+  # ---------- the shell commands that go to the desktop ----------
+
+  def test_open_with_asks_through_portal(self):
+    record = os.path.join(self.tmp, "portal.jsonl")
+    data = self.data + "/"
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      portal_log = os.path.join(s.artifacts, "portal.log")
+      s.spawn([sys.executable, "-I", os.path.join(HERE, "fake_openuri_portal.py"), record],
+              log="portal")
+      wlsession.wait_until(lambda: "ready" in read_lines(portal_log), 20, "the portal stand-in")
+      config = os.path.join(s.env["XDG_CONFIG_HOME"], "7-Zip")
+      os.makedirs(config, exist_ok=True)
+      with open(os.path.join(config, "7-Zip.ini"), "w") as f:
+        f.write('[Software/7-Zip/FM]\n"ShowSystemMenu"=dword:00000001\n')
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(data) + "$"}},
+              {"click": {"panel": 0, "item": "b.txt"}},
+              {"choose": [0, "System", "Open With..."]},
+              {"wait_file": record}]},
+      ], self.data)
+      self.assertEqual(p.wait(60), 0)
+    errors = [e["message"] for e in events(self.log) if e["event"] == "error"]
+    self.assertEqual(errors, [])
+    with open(record) as f:
+      calls = [json.loads(line) for line in f]
+    self.assertEqual(calls, [{"method": "OpenFile", "path": os.path.join(self.data, "b.txt"),
+                              "options": {"ask": True}}])
 
 
 def main():

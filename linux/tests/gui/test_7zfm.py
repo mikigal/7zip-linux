@@ -697,7 +697,7 @@ class FmTest(unittest.TestCase):
     self.assertRun(run)
     items = run.of("menu")[0]["items"]
     self.assertEqual(items[0]["text"], "System")
-    self.assertEqual([i["text"] for i in items[0]["items"]], ["&Open", "-", "Cu&t", "&Copy", "-", "P&roperties"])
+    self.assertEqual([i["text"] for i in items[0]["items"]], ["&Open", "Open &With...", "-", "Cu&t", "&Copy", "-", "P&roperties"])
 
   # ---------- Hashes, split and combine, links ----------
 

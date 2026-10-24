@@ -910,8 +910,8 @@ private slots:
     QVERIFY(menu);
     HMENU popup = CreatePopupMenu();
     const HRESULT res = menu->QueryContextMenu(popup, 0, 100, 0x7FFF, CMF_EXPLORE);
-    QCOMPARE(res, (HRESULT)4);
-    QCOMPARE(GetMenuItemCount(popup), 6); // Open, -, Cut, Copy, -, Properties
+    QCOMPARE(res, (HRESULT)5);
+    QCOMPARE(GetMenuItemCount(popup), 7); // Open, Open With, -, Cut, Copy, -, Properties
     wchar_t text[64];
     QVERIFY(GetMenuStringW(popup, 100, text, 64, MF_BYCOMMAND) > 0);
     QCOMPARE(QString::fromWCharArray(text), QStringLiteral("&Open"));
@@ -961,7 +961,7 @@ private slots:
     QCOMPARE(*(const DWORD *)GlobalLock(medium.hGlobal), (DWORD)DROPEFFECT_MOVE);
     GlobalUnlock(medium.hGlobal);
     ReleaseStgMedium(&medium);
-    ci.lpVerb = MAKEINTRESOURCEA(4);
+    ci.lpVerb = MAKEINTRESOURCEA(5);
     QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
     ci.lpVerb = "delete";
     QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);

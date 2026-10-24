@@ -3,6 +3,8 @@
 // that hold paths, and the context menu of files (IContextMenu), which is
 // the "System" submenu of 7zFM and runs its Properties command. Its verbs:
 //   "open"        opens the items with the desktop's applications;
+//   "openas"      asks which application opens them (the portal's
+//                 OpenURI.OpenFile with "ask");
 //   "cut", "copy" put the items on the clipboard as file managers do
 //                 (text/uri-list, x-special/gnome-copied-files,
 //                 application/x-kde-cutselection), with their names as text;
@@ -16,6 +18,7 @@
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
 #include <QDBusPendingReply>
+#include <QDBusUnixFileDescriptor>
 #include <QDateTime>
 #include <QDesktopServices>
 #include <QFileInfo>
@@ -25,9 +28,11 @@
 #include <QPointer>
 #include <QUrl>
 
+#include <fcntl.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
 #include <windows.h>
 #include <ShlObj.h>
@@ -93,13 +98,50 @@ static const CVerb kVerbs[] =
   { "open", "&Open", "Opens the selected items with their applications." },
   { "cut", "Cu&t", "Moves the selected items to the clipboard." },
   { "copy", "&Copy", "Copies the selected items to the clipboard." },
-  { "properties", "P&roperties", "Shows the properties of the selected items." }
+  { "properties", "P&roperties", "Shows the properties of the selected items." },
+  { "openas", "Open &With...", "Opens the selected items with an application that you choose." }
 };
 
 static const unsigned kVerb_Open = 0;
 static const unsigned kVerb_Cut = 1;
 static const unsigned kVerb_Copy = 2;
 static const unsigned kVerb_Properties = 3;
+static const unsigned kVerb_OpenAs = 4;
+
+/* Lets the user choose the application for a file through the portal
+   (org.freedesktop.portal.OpenURI.OpenFile with "ask"); a message box tells
+   when there is no portal. */
+static void OpenWith(HWND owner, const QString &path)
+{
+  QDBusConnection bus = QDBusConnection::sessionBus();
+  const int fd = open(QFile::encodeName(path).constData(), O_RDONLY | O_CLOEXEC);
+  if (!bus.isConnected() || fd < 0)
+  {
+    if (fd >= 0)
+      close(fd);
+    MessageBoxW(owner, ToU(QStringLiteral("Cannot open \"%1\" with another application: no desktop portal").arg(path)),
+        L"7-Zip", MB_OK | MB_ICONERROR);
+    return;
+  }
+  QDBusMessage call = QDBusMessage::createMethodCall(QStringLiteral("org.freedesktop.portal.Desktop"),
+      QStringLiteral("/org/freedesktop/portal/desktop"), QStringLiteral("org.freedesktop.portal.OpenURI"),
+      QStringLiteral("OpenFile"));
+  QVariantMap options;
+  options[QStringLiteral("ask")] = true;
+  call << QString() << QVariant::fromValue(QDBusUnixFileDescriptor(fd)) << options;
+  close(fd); // QDBusUnixFileDescriptor keeps its own copy
+  QDBusPendingCallWatcher *watcher = new QDBusPendingCallWatcher(bus.asyncCall(call), qApp);
+  QPointer<QWidget> ownerWidget = WidgetOf(owner);
+  QObject::connect(watcher, &QDBusPendingCallWatcher::finished, [=](QDBusPendingCallWatcher *w)
+  {
+    w->deleteLater();
+    if (!w->isError())
+      return;
+    HWND o = ownerWidget ? FromWidget(ownerWidget->window()) : NULL;
+    MessageBoxW(o, ToU(QStringLiteral("Cannot open \"%1\" with another application:\n%2")
+        .arg(path, w->error().message())), L"7-Zip", MB_OK | MB_ICONERROR);
+  });
+}
 
 // The clipboard data of file managers for the items (cut: to be moved).
 static QMimeData *FilesMimeData(const QStringList &paths, bool cut)
@@ -243,6 +285,8 @@ STDMETHODIMP CFileContextMenu::QueryContextMenu(HMENU menu, UINT indexMenu, UINT
     SetMenuDefaultItem(menu, idCmdFirst + kVerb_Open, FALSE);
   if (!(flags & CMF_DEFAULTONLY))
   {
+    InsertMenuW(menu, pos++, MF_BYPOSITION | MF_STRING, idCmdFirst + kVerb_OpenAs,
+        ToU(QString::fromLatin1(kVerbs[kVerb_OpenAs].Text)));
     InsertMenuW(menu, pos++, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
     for (unsigned v = kVerb_Cut; v <= kVerb_Copy; v++)
       InsertMenuW(menu, pos++, MF_BYPOSITION | MF_STRING, idCmdFirst + v, ToU(QString::fromLatin1(kVerbs[v].Text)));
@@ -280,6 +324,10 @@ STDMETHODIMP CFileContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO ci)
       return S_OK;
     case kVerb_Properties:
       ShowProperties(owner, _paths);
+      return S_OK;
+    case kVerb_OpenAs:
+      for (const QString &path : _paths)
+        OpenWith(owner, path);
       return S_OK;
     default:
       return E_INVALIDARG;

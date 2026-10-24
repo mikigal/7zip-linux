@@ -145,14 +145,15 @@ class GuiTest(unittest.TestCase):
   def tearDown(self):
     shutil.rmtree(self.tmp, ignore_errors=True)
 
-  def run_7zg(self, script, *args, cwd=None, timeout=60):
+  def run_7zg(self, script, *args, cwd=None, timeout=60, bin_dir=None):
     script_path = os.path.join(self.tmp, "script.json")
     log_path = os.path.join(self.shots, "log.jsonl")
     with open(script_path, "w") as f:
       json.dump(script, f, indent=1)
     shutil.copy(script_path, os.path.join(self.shots, "script.json"))
     env = {
-        "PATH": "/usr/bin:/bin",
+        # (bin_dir) holds stand-ins of desktop programs (xdg-email)
+        "PATH": (bin_dir + ":" if bin_dir else "") + "/usr/bin:/bin",
         "HOME": self.home,
         "XDG_CONFIG_HOME": os.path.join(self.home, "config"),
         "XDG_DATA_HOME": os.path.join(self.home, "data"),
@@ -282,6 +283,22 @@ class GuiTest(unittest.TestCase):
     out = os.path.join(self.tmp, "out")
     oracle("x", "-bso0", archive, "-o" + out)
     self.assertEqual(snapshot(out), snapshot(self.src))
+
+  def test_add_and_email(self):
+    # the mail program of the desktop gets the archive through xdg-email
+    bin_dir = os.path.join(self.tmp, "bin")
+    os.makedirs(bin_dir)
+    record = os.path.join(self.tmp, "xdg-email.args")
+    with open(os.path.join(bin_dir, "xdg-email"), "w") as f:
+      f.write('#!/bin/sh\nprintf "%%s\\n" "$@" > "%s"\n' % record)
+    os.chmod(os.path.join(bin_dir, "xdg-email"), 0o755)
+    archive = os.path.join(self.tmp, "mail.7z")
+    run = self.run_7zg([], "a", "-semlsomeone@example.com", archive, "small.txt",
+                       cwd=self.src, bin_dir=bin_dir)
+    self.assertRun(run)
+    with open(record) as f:
+      self.assertEqual(f.read().splitlines(), ["--attach", archive, "someone@example.com"])
+    oracle("t", archive)
 
   def test_add_cancel(self):
     big = os.path.join(self.src, "big.bin")
