@@ -819,6 +819,78 @@ class FmTest(unittest.TestCase):
     third = run.of("dialog", "IDD_LINK")[2]
     self.assertTrue({c["id"]: c for c in third["controls"]}[ID("IDR_LINK_TYPE_SYM_FILE")]["checked"])
 
+  # ---------- Add, Extract and Test ----------
+
+  # command IDs of the archive toolbar (kMenuCmdID_Toolbar_* in App.h)
+  TOOLBAR_ADD = 1070
+  TOOLBAR_EXTRACT = 1071
+  TOOLBAR_TEST = 1072
+
+  def test_add_from_toolbar(self):
+    archive = os.path.join(self.data, "new.zip")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "docs"}},
+            {"click": {"panel": 0, "item": "b.txt", "mods": "ctrl"}},
+            {"toolbar": self.TOOLBAR_ADD}),
+        {"on": "dialog", "name": "IDD_COMPRESS", "actions": [
+            # the name of the archive comes from the folder
+            {"expect": [ID("IDC_COMPRESS_ARCHIVE"), r"^data\.7z$"]},
+            {"select": [ID("IDC_COMPRESS_FORMAT"), "zip"]},
+            {"text": [ID("IDC_COMPRESS_ARCHIVE"), "new.zip"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait_file": archive},
+            {"wait": {"items": ["docs", "sub", "b.txt", "c10.bin", "new.zip"]}}),
+    ], self.data)
+    self.assertRun(run)
+    self.assertTrue(run.of("dialog", "IDD_PROGRESS"))
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertIn("Type = zip", listing)
+    self.assertIn("Path = docs" + os.sep + "a.txt", listing)
+    self.assertIn("Path = b.txt", listing)
+    oracle("t", archive)
+
+  def test_extract_from_toolbar(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"toolbar": self.TOOLBAR_EXTRACT}),
+        {"on": "dialog", "name": "IDD_EXTRACT", "actions": [
+            {"expect": [ID("IDC_EXTRACT_PATH"), "^" + re.escape(self.data) + "/$"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait_file": os.path.join(self.data, "arc", "inner", "x.txt")},
+            {"wait": {"items": ["arc", "docs", "sub", "arc.7z", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    with open(os.path.join(self.data, "arc", "top.txt")) as f:
+      self.assertEqual(f.read(), "top\n")
+
+  def test_test_from_toolbar(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"toolbar": self.TOOLBAR_TEST}),
+        {"on": "messagebox", "contains": "There are no errors"},
+        # inside the archive: the panel tests the selected items
+        main_step(
+            {"key": "Return"},
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"key": "ctrl+A"},
+            {"toolbar": self.TOOLBAR_TEST}),
+        {"on": "messagebox", "contains": "There are no errors"},
+    ], self.data)
+    self.assertRun(run)
+    boxes = [b["text"] for b in run.of("messagebox")]
+    self.assertIn("Files: 3", boxes[0])
+    self.assertIn("Files: 3", boxes[1])
+
   # ---------- Window ----------
 
   def test_two_panels(self):

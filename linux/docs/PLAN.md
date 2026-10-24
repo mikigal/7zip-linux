@@ -641,7 +641,7 @@ Findings:
 - [x] Delete to Trash, and Shift+Delete for permanent deletion.
 - [x] New folder and new file, rename, properties, comments.
 - [x] Hashes, split and combine, links.
-- [ ] Add, Extract and Test from the toolbar, run in-process.
+- [x] Add, Extract and Test from the toolbar, run in-process.
 - [ ] Open inside and outside, Edit (F4) with the change watcher.
 - [ ] All option pages (with a Linux System page), and Help opening the
       online docs.
@@ -701,6 +701,9 @@ Findings:
   upstream. `LinkDialog.cpp` has POSIX branches (upstream edit): hard links
   and symbolic links (an existing link is replaced through a temporary link
   and `rename()`); "Directory Junction" and "WSL" stay disabled.
+- Add, Extract and Test from the toolbar needed no Linux code: the dialogs
+  of 7zG run in-process (`CompressCall2.cpp`), as in the Windows 7zFM of
+  `Bundles/Fm`.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.
