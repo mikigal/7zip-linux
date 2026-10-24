@@ -18,6 +18,7 @@
 #include "../../CPP/Common/MyString.h"
 
 #include "../../CPP/Windows/PropVariantConv.h"
+#include "../../CPP/Windows/Synchronization.h"
 #include "../../CPP/Windows/TimeUtils.h"
 
 // File times of CFileInfo are timespec (CFiTime) on POSIX; the file
@@ -41,6 +42,11 @@ inline bool ConvertUtcFileTimeToString(const CFiTime &ts, wchar_t *s, int level 
   return ConvertUtcFileTimeToString(ft, s, level);
 }
 
+// The events of Windows/Synchronization.h have no HANDLE on POSIX: this
+// waits for one at most (milliseconds), and returns WAIT_OBJECT_0 when it
+// is set, else WAIT_TIMEOUT (0 and 258, as on Windows).
+DWORD WaitForSingleObject(NWindows::NSynchronization::CBaseEvent &event, DWORD milliseconds);
+
 namespace NWindows {
 namespace NFile {
 
@@ -61,8 +67,9 @@ bool MyGetLogicalDriveStrings(CObjectVector<FString> &driveStrings);
 
 namespace NDir {
 
-// A new directory in the temporary directory, removed with its contents
-// unless DisableDeleting() is called (as CTempDir of Windows/FileDir.h).
+// A new directory in the temporary directory ($TMPDIR or /tmp), removed
+// with its contents unless DisableDeleting() is called (as CTempDir of
+// Windows/FileDir.h).
 class CTempDir  MY_UNCOPYABLE
 {
   bool _mustBeDeleted;

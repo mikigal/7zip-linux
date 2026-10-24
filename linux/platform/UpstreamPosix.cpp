@@ -4,12 +4,48 @@
 
 #include "Win32Compat.h"
 
+#include <errno.h>
+#include <stdlib.h>
+#include <time.h>
+
 #include "../../CPP/Windows/FileDir.h"
 #include "../../CPP/Windows/FileFind.h"
 #include "../../CPP/Windows/FileName.h"
 #include "../../CPP/Windows/MemoryLock.h"
 
 #include "UpstreamPosix.h"
+
+// The C event inside CBaseEvent (a protected member, reached through a
+// pointer to member of a derived class).
+struct CBaseEventAccess: public NWindows::NSynchronization::CBaseEvent
+{
+  static ::CEvent CBaseEvent::*Object() { return &CBaseEventAccess::_object; }
+};
+
+DWORD WaitForSingleObject(NWindows::NSynchronization::CBaseEvent &event, DWORD milliseconds)
+{
+  ::CEvent &e = event.*CBaseEventAccess::Object();
+  if (milliseconds == 0xFFFFFFFF) // INFINITE
+    return Event_Wait(&e) == 0 ? 0 : (DWORD)0xFFFFFFFF;
+  struct timespec end;
+  clock_gettime(CLOCK_REALTIME, &end); // the clock of the condition (C/Threads.c)
+  end.tv_sec += (time_t)(milliseconds / 1000);
+  end.tv_nsec += (long)(milliseconds % 1000) * 1000000;
+  if (end.tv_nsec >= 1000000000)
+  {
+    end.tv_sec++;
+    end.tv_nsec -= 1000000000;
+  }
+  pthread_mutex_lock(&e._mutex);
+  int res = 0;
+  while (!e._state && res != ETIMEDOUT)
+    res = pthread_cond_timedwait(&e._cond, &e._mutex, &end);
+  const bool set = (e._state != 0);
+  if (set && !e._manual_reset)
+    e._state = 0;
+  pthread_mutex_unlock(&e._mutex);
+  return set ? 0 : 258; // WAIT_OBJECT_0, WAIT_TIMEOUT
+}
 
 namespace NWindows {
 namespace NFile {
@@ -78,13 +114,26 @@ bool RemoveDirWithSubItems(const FString &path)
   return RemoveDir(path);
 }
 
+// $TMPDIR, as POSIX programs use it; MyGetTempPath() gives /tmp only.
+static bool GetTempDirPath(FString &path)
+{
+  const char *env = getenv("TMPDIR");
+  if (env && env[0] == '/' && NFind::DoesDirExist_FollowLink(env))
+  {
+    path = env;
+    NName::NormalizeDirPathPrefix(path);
+    return true;
+  }
+  return MyGetTempPath(path);
+}
+
 bool CTempDir::Create(CFSTR prefix)
 {
   if (!Remove())
     return false;
   _path.Empty();
   FString tempPath;
-  if (!MyGetTempPath(tempPath))
+  if (!GetTempDirPath(tempPath))
     return false;
   tempPath += prefix;
   AString postfix;
