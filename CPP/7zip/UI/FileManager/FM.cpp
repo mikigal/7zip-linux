@@ -57,7 +57,10 @@ bool g_RAM_Size_Defined;
 
 extern
 bool g_LargePagesMode;
+#ifdef _WIN32
+// POSIX: UI/Common/ArchiveCommandLine.cpp defines it (with GetModuleDirPrefix())
 bool g_LargePagesMode = false;
+#endif
 // static bool g_OpenArchive = false;
 
 #ifdef UNDER_CE

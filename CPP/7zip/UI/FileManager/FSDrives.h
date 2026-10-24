@@ -1,5 +1,10 @@
 // FSDrives.h
 
+#ifdef Z7_QT_GUI
+// Linux GUI port: "Computer" is the POSIX root folder.
+#include "../../../../linux/platform/FSDrivesPosix.h"
+#else
+
 #ifndef ZIP7_INC_FS_DRIVES_H
 #define ZIP7_INC_FS_DRIVES_H
 
@@ -48,5 +53,7 @@ public:
     _superMode = superMode;
   }
 };
+
+#endif
 
 #endif

@@ -1,5 +1,10 @@
 // FSFolder.h
 
+#ifdef Z7_QT_GUI
+// Linux GUI port: the POSIX file system folder (same class names).
+#include "../../../../linux/platform/FSFolderPosix.h"
+#else
+
 #ifndef ZIP7_INC_FS_FOLDER_H
 #define ZIP7_INC_FS_FOLDER_H
 
@@ -216,5 +221,7 @@ HRESULT CopyFileSystemItems(
     IFolderOperationsExtractCallback *callback);
 
 }
+
+#endif
 
 #endif

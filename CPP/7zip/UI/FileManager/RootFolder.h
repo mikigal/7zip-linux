@@ -1,5 +1,10 @@
 // RootFolder.h
 
+#ifdef Z7_QT_GUI
+// Linux GUI port: the POSIX root folder (same class name).
+#include "../../../../linux/platform/RootFolderPosix.h"
+#else
+
 #ifndef ZIP7_INC_ROOT_FOLDER_H
 #define ZIP7_INC_ROOT_FOLDER_H
 
@@ -20,5 +25,7 @@ Z7_CLASS_IMP_NOQIB_2(
 public:
   void Init();
 };
+
+#endif
 
 #endif

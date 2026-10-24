@@ -551,6 +551,9 @@ static int CALLBACK CompareItems2(LPARAM lParam1, LPARAM lParam2, LPARAM lpData)
   return ((CBrowseDialog *)lpData)->CompareItems(lParam1, lParam2);
 }
 
+#endif // USE_MY_BROWSE_DIALOG
+
+// BrowseDialog2.cpp uses it too
 wchar_t *Browse_ConvertSizeToString(UInt64 v, wchar_t *s Z7_lifetimebound);
 wchar_t *Browse_ConvertSizeToString(UInt64 v, wchar_t *s Z7_lifetimebound)
 {
@@ -568,6 +571,8 @@ wchar_t *Browse_ConvertSizeToString(UInt64 v, wchar_t *s Z7_lifetimebound)
   }
   return s;
 }
+
+#ifdef USE_MY_BROWSE_DIALOG
 
 // Reload changes DirPrefix. Don't send DirPrefix in pathPrefix parameter
 

@@ -1117,12 +1117,17 @@ void CExitEventLauncher::Exit(bool hardExit)
     ::CThread &th = _threads[i];
     if (Thread_WasCreated(&th))
     {
+      #ifdef _WIN32
       const DWORD waitResult = WaitForSingleObject(th, hardExit ? 100 : INFINITE);
       // Thread_Wait(&th);
       // if (waitResult == WAIT_TIMEOUT) wait = 1;
       if (!hardExit && waitResult != WAIT_OBJECT_0)
         continue;
       Thread_Close(&th);
+      #else
+      // POSIX: no process handles: the thread only waits for _exitEvent
+      Thread_Wait_Close(&th);
+      #endif
       _numActiveThreads--;
     }
   }
@@ -1141,6 +1146,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
 
   bool isComplexMode = true;
 
+  #ifdef _WIN32
   if (!processes.Handles.IsEmpty())
   {
 
@@ -1253,6 +1259,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
   isComplexMode = (curTime < 2 * 1000);
 
   }
+  #endif
 
   bool needCheckTimestamp = true;
 
@@ -1298,6 +1305,7 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
     }
     
     // DEBUG_PRINT("WaitForSingleObject");
+    #ifdef _WIN32
     DWORD waitResult = ::WaitForSingleObject(g_ExitEventLauncher._exitEvent, INFINITE);
     // DEBUG_PRINT("---");
 
@@ -1305,6 +1313,10 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
       break;
 
     return 1;
+    #else
+    g_ExitEventLauncher._exitEvent.Lock();
+    break;
+    #endif
   }
 
   {

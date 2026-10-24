@@ -787,7 +787,7 @@ static void PrintProps_Attrib(UString &s, const CFileInfo &fi)
 {
   PrintPropsPrefix(s, IDS_PROP_ATTRIBUTES);
   char props[64];
-  ConvertWinAttribToString(props, fi.Attrib);
+  ConvertWinAttribToString(props, fi.GetWinAttrib());
   s += props;
 #if 0
   if (fi.HasReparsePoint())
@@ -1013,6 +1013,8 @@ HRESULT StartApplication(const UString &dir, const UString &path, HWND window, C
       if (dot < 0 || dot < separ)
         path2.Add_Dot();
   }
+#else
+  const LPITEMIDLIST pidl = NULL; // there is no shell namespace
 #endif // _WIN32
 
 #ifndef _UNICODE
@@ -1684,7 +1686,7 @@ HRESULT CBrowseDialog2::Reload(const UString &pathPrefix, const UStringVector &s
     }
     else
     #endif
-      item.iImage = _extToIconMap.GetIconIndex(fi.Attrib, fullPath);
+      item.iImage = _extToIconMap.GetIconIndex(fi.GetWinAttrib(), fullPath);
     if (item.iImage < 0)
         item.iImage = 0;
     _list.InsertItem(&item);

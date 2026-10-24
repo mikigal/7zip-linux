@@ -446,7 +446,7 @@ void CPanel::LoadFullPathAndShow()
         DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
         CFileInfo info;
         if (info.Find(us2fs(path)))
-          attrib = info.Attrib;
+          attrib = info.GetWinAttrib();
         NName::If_IsSuperPath_RemoveSuperPrefix(path);
         item.iImage = GetRealIconIndex_for_DirPath(us2fs(path), attrib);
       }
@@ -487,7 +487,7 @@ void CPanel::LoadFullPathAndShow()
           const bool finded = info.Find(us2fs(path));
           DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
           if (finded)
-            attrib = info.Attrib;
+            attrib = info.GetWinAttrib();
           item.iImage = Shell_GetFileInfo_SysIconIndex_for_Path(us2fs(path), attrib);
         }
         if (item.iImage <= 0 && is_File)
@@ -675,7 +675,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
           CFileInfo info;
           DWORD attrib = FILE_ATTRIBUTE_DIRECTORY;
           if (info.Find(us2fs(sumPath)) && info.IsDir())
-            attrib = info.Attrib;
+            attrib = info.GetWinAttrib();
           UString s = sumPath.Ptr(prefix0.Len());
           if (!s.IsEmpty())
           {
@@ -742,7 +742,7 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
           {
             CFileInfo info;
             if (info.Find(us2fs(sumPath)))
-              attrib = info.Attrib;
+              attrib = info.GetWinAttrib();
           }
           iconIndex = Shell_GetFileInfo_SysIconIndex_for_Path(us2fs(sumPath), attrib);
         }
@@ -789,11 +789,13 @@ bool CPanel::OnComboBoxCommand(UINT code, LPARAM /* param */, LRESULT &result)
           AddComboBoxItem(fs2us(s), iconIndex2, 1, false);
         }
       }
+      #ifdef _WIN32
       {
         int iconIndex;
         const UString name = RootFolder_GetName_Network(iconIndex);
         AddComboBoxItem(name, iconIndex, 0, true);
       }
+      #endif
 
 #endif
     
