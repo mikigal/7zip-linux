@@ -637,7 +637,7 @@ Findings:
   have the generic icon until a `.desktop` file names them.
 
 ### Phase 5: 7zFM operations
-- [ ] Copy and Move (F5, F6) across file systems and archives.
+- [x] Copy and Move (F5, F6) across file systems and archives.
 - [ ] Delete to Trash, and Shift+Delete for permanent deletion.
 - [ ] New folder and new file, rename, properties, comments.
 - [ ] Hashes, split and combine, links.
@@ -647,6 +647,24 @@ Findings:
       online docs.
 
 Exit: the parity checklist in Appendix A is complete.
+
+What is where:
+- `linux/platform/FSFolderCopyPosix.cpp`: `CFSFolder::CopyTo()` and
+  `CopyFileSystemItems()`, the POSIX `FSFolderCopy.cpp`.
+
+Findings:
+- Copy and move follow the Windows code (the callback's `AskWrite()` deletes
+  or renames the old file, folders are merged, the first error stops the
+  operation), with POSIX rules: symbolic links are copied as links, FIFOs as
+  FIFOs; permissions and times are kept (set-user-ID and set-group-ID only
+  when the owner stays the same); data goes through `FICLONE`, then
+  `copy_file_range()`, then `read()`/`write()`; partial copies are removed.
+  A move is `renameat2(RENAME_NOREPLACE)`, and a copy plus delete across
+  file systems. "Onto itself" is also found through symbolic links (real
+  paths) and hard links (device and inode), where deleting the old file
+  would delete the source.
+- Upstream swaps "copy" and "move" in the "Cannot ... folder onto itself"
+  message; the POSIX code does not.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.

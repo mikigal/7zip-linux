@@ -296,6 +296,161 @@ class FmTest(unittest.TestCase):
     ], archive)
     self.assertRun(run)
 
+  # ---------- Copy and move ----------
+
+  def two_panels(self, right):
+    """Steps that show two panels, the right one at (right), with the
+    focus in the left one."""
+    return [
+        {"wait": {"path": self.path_re()}},
+        {"key": "F9"},
+        {"wait": {"panels": 2}},
+        {"address": [1, right]},
+        {"wait": {"panel": 1, "path": "^" + re.escape(right) + "/$"}},
+        {"focus": 0}]
+
+  def test_copy_and_move_between_panels(self):
+    sub = os.path.join(self.data, "sub")
+    run = self.run_fm([
+        main_step(
+            *self.two_panels(sub),
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"click": {"panel": 0, "item": "docs", "mods": "ctrl"}},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [
+            {"expect": [ID("IDC_COPY"), "^" + re.escape(sub) + "/$"]},
+            {"expect": [ID("IDT_COPY_INFO"), "Files: 1"]},
+            {"screenshot": "copy.png"},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"panel": 1, "items": ["docs", "b.txt"]}},
+            {"expect": {"panel": 0, "items": ["docs", "sub", "b.txt", "c10.bin"],
+                        "selected": [], "focus_in_list": True}},
+            {"key": "End"},
+            {"expect": {"focused": "c10.bin"}},
+            {"key": "F6"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [{"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"panel": 1, "items": ["docs", "b.txt", "c10.bin"]}},
+            {"wait": {"panel": 0, "items": ["docs", "sub", "b.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+    with open(os.path.join(sub, "docs", "a.txt")) as f:
+      self.assertEqual(f.read(), "hello\n")
+    self.assertTrue(os.path.exists(os.path.join(self.data, "b.txt")))
+    self.assertFalse(os.path.exists(os.path.join(self.data, "c10.bin")))
+    self.assertEqual(os.path.getsize(os.path.join(sub, "c10.bin")), 1000)
+    captions = [d["caption"] for d in run.of("dialog", "IDD_COPY")]
+    self.assertEqual(captions, ["Copy", "Move"])
+
+  def test_copy_asks_before_replacing(self):
+    sub = os.path.join(self.data, "sub")
+    for name in ("b.txt", "c10.bin"):
+      with open(os.path.join(sub, name), "w") as f:
+        f.write("old\n")
+    run = self.run_fm([
+        main_step(
+            *self.two_panels(sub),
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"click": {"panel": 0, "item": "c10.bin", "mods": "ctrl"}},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [{"click": ID("IDOK")}]},
+        {"on": "dialog", "name": "IDD_OVERWRITE", "actions": [
+            {"screenshot": "overwrite.png"},
+            {"click": ID("IDNO")}]},
+        {"on": "dialog", "name": "IDD_OVERWRITE", "actions": [{"click": ID("IDYES")}]},
+        main_step(
+            {"wait": {"panel": 1, "items": ["b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    # the files come in the order of the folder: the first one asked about
+    # is kept, the second one is replaced
+    asked = []
+    for d in run.of("dialog", "IDD_OVERWRITE"):
+      text = [c["text"] for c in d["controls"] if c["id"] == ID("IDT_OVERWRITE_OLD_FILE_SIZE_TIME")][0]
+      self.assertTrue(text.startswith(sub + "/\n"), text)
+      asked.append(text.split("\n")[1])
+    self.assertEqual(sorted(asked), ["b.txt", "c10.bin"])
+    with open(os.path.join(sub, asked[0])) as f:
+      self.assertEqual(f.read(), "old\n")
+    self.assertEqual(os.path.getsize(os.path.join(sub, asked[1])),
+                     os.path.getsize(os.path.join(self.data, asked[1])))
+
+  def test_copy_onto_itself_is_reported(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "ctrl+A"},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [
+            {"text": [ID("IDC_COPY"), os.path.join(self.data, "docs") + "/"]},
+            {"click": ID("IDOK")}]},
+        {"on": "dialog", "name": "IDD_PROGRESS", "actions": [
+            {"wait": [ID("IDCANCEL"), "^&Close$"]},
+            {"screenshot": "error.png"},
+            {"click": ID("IDCANCEL")}]},
+        main_step({"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    progress = run.of("dialog_closed", "IDD_PROGRESS")[-1]
+    rows = [c for c in progress["controls"] if c["class"] == "SysListView32"][0]["rows"]
+    self.assertTrue(any("Cannot copy folder onto itself" in r[-1] for r in rows), rows)
+    self.assertFalse(os.path.exists(os.path.join(self.data, "docs", "docs")))
+
+  def test_copy_into_and_out_of_archives(self):
+    archive = self.make_archive()
+    sub = os.path.join(self.data, "sub")
+    run = self.run_fm([
+        main_step(
+            *self.two_panels(archive),
+            # into the archive: the agent updates it
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [{"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"panel": 1, "items": ["inner", "b.txt", "nested.zip", "top.txt"]}},
+            # out of the archive into the file system: extraction
+            {"focus": 1},
+            {"click": {"panel": 1, "item": "inner"}},
+            {"click": {"panel": 1, "item": "top.txt", "mods": "ctrl"}},
+            {"address": [0, sub]},
+            {"wait": {"panel": 0, "path": self.path_re("sub")}},
+            {"focus": 1},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [
+            {"expect": [ID("IDC_COPY"), "^" + re.escape(sub) + "/$"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"panel": 0, "items": ["inner", "top.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertIn("Path = b.txt", listing)
+    self.assertIn("Path = inner" + os.sep + "x.txt", listing)
+    oracle("t", archive)
+    with open(os.path.join(sub, "inner", "x.txt")) as f:
+      self.assertEqual(f.read(), "x\n")
+
+  def test_copy_between_archives(self):
+    archive = self.make_archive()
+    other = os.path.join(self.data, "other.zip")
+    oracle("a", "-bso0", other, os.path.join(self.data, "c10.bin"))
+    run = self.run_fm([
+        main_step(
+            *self.two_panels(other),
+            {"address": [0, archive]},
+            {"wait": {"panel": 0, "path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "inner"}},
+            {"key": "F5"}),
+        {"on": "dialog", "name": "IDD_COPY", "actions": [{"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"panel": 1, "items": ["inner", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", other).stdout
+    self.assertIn("Path = inner" + os.sep + "x.txt", listing)
+    oracle("t", other)
+
   # ---------- Window ----------
 
   def test_two_panels(self):

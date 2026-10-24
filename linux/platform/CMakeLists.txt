@@ -51,6 +51,7 @@ add_library(z7_platform STATIC
   DirWatcher.cpp
   UpstreamPosix.cpp
   FolderCompare.cpp
+  FSFolderCopyPosix.cpp
   FSFolderPosix.cpp
   Globals.cpp
   Instance.cpp

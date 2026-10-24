@@ -7,8 +7,8 @@
 // FILE_ATTRIBUTE_HIDDEN in kpidAttrib. A symbolic link to a directory is a
 // directory; its own mode is shown as its permissions.
 //
-// Copying and moving (IFolderOperations::CopyTo, CopyFrom, CopyFromFile) are
-// not implemented yet.
+// Copying and moving (CopyTo, CopyFileSystemItems) are in
+// FSFolderCopyPosix.cpp: symbolic links are copied as links.
 
 #ifndef ZIP7_INC_LINUX_FS_FOLDER_POSIX_H
 #define ZIP7_INC_LINUX_FS_FOLDER_POSIX_H
@@ -151,7 +151,7 @@ public:
 bool RemoveTree(const FString &path);
 
 /* Copies or moves files and directories (full paths) into destDirPrefix
-   (FileManager/FSFolder.h). Not implemented yet: returns E_NOTIMPL. */
+   (FileManager/FSFolder.h). */
 HRESULT CopyFileSystemItems(
     const UStringVector &itemsPaths,
     const FString &destDirPrefix,

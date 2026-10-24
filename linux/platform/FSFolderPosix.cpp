@@ -723,23 +723,7 @@ Z7_COM7F_IMF(CFSFolder::Delete(const UInt32 *indices, UInt32 numItems, IProgress
   return S_OK;
 }
 
-Z7_COM7F_IMF(CFSFolder::CopyTo(Int32 /* moveMode */, const UInt32 * /* indices */, UInt32 /* numItems */,
-    Int32 /* includeAltStreams */, Int32 /* replaceAltStreamCharsMode */,
-    const wchar_t * /* path */, IFolderOperationsExtractCallback * /* callback */))
-{
-  return E_NOTIMPL;
-}
-
-Z7_COM7F_IMF(CFSFolder::CopyFrom(Int32 /* moveMode */, const wchar_t * /* fromFolderPath */,
-    const wchar_t * const * /* itemsPaths */, UInt32 /* numItems */, IProgress * /* progress */))
-{
-  return E_NOTIMPL;
-}
-
-Z7_COM7F_IMF(CFSFolder::CopyFromFile(UInt32 /* index */, const wchar_t * /* fullFilePath */, IProgress * /* progress */))
-{
-  return E_NOTIMPL;
-}
+// CopyTo(), CopyFrom() and CopyFromFile() are in FSFolderCopyPosix.cpp.
 
 Z7_COM7F_IMF(CFSFolder::SetProperty(UInt32 index, PROPID propID,
     const PROPVARIANT *value, IProgress * /* progress */))
@@ -773,15 +757,6 @@ Z7_COM7F_IMF(CFSFolder::SetProperty(UInt32 index, PROPID propID,
   if (!SaveComments())
     return GetLastError_noZero_HRESULT();
   return S_OK;
-}
-
-HRESULT CopyFileSystemItems(
-    const UStringVector & /* itemsPaths */,
-    const FString & /* destDirPrefix */,
-    bool /* moveMode */,
-    IFolderOperationsExtractCallback * /* callback */)
-{
-  return E_NOTIMPL;
 }
 
 }

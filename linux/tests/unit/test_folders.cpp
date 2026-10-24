@@ -196,6 +196,114 @@ Z7_COM7F_IMF(CExtractStub::ShowMessage(const wchar_t *))
 Z7_COM7F_IMF(CExtractStub::SetCurrentFilePath(const wchar_t *)) { return S_OK; }
 Z7_COM7F_IMF(CExtractStub::SetNumFiles(UInt64)) { return S_OK; }
 
+// What the panel passes to CopyTo() of a file system folder: AskWrite()
+// does what CExtractCallbackImp does for the chosen answer.
+class CCopyStub Z7_final:
+  public IFolderOperationsExtractCallback,
+  public CMyUnknownImp
+{
+  Z7_COM_UNKNOWN_IMP_1(IFolderOperationsExtractCallback)
+  Z7_IFACE_COM7_IMP(IProgress)
+  Z7_IFACE_COM7_IMP(IFolderOperationsExtractCallback)
+public:
+  enum EMode { kOverwrite, kSkip, kRename };
+  EMode Mode = kOverwrite;
+  UInt64 Total = 0;
+  UInt64 Completed = 0;
+  UInt64 AbortAt = 0;       // SetCompleted() cancels at this position
+  unsigned NumExisting = 0; // AskWrite() for files that exist
+  QStringList Messages;
+};
+
+Z7_COM7F_IMF(CCopyStub::SetTotal(UInt64 total))
+{
+  Total = total;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCopyStub::SetCompleted(const UInt64 *completeValue))
+{
+  if (completeValue)
+    Completed = *completeValue;
+  if (AbortAt != 0 && Completed >= AbortAt)
+    return E_ABORT;
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCopyStub::AskWrite(const wchar_t *, Int32, const FILETIME *, const UInt64 *,
+    const wchar_t *destPath, BSTR *destPathResult, Int32 *writeAnswer))
+{
+  *destPathResult = NULL;
+  *writeAnswer = BoolToInt(false);
+  FString dest = us2fs(destPath);
+  struct stat st;
+  if (lstat(dest, &st) == 0)
+  {
+    NumExisting++;
+    if (Mode == kSkip)
+      return S_OK;
+    if (Mode == kRename)
+      dest += "_1";
+    else if (unlink(dest) != 0)
+      return E_FAIL;
+  }
+  *writeAnswer = BoolToInt(true);
+  return StringToBstr(fs2us(dest), destPathResult);
+}
+
+Z7_COM7F_IMF(CCopyStub::ShowMessage(const wchar_t *message))
+{
+  Messages << ToQString(UString(message));
+  return S_OK;
+}
+
+Z7_COM7F_IMF(CCopyStub::SetCurrentFilePath(const wchar_t *)) { return S_OK; }
+Z7_COM7F_IMF(CCopyStub::SetNumFiles(UInt64)) { return S_OK; }
+
+static UString FsPath(const QByteArray &path)
+{
+  return fs2us(FString(path.constData()));
+}
+
+static QByteArray ReadFile(const QByteArray &path)
+{
+  QFile f(QFile::decodeName(path));
+  if (!f.open(QIODevice::ReadOnly))
+    return QByteArray("<missing>");
+  return f.readAll();
+}
+
+static bool Exists(const QByteArray &path)
+{
+  struct stat st;
+  return lstat(path.constData(), &st) == 0;
+}
+
+static QByteArray LinkTarget(const QByteArray &path)
+{
+  char buf[1024];
+  const ssize_t n = readlink(path.constData(), buf, sizeof(buf));
+  return n < 0 ? QByteArray("<not a link>") : QByteArray(buf, (int)n);
+}
+
+// A directory on another file system than (path), or empty.
+static QByteArray OtherFileSystem(const QByteArray &path)
+{
+  struct stat st;
+  if (stat(path.constData(), &st) != 0)
+    return QByteArray();
+  const QByteArray candidates[] = { "/dev/shm", QFile::encodeName(QDir::currentPath()),
+      "/var/tmp", qgetenv("XDG_RUNTIME_DIR") };
+  for (const QByteArray &c : candidates)
+  {
+    struct stat other;
+    if (!c.isEmpty() && stat(c.constData(), &other) == 0 && other.st_dev != st.st_dev
+        && access(c.constData(), W_OK) == 0)
+      return c;
+  }
+  return QByteArray();
+}
+
 static void CheckInner7z(IFolderFolder *inner)
 {
   QVERIFY(inner);
@@ -538,8 +646,190 @@ private slots:
     QVERIFY(QFile::exists(QString::fromUtf8(_root) + "ops/descript.ion"));
     items = List(f);
     QCOMPARE(GetString(f, items["commented"], kpidComment), QString("a comment"));
+  }
 
-    QCOMPARE(ops->CopyTo(0, indices, 0, 0, 0, L"/tmp", NULL), E_NOTIMPL);
+  void copy()
+  {
+    const QByteArray base = QFile::encodeName(_tmp.path()) + "/copy/";
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "src/tree/empty")));
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "dest")));
+    WriteFile(base + "src/one.txt", "one");
+    WriteFile(base + "src/tree/two.txt", "two two");
+    QCOMPARE(chmod(base + "src/tree/two.txt", 0750), 0);
+    QCOMPARE(symlink("two.txt", base + "src/tree/link"), 0);
+    QCOMPARE(symlink("/nonexistent", base + "src/tree/broken"), 0);
+    QCOMPARE(mkfifo(base + "src/tree/fifo", 0600), 0);
+    const struct timespec times[2] = { { 1577934245, 0 }, { 1577934245, 123456789 } };
+    QCOMPARE(utimensat(AT_FDCWD, base + "src/tree/two.txt", times, 0), 0);
+    QCOMPARE(chmod(base + "src/tree", 0750), 0);
+    QCOMPARE(utimensat(AT_FDCWD, base + "src/tree", times, 0), 0);
+
+    CMyComPtr<IFolderFolder> src = OpenFs(base + "src/");
+    CMyComPtr<IFolderOperations> ops;
+    src.QueryInterface(IID_IFolderOperations, &ops);
+    QHash<QByteArray, UInt32> items = List(src);
+    CCopyStub *stubSpec = new CCopyStub;
+    CMyComPtr<IFolderOperationsExtractCallback> stub = stubSpec;
+    const UInt32 one = items["one.txt"];
+    const UInt32 tree = items["tree"];
+    const UInt32 both[] = { one, tree };
+    QCOMPARE(ops->CopyTo(0, both, 2, 0, 0, FsPath(base + "dest/"), stub), S_OK);
+    QCOMPARE(stubSpec->Messages, QStringList());
+    QCOMPARE(stubSpec->NumExisting, 0u);
+    // links count with the length of their text, as in the folder sizes
+    QCOMPARE(stubSpec->Total, (UInt64)(3 + 7 + 7 + 12));
+    QCOMPARE(stubSpec->Completed, stubSpec->Total);
+    QCOMPARE(ReadFile(base + "dest/one.txt"), QByteArray("one"));
+    QCOMPARE(ReadFile(base + "dest/tree/two.txt"), QByteArray("two two"));
+    struct stat st;
+    QCOMPARE(lstat(base + "dest/tree/two.txt", &st), 0);
+    QCOMPARE(st.st_mode & 07777, (mode_t)0750);
+    QCOMPARE(st.st_mtim.tv_sec, times[1].tv_sec);
+    QCOMPARE(st.st_mtim.tv_nsec, times[1].tv_nsec);
+    QCOMPARE(LinkTarget(base + "dest/tree/link"), QByteArray("two.txt"));
+    QCOMPARE(LinkTarget(base + "dest/tree/broken"), QByteArray("/nonexistent"));
+    QCOMPARE(lstat(base + "dest/tree/fifo", &st), 0);
+    QVERIFY(S_ISFIFO(st.st_mode));
+    QCOMPARE(lstat(base + "dest/tree/empty", &st), 0);
+    QVERIFY(S_ISDIR(st.st_mode));
+    QCOMPARE(lstat(base + "dest/tree", &st), 0);
+    QCOMPARE(st.st_mode & 07777, (mode_t)0750);
+    QCOMPARE(st.st_mtim.tv_sec, times[1].tv_sec);
+    QVERIFY(Exists(base + "src/tree/two.txt"));
+
+    // again: the folder is merged, and every file is asked about
+    stubSpec->Mode = CCopyStub::kSkip;
+    QCOMPARE(ops->CopyTo(0, both, 2, 0, 0, FsPath(base + "dest/"), stub), S_OK);
+    QCOMPARE(stubSpec->NumExisting, 5u);
+    QCOMPARE(stubSpec->Messages, QStringList());
+    WriteFile(base + "src/one.txt", "ONE!");
+    stubSpec->Mode = CCopyStub::kOverwrite;
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "dest/"), stub), S_OK);
+    QCOMPARE(ReadFile(base + "dest/one.txt"), QByteArray("ONE!"));
+    stubSpec->Mode = CCopyStub::kRename;
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "dest/"), stub), S_OK);
+    QCOMPARE(ReadFile(base + "dest/one.txt_1"), QByteArray("ONE!"));
+
+    // a path without a trailing separator is the new name of the item
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "dest/renamed.txt"), stub), S_OK);
+    QCOMPARE(ReadFile(base + "dest/renamed.txt"), QByteArray("ONE!"));
+    QCOMPARE(ops->CopyTo(0, both, 2, 0, 0, FsPath(base + "dest/x"), stub), E_INVALIDARG);
+    QCOMPARE(stubSpec->Messages, QStringList());
+
+    // onto itself: directly, through a symbolic link and through a hard link
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "src/one.txt"), stub), E_ABORT);
+    QCOMPARE(ops->CopyTo(0, &tree, 1, 0, 0, FsPath(base + "src/tree/empty/"), stub), E_ABORT);
+    QCOMPARE(symlink(base + "src", base + "src-link"), 0);
+    QCOMPARE(ops->CopyTo(0, &tree, 1, 0, 0, FsPath(base + "src-link/tree/empty/"), stub), E_ABORT);
+    QCOMPARE(link(base + "src/one.txt", base + "hard"), 0);
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "hard"), stub), E_ABORT);
+    QCOMPARE(stubSpec->Messages.size(), 4);
+    QVERIFY(stubSpec->Messages[0].startsWith("Cannot copy file onto itself : "));
+    QVERIFY(stubSpec->Messages[1].startsWith("Cannot copy folder onto itself : "));
+    QVERIFY(stubSpec->Messages[2].startsWith("Cannot copy folder onto itself : "));
+    QVERIFY(stubSpec->Messages[3].startsWith("Cannot copy file onto itself : "));
+    QCOMPARE(ReadFile(base + "src/one.txt"), QByteArray("ONE!"));
+    QVERIFY(!Exists(base + "src/tree/empty/tree"));
+
+    // errors stop the operation and are reported with the path
+    stubSpec->Messages.clear();
+    QCOMPARE(ops->CopyTo(0, &one, 1, 0, 0, FsPath(base + "missing/x/"), stub), E_ABORT);
+    QCOMPARE(stubSpec->Messages.size(), 1);
+    QVERIFY(stubSpec->Messages[0].endsWith(" : " + QFile::decodeName(base + "missing/x/one.txt")));
+
+    // paths from outside the panel (drag and drop, clipboard)
+    stubSpec->Messages.clear();
+    UStringVector paths;
+    paths.Add(FsPath(base + "src/one.txt"));
+    paths.Add(FsPath(base + "src/tree/"));
+    paths.Add(FsPath(base + "src/missing"));
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "dest3")));
+    QCOMPARE(NFsFolder::CopyFileSystemItems(paths, FString(base + "dest3/"), false, stub), S_OK);
+    QCOMPARE(ReadFile(base + "dest3/one.txt"), QByteArray("ONE!"));
+    QCOMPARE(LinkTarget(base + "dest3/tree/link"), QByteArray("two.txt"));
+    QCOMPARE(stubSpec->Messages.size(), 1);
+    QVERIFY(stubSpec->Messages[0].startsWith("Cannot find the file : "));
+  }
+
+  void copyCancel()
+  {
+    const QByteArray base = QFile::encodeName(_tmp.path()) + "/cancel/";
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "dest")));
+    WriteFile(base + "big", QByteArray(3 << 20, 'b'));
+    CMyComPtr<IFolderFolder> src = OpenFs(base);
+    CMyComPtr<IFolderOperations> ops;
+    src.QueryInterface(IID_IFolderOperations, &ops);
+    const UInt32 big = List(src)["big"];
+    CCopyStub *stubSpec = new CCopyStub;
+    CMyComPtr<IFolderOperationsExtractCallback> stub = stubSpec;
+    stubSpec->AbortAt = 1;
+    QCOMPARE(ops->CopyTo(0, &big, 1, 0, 0, FsPath(base + "dest/"), stub), E_ABORT);
+    // the partial copy is removed
+    QVERIFY(!Exists(base + "dest/big"));
+    QVERIFY(Exists(base + "big"));
+  }
+
+  void move()
+  {
+    const QByteArray base = QFile::encodeName(_tmp.path()) + "/move/";
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "src/tree/sub")));
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "dest/tree")));
+    WriteFile(base + "src/one.txt", "one");
+    WriteFile(base + "src/tree/sub/two.txt", "two");
+    WriteFile(base + "dest/tree/old.txt", "old");
+    CMyComPtr<IFolderFolder> src = OpenFs(base + "src/");
+    CMyComPtr<IFolderOperations> ops;
+    src.QueryInterface(IID_IFolderOperations, &ops);
+    QHash<QByteArray, UInt32> items = List(src);
+    CCopyStub *stubSpec = new CCopyStub;
+    CMyComPtr<IFolderOperationsExtractCallback> stub = stubSpec;
+
+    // a rename in the same file system; "tree" is merged with the existing one
+    struct stat before, after;
+    QCOMPARE(lstat(base + "src/one.txt", &before), 0);
+    const UInt32 both[] = { items["one.txt"], items["tree"] };
+    QCOMPARE(ops->CopyTo(1, both, 2, 0, 0, FsPath(base + "dest/"), stub), S_OK);
+    QCOMPARE(stubSpec->Messages, QStringList());
+    QCOMPARE(lstat(base + "dest/one.txt", &after), 0);
+    QCOMPARE(after.st_ino, before.st_ino);
+    QCOMPARE(ReadFile(base + "dest/tree/sub/two.txt"), QByteArray("two"));
+    QCOMPARE(ReadFile(base + "dest/tree/old.txt"), QByteArray("old"));
+    QVERIFY(!Exists(base + "src/one.txt"));
+    QVERIFY(!Exists(base + "src/tree"));
+
+    // a move onto itself leaves the file alone
+    WriteFile(base + "src/self.txt", "self");
+    items = List(src);
+    const UInt32 self = items["self.txt"];
+    QCOMPARE(ops->CopyTo(1, &self, 1, 0, 0, FsPath(base + "src/"), stub), E_ABORT);
+    QCOMPARE(stubSpec->Messages.size(), 1);
+    QVERIFY(stubSpec->Messages[0].startsWith("Cannot move file onto itself : "));
+    QCOMPARE(ReadFile(base + "src/self.txt"), QByteArray("self"));
+
+    // to another file system: copied with the attributes, then deleted
+    const QByteArray otherFs = OtherFileSystem(base);
+    if (otherFs.isEmpty())
+      QSKIP("no other writable file system to move to");
+    QTemporaryDir otherDir(QFile::decodeName(otherFs) + "/z7-test-move-XXXXXX");
+    QVERIFY(otherDir.isValid());
+    const QByteArray other = QFile::encodeName(otherDir.path()) + "/";
+    QVERIFY(QDir().mkpath(QFile::decodeName(base + "src/far/inner")));
+    WriteFile(base + "src/far/inner/data", QByteArray(100000, 'd'));
+    QCOMPARE(chmod(base + "src/far/inner/data", 0604), 0);
+    QCOMPARE(symlink("inner/data", base + "src/far/link"), 0);
+    const struct timespec times[2] = { { 1577934245, 0 }, { 1577934245, 5000 } };
+    QCOMPARE(utimensat(AT_FDCWD, base + "src/far/inner/data", times, 0), 0);
+    items = List(src);
+    const UInt32 far = items["far"];
+    stubSpec->Messages.clear();
+    QCOMPARE(ops->CopyTo(1, &far, 1, 0, 0, FsPath(other), stub), S_OK);
+    QCOMPARE(stubSpec->Messages, QStringList());
+    QVERIFY(!Exists(base + "src/far"));
+    QCOMPARE(ReadFile(other + "far/inner/data"), QByteArray(100000, 'd'));
+    QCOMPARE(LinkTarget(other + "far/link"), QByteArray("inner/data"));
+    QCOMPARE(lstat(other + "far/inner/data", &after), 0);
+    QCOMPARE(after.st_mode & 07777, (mode_t)0604);
+    QCOMPARE(after.st_mtim.tv_nsec, times[1].tv_nsec);
   }
 
   void clone()
