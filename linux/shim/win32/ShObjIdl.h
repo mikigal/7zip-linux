@@ -6,8 +6,8 @@
      progress.
    - IContextMenu, IShellExtInit and IShellFolder, for the context menus of
      the file manager: the 7-Zip submenu (Explorer/ContextMenu.cpp) is an
-     IContextMenu of 7-Zip itself; the shell has no desktop folder on Linux
-     (SHGetDesktopFolder() fails), so there is no system menu part. */
+     IContextMenu of 7-Zip itself; the "System" submenu and the Properties
+     command come from the shim's desktop folder (ShimShellFolder.cpp). */
 
 #ifndef Z7_LINUX_SHIM_SHOBJIDL_H
 #define Z7_LINUX_SHIM_SHOBJIDL_H
@@ -95,7 +95,8 @@ struct IShellFolder: public IUnknown
 };
 typedef IShellFolder *LPSHELLFOLDER;
 
-/* Fails with E_NOTIMPL: Linux has no shell namespace. */
+/* The desktop folder parses absolute paths; the item ID lists hold paths,
+   and the context menu of items has the verbs "open" and "properties". */
 HRESULT SHGetDesktopFolder(IShellFolder **folder);
 
 /* IContextMenu */

@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDir>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -14,6 +15,7 @@
 #include <QPushButton>
 #include <QRadioButton>
 #include <QTabWidget>
+#include <QTemporaryDir>
 #include <QTest>
 #include <QThread>
 #include <QTimer>
@@ -26,6 +28,9 @@
 #include <windows.h>
 #include <CommCtrl.h>
 #include <shellapi.h>
+#include <ShlObj.h>
+
+#include "../../../CPP/Common/MyCom.h"
 
 #include "../../../CPP/Windows/Control/ComboBox.h"
 #include "../../../CPP/Windows/Control/Dialog.h"
@@ -859,6 +864,81 @@ private slots:
       QCOMPARE(e2.Resets, 1);
       QCOMPARE(f2.Inits, 0);
     }
+  }
+
+  void shellFolderContextMenu()
+  {
+    QTemporaryDir tmp;
+    QVERIFY(tmp.isValid());
+    const QString dir = tmp.path();
+    QFile f(dir + "/file.txt");
+    QVERIFY(f.open(QIODevice::WriteOnly));
+    f.write("12345");
+    f.close();
+    QVERIFY(QDir(dir).mkdir("sub"));
+
+    CMyComPtr<IShellFolder> desktop;
+    QCOMPARE(SHGetDesktopFolder(&desktop), S_OK);
+    QVERIFY(desktop);
+    UString dirU;
+    dirU = UString(dir.toStdWString().c_str()) + L"/";
+    LPITEMIDLIST parentPidl = NULL;
+    QCOMPARE(desktop->ParseDisplayName(NULL, NULL, dirU.Ptr_non_const(), NULL, &parentPidl, NULL), S_OK);
+    CMyComPtr<IShellFolder> folder;
+    QCOMPARE(desktop->BindToObject(parentPidl, NULL, IID_IShellFolder, (void **)&folder), S_OK);
+    CoTaskMemFree(parentPidl);
+    QVERIFY(folder);
+    UString missing (L"missing");
+    LPITEMIDLIST pidl = NULL;
+    QCOMPARE(folder->ParseDisplayName(NULL, NULL, missing.Ptr_non_const(), NULL, &pidl, NULL),
+        HRESULT_FROM_WIN32(ERROR_FILE_NOT_FOUND));
+    UString name (L"file.txt");
+    QCOMPARE(folder->ParseDisplayName(NULL, NULL, name.Ptr_non_const(), NULL, &pidl, NULL), S_OK);
+    STRRET str;
+    QCOMPARE(folder->GetDisplayNameOf(pidl, SHGDN_FORPARSING, &str), S_OK);
+    QCOMPARE(QString::fromWCharArray(str.pOleStr), dir + "/file.txt");
+    CoTaskMemFree(str.pOleStr);
+
+    CMyComPtr<IContextMenu> menu;
+    LPCITEMIDLIST items[] = { pidl };
+    QCOMPARE(folder->GetUIObjectOf(NULL, 1, items, IID_IContextMenu, NULL, (void **)&menu), S_OK);
+    CoTaskMemFree(pidl);
+    QVERIFY(menu);
+    HMENU popup = CreatePopupMenu();
+    const HRESULT res = menu->QueryContextMenu(popup, 0, 100, 0x7FFF, CMF_EXPLORE);
+    QCOMPARE(res, (HRESULT)2);
+    QCOMPARE(GetMenuItemCount(popup), 3);
+    wchar_t text[64];
+    QVERIFY(GetMenuStringW(popup, 100, text, 64, MF_BYCOMMAND) > 0);
+    QCOMPARE(QString::fromWCharArray(text), QStringLiteral("&Open"));
+    QVERIFY(GetMenuStringW(popup, 101, text, 64, MF_BYCOMMAND) > 0);
+    QCOMPARE(QString::fromWCharArray(text), QStringLiteral("P&roperties"));
+    DestroyMenu(popup);
+    char verb[32];
+    QCOMPARE(menu->GetCommandString(1, GCS_VERBA, NULL, verb, sizeof(verb)), S_OK);
+    QCOMPARE(QByteArray(verb), QByteArray("properties"));
+    wchar_t verbW[32];
+    QCOMPARE(menu->GetCommandString(0, GCS_VERBW, NULL, (LPSTR)(void *)verbW, 32), S_OK);
+    QCOMPARE(QString::fromWCharArray(verbW), QStringLiteral("open"));
+
+    // no session bus in the tests: the properties come in a message box
+    QString shown;
+    NShim::SetMessageBoxHook([&](HWND, const QString &t, const QString &caption, UINT)
+    {
+      shown = caption + ": " + t;
+      return IDOK;
+    });
+    CMINVOKECOMMANDINFO ci;
+    memset(&ci, 0, sizeof(ci));
+    ci.cbSize = sizeof(ci);
+    ci.lpVerb = "properties";
+    QCOMPARE(menu->InvokeCommand(&ci), S_OK);
+    QVERIFY2(shown.startsWith("Properties: Name: file.txt\nLocation: " + dir + "\n"), qPrintable(shown));
+    QVERIFY2(shown.contains("Size: 5 bytes"), qPrintable(shown));
+    ci.lpVerb = MAKEINTRESOURCEA(2);
+    QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
+    ci.lpVerb = "delete";
+    QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
   }
 
   void moduleFunctions()

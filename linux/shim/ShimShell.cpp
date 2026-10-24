@@ -414,13 +414,7 @@ static QString SpecialFolderPath(int csidl)
   }
 }
 
-HRESULT SHGetDesktopFolder(IShellFolder **folder)
-{
-  // there is no shell namespace on Linux
-  if (folder)
-    *folder = NULL;
-  return E_NOTIMPL;
-}
+// SHGetDesktopFolder() is in ShimShellFolder.cpp.
 
 // pFrom holds zero-terminated paths, ended by an empty one.
 template <class TChar>

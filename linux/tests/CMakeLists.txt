@@ -25,8 +25,9 @@ if(Z7_WINDOWS_RELEASE)
   set_tests_properties(rcgen_windows_release PROPERTIES LABELS "unit" TIMEOUT 120)
 endif()
 
-# Unit tests (label "unit"): QtTest programs, run with a private HOME and
-# XDG_CONFIG_HOME so that they never see the user's settings.
+# Unit tests (label "unit"): QtTest programs, run with a private HOME,
+# XDG_CONFIG_HOME and no session bus, so that they never see the user's
+# settings or desktop.
 find_package(Qt6 COMPONENTS Core Test Widgets)
 set(Z7_UNIT_HOME "${CMAKE_BINARY_DIR}/test-artifacts/unit-home")
 
@@ -42,8 +43,10 @@ function(z7_unit_test name)
   target_include_directories(z7-test-${name} PRIVATE "${Z7_ROOT}/linux/shim/win32")
   target_compile_definitions(z7-test-${name} PRIVATE Z7_SOURCE_ROOT="${Z7_ROOT}")
   add_test(NAME unit_${name} COMMAND z7-test-${name})
+  # no session bus: the shell code would talk to the user's desktop
   set_tests_properties(unit_${name} PROPERTIES LABELS "unit" TIMEOUT 120
-    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;HOME=${Z7_UNIT_HOME};XDG_CONFIG_HOME=${Z7_UNIT_HOME}/config;XDG_DATA_HOME=${Z7_UNIT_HOME}/data;XDG_CACHE_HOME=${Z7_UNIT_HOME}/cache;XDG_STATE_HOME=${Z7_UNIT_HOME}/state")
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen;HOME=${Z7_UNIT_HOME};XDG_CONFIG_HOME=${Z7_UNIT_HOME}/config;XDG_DATA_HOME=${Z7_UNIT_HOME}/data;XDG_CACHE_HOME=${Z7_UNIT_HOME}/cache;XDG_STATE_HOME=${Z7_UNIT_HOME}/state;DBUS_SESSION_BUS_ADDRESS=unix:path=${Z7_UNIT_HOME}/no-bus"
+    ENVIRONMENT_MODIFICATION "DISPLAY=unset:;WAYLAND_DISPLAY=unset:")
 endfunction()
 
 if(Qt6Test_FOUND)

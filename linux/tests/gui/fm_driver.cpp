@@ -16,7 +16,11 @@
 //   {"type": "text"}            types the text at the focus widget
 //   {"command": id}             a menu or toolbar command (WM_COMMAND)
 //   {"menu": index}             opens a menu of the menu bar, logs its items
-//                               (event "menu") and closes it
+//                               with their submenus (event "menu") and
+//                               closes it
+//   {"choose": [index, "Item", "Subitem"]}
+//                               opens a menu of the menu bar and chooses an
+//                               item by its text (without '&' and shortcut)
 //   {"toolbar": id}             clicks the button of the main toolbar
 //   {"click": {"panel": 0, "item": "name", "double": false, "mods": "ctrl"}}
 //                               clicks an item of the list of a panel
@@ -338,6 +342,8 @@ public:
       SendMessageW(g_HWND, WM_COMMAND, MAKEWPARAM(a["command"].toInt(), 0), 0);
     else if (a.contains("menu"))
       LogMenu(a["menu"].toInt());
+    else if (a.contains("choose"))
+      ChooseMenuItem(a["choose"].toArray());
     else if (a.contains("toolbar"))
     {
       HWND tb = g_App._toolBar;
@@ -505,16 +511,21 @@ public:
     g_Driver.Fail(QStringLiteral("panel %1 has no column \"%2\"").arg(panel).arg(name));
   }
 
-  void LogMenu(int index)
+  QMenu *BarMenu(int index)
   {
     QWidget *frame = NShim::WidgetOf(g_HWND);
     QMenuBar *bar = frame ? frame->findChild<QMenuBar *>() : NULL;
     if (!bar || index < 0 || index >= bar->actions().size() || !bar->actions()[index]->menu())
     {
       g_Driver.Fail(QStringLiteral("no menu %1").arg(index));
-      return;
+      return NULL;
     }
-    QMenu *menu = bar->actions()[index]->menu();
+    return bar->actions()[index]->menu();
+  }
+
+  // The items of a menu; submenus are opened and logged too.
+  static QJsonArray MenuItems(QMenu *menu)
+  {
     // as when it opens: the window updates the items first
     emit menu->aboutToShow();
     QJsonArray items;
@@ -526,12 +537,63 @@ public:
       if (act->isCheckable())
         it["checked"] = act->isChecked();
       if (act->menu())
+      {
         it["submenu"] = true;
+        it["items"] = MenuItems(act->menu());
+      }
       items.append(it);
     }
-    g_Driver.Write(QJsonObject{ { "event", "menu" }, { "index", index },
-        { "title", bar->actions()[index]->text() }, { "items", items } });
     emit menu->aboutToHide();
+    return items;
+  }
+
+  void LogMenu(int index)
+  {
+    QMenu *menu = BarMenu(index);
+    if (!menu)
+      return;
+    QWidget *frame = NShim::WidgetOf(g_HWND);
+    QMenuBar *bar = frame->findChild<QMenuBar *>();
+    g_Driver.Write(QJsonObject{ { "event", "menu" }, { "index", index },
+        { "title", bar->actions()[index]->text() }, { "items", MenuItems(menu) } });
+  }
+
+  // The text of an item without '&' and the shortcut.
+  static QString PlainText(const QAction *act)
+  {
+    QString s = act->text().section(QLatin1Char('\t'), 0, 0);
+    s.remove(QLatin1Char('&'));
+    return s;
+  }
+
+  // Opens a menu of the menu bar and its submenus by the texts of the items,
+  // and chooses the last item.
+  void ChooseMenuItem(const QJsonArray &p)
+  {
+    QMenu *menu = BarMenu(p[0].toInt());
+    QList<QMenu *> opened;
+    for (int i = 1; menu && i < p.size(); i++)
+    {
+      emit menu->aboutToShow();
+      opened.append(menu);
+      QAction *found = NULL;
+      for (QAction *act : menu->actions())
+        if (!act->isSeparator() && PlainText(act) == p[i].toString())
+          found = act;
+      if (!found)
+      {
+        g_Driver.Fail(QStringLiteral("no menu item \"%1\"").arg(p[i].toString()));
+        break;
+      }
+      if (i + 1 < p.size())
+        menu = found->menu();
+      else if (!found->isEnabled())
+        g_Driver.Fail(QStringLiteral("menu item \"%1\" is disabled").arg(p[i].toString()));
+      else
+        found->trigger();
+    }
+    for (int i = (int)opened.size() - 1; i >= 0; i--)
+      emit opened[i]->aboutToHide();
   }
 };
 

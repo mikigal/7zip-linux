@@ -639,7 +639,7 @@ Findings:
 ### Phase 5: 7zFM operations
 - [x] Copy and Move (F5, F6) across file systems and archives.
 - [x] Delete to Trash, and Shift+Delete for permanent deletion.
-- [ ] New folder and new file, rename, properties, comments.
+- [x] New folder and new file, rename, properties, comments.
 - [ ] Hashes, split and combine, links.
 - [ ] Add, Extract and Test from the toolbar, run in-process.
 - [ ] Open inside and outside, Edit (F4) with the change watcher.
@@ -654,6 +654,10 @@ What is where:
 - `linux/shim/ShimShell.cpp`: `SHFileOperation(FO_DELETE)` with the trash;
   `ShimSystem.cpp`: the modules that `GetModuleHandle()` finds and the
   functions that `GetProcAddress()` gives for them.
+- `linux/shim/ShimShellFolder.cpp`: `SHGetDesktopFolder()`, item ID lists
+  that hold paths, and the context menu of files ("open", "properties"):
+  the "System" submenu (Settings: "Show system menu") and Properties of file
+  system items. `ShimGuids.cpp` defines the IDs of `ShObjIdl.h`.
 
 Findings:
 - Copy and move follow the Windows code (the callback's `AskWrite()` deletes
@@ -683,6 +687,16 @@ Findings:
   Recycle Bin. Qt 6.12 fails with EBADF for files outside `$HOME` on the
   home file system while `$XDG_DATA_HOME/Trash` does not exist, so the shim
   creates it first.
+- Properties (Alt+Enter, Info) of file system items runs the shell verb
+  "properties", which Explorer answers with its dialog: here the desktop
+  file manager's dialog (`org.freedesktop.FileManager1.ShowItemProperties`,
+  Dolphin and Nautilus have it), or a message box with the basic properties
+  when there is no session bus or the call fails. The call has no
+  activation token yet (Phase 6), so KWin may not focus the dialog.
+- The Windows list view activates items on Alt+Enter too (`WM_SYSKEYDOWN`,
+  `LVKF_ALT` in `NMITEMACTIVATE`); 7zFM opens Properties from there.
+- Unit tests run without a session bus (`DBUS_SESSION_BUS_ADDRESS` points to
+  no socket), so shell code cannot reach the user's desktop.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.

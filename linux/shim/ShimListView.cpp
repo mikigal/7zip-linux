@@ -1054,6 +1054,12 @@ public:
     nm.iItem = row;
     if (Valid(row))
       nm.lParam = Items[(size_t)row].Param;
+    if (GetKeyState(VK_MENU) < 0)
+      nm.uKeyFlags |= LVKF_ALT;
+    if (GetKeyState(VK_CONTROL) < 0)
+      nm.uKeyFlags |= LVKF_CONTROL;
+    if (GetKeyState(VK_SHIFT) < 0)
+      nm.uKeyFlags |= LVKF_SHIFT;
     NotifyParent(&nm.hdr, LVN_ITEMACTIVATE);
   }
 
@@ -1553,7 +1559,8 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
       memset(&nm, 0, sizeof(nm));
       nm.wVKey = (WORD)wParam;
       NotifyParent(&nm.hdr, LVN_KEYDOWN);
-      if (!FromHandle(this) || message == WM_SYSKEYDOWN)
+      // Alt+Enter activates the items too (Properties in 7zFM and Explorer)
+      if (!FromHandle(this) || (message == WM_SYSKEYDOWN && wParam != VK_RETURN))
         return 0;
       switch (wParam)
       {

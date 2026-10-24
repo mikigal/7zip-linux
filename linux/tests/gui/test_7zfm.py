@@ -536,6 +536,163 @@ class FmTest(unittest.TestCase):
     self.assertIn("Path = nested.zip", listing)
     oracle("t", archive)
 
+  # ---------- Create, rename, comments ----------
+
+  def test_create_folder_and_file(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "F7"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"expect": [ID("IDC_COMBO"), "^New Folder$"]},
+            {"text": [ID("IDC_COMBO"), "made/deeper"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"focused": "made", "selected": ["made"]}},
+            {"key": "ctrl+N"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"text": [ID("IDC_COMBO"), "new.txt"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            {"wait": {"focused": "new.txt"}},
+            {"expect": {"items": ["docs", "made", "sub", "b.txt", "c10.bin", "new.txt"]}},
+            # a name that exists
+            {"key": "ctrl+N"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"text": [ID("IDC_COMBO"), "new.txt"]},
+            {"click": ID("IDOK")}]},
+        {"on": "messagebox", "contains": "exists"},
+        main_step({"expect": {"focused": "new.txt"}}),
+    ], self.data)
+    self.assertRun(run)
+    captions = [d["caption"] for d in run.of("dialog", "IDD_COMBO")]
+    self.assertEqual(captions, ["Create Folder", "Create File", "Create File"])
+    self.assertTrue(os.path.isdir(os.path.join(self.data, "made", "deeper")))
+    self.assertEqual(os.path.getsize(os.path.join(self.data, "new.txt")), 0)
+
+  def test_comment(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "ctrl+Z"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"expect": [ID("IDC_COMBO"), "^$"]},
+            {"text": [ID("IDC_COMBO"), "the second file"]},
+            {"click": ID("IDOK")}]},
+        main_step(
+            # the comments are kept in descript.ion, as on Windows
+            {"wait": {"items": ["docs", "sub", "b.txt", "c10.bin", "descript.ion"]}},
+            {"expect": {"focused": "b.txt"}},
+            {"key": "ctrl+Z"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"expect": [ID("IDC_COMBO"), "^the second file$"]},
+            {"click": ID("IDCANCEL")}]},
+    ], self.data)
+    self.assertRun(run)
+    self.assertEqual(run.of("dialog", "IDD_COMBO")[0]["caption"], "b.txt : Comment")
+    with open(os.path.join(self.data, "descript.ion")) as f:
+      self.assertEqual(f.read().strip(), "b.txt the second file")
+
+  def test_comment_in_zip(self):
+    archive = os.path.join(self.data, "arc.zip")
+    oracle("a", "-bso0", archive, "b.txt", cwd=self.data)
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "ctrl+Z"}),
+        {"on": "dialog", "name": "IDD_COMBO", "actions": [
+            {"text": [ID("IDC_COMBO"), "zip comment"]},
+            {"click": ID("IDOK")}]},
+        main_step({"wait": {"focused": "b.txt"}}),
+    ], archive)
+    self.assertRun(run)
+    self.assertIn("Comment = zip comment", oracle("l", "-slt", archive).stdout)
+    oracle("t", archive)
+
+  def test_rename_in_archive(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"key": "F2"},
+            {"type": "renamed.txt"},
+            {"key": "Return"},
+            {"wait": {"items": ["inner", "nested.zip", "renamed.txt"]}}),
+    ], archive)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertIn("Path = renamed.txt", listing)
+    self.assertNotIn("Path = top.txt", listing)
+    oracle("t", archive)
+
+  # ---------- Properties ----------
+
+  def write_settings(self, text):
+    os.makedirs(os.path.join(self.home, "config", "7-Zip"), exist_ok=True)
+    with open(os.path.join(self.home, "config", "7-Zip", "7-Zip.ini"), "w") as f:
+      f.write(text)
+
+  def test_properties_of_files(self):
+    # no session bus: a message box stands in for the file manager's dialog
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "alt+Return"}),
+        {"on": "messagebox", "contains": "Name: b.txt"},
+        main_step(
+            {"click": {"panel": 0, "item": "docs", "mods": "ctrl"}},
+            {"toolbar": ID("IDM_PROPERTIES")}),
+        {"on": "messagebox", "contains": "Folders: 1\nFiles: 1"},
+    ], self.data)
+    self.assertRun(run)
+    box = run.of("messagebox")[0]
+    self.assertEqual(box["caption"], "Properties")
+    self.assertIn("Location: " + self.data + "\n", box["text"])
+    self.assertIn("Size: 21 bytes", box["text"])
+    self.assertIn("Permissions: -rw-", box["text"])
+
+  def test_properties_in_archive(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"key": "alt+Return"}),
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [
+            {"screenshot": "properties.png"},
+            {"click": ID("IDOK")}]},
+    ], archive)
+    self.assertRun(run)
+    dialog = run.of("dialog", "IDD_LISTVIEW")[0]
+    rows = [c for c in dialog["controls"] if c["class"] == "SysListView32"][0]["rows"]
+    # the item, then the archive after a separator
+    values = {}
+    for r in rows:
+      values.setdefault(r[0], r[1])
+    self.assertEqual(values.get("Name"), "top.txt")
+    self.assertEqual(values.get("Size"), "4")
+    self.assertTrue(values.get("Method", "").startswith("LZMA2"), values)
+    self.assertIn(["Type", "7z"], rows)
+
+  def test_system_menu(self):
+    self.write_settings('[Software/7-Zip/FM]\n"ShowSystemMenu"=dword:00000001\n')
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"menu": 0},
+            {"choose": [0, "System", "Properties"]}),
+        {"on": "messagebox", "contains": "Name: b.txt"},
+    ], self.data)
+    self.assertRun(run)
+    items = run.of("menu")[0]["items"]
+    self.assertEqual(items[0]["text"], "System")
+    self.assertEqual([i["text"] for i in items[0]["items"]], ["&Open", "-", "P&roperties"])
+
   # ---------- Window ----------
 
   def test_two_panels(self):

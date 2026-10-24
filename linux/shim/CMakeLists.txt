@@ -6,7 +6,7 @@
 # see the stub Windows headers in win32/ first on the include path, with
 # windows.h force-included, as <windows.h> is on Windows.
 
-find_package(Qt6 REQUIRED COMPONENTS Widgets)
+find_package(Qt6 REQUIRED COMPONENTS Widgets DBus)
 
 set(Z7_SHIM_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/win32" CACHE INTERNAL "Stub Windows headers of linux/shim")
 
@@ -15,6 +15,7 @@ add_library(z7_shim STATIC
   ShimControls.cpp
   ShimCore.cpp
   ShimDialog.cpp
+  ShimGuids.cpp
   ShimInput.cpp
   ShimListView.cpp
   ShimMenu.cpp
@@ -22,13 +23,14 @@ add_library(z7_shim STATIC
   ShimPropSheet.cpp
   ShimResources.cpp
   ShimShell.cpp
+  ShimShellFolder.cpp
   ShimSystem.cpp
 )
 z7_port_target(z7_shim)
 # Upstream COM interfaces have no virtual destructors by design.
 target_compile_options(z7_shim PRIVATE -Wno-non-virtual-dtor)
 target_include_directories(z7_shim PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}" "${Z7_SHIM_INCLUDE}")
-target_link_libraries(z7_shim PUBLIC Qt6::Widgets z7_platform)
+target_link_libraries(z7_shim PUBLIC Qt6::Widgets Qt6::DBus z7_platform)
 
 # From GUI_OBJS, FM_OBJS, EXPLORER_OBJS and WIN_CTRL_OBJS in
 # CPP/7zip/UI/GUI/makefile; 7zFM (Bundles/Fm) has these dialogs too. The
