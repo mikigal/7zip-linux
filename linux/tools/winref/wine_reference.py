@@ -284,7 +284,9 @@ def compare_templates(release):
   failures = 0
   checked = 0
   for exe, script in (("7zFM.exe", FM_SCRIPT), ("7zG.exe", GUI_SCRIPT)):
-    res = rcgen.parse_file(os.path.join(ROOT, script))
+    # as rc.exe compiles them for Windows: without the controls of the
+    # Linux port (#ifndef _WIN32)
+    res = rcgen.parse_file(os.path.join(ROOT, script), defines=("_WIN32",))
     compiled = pe_dialogs(os.path.join(release, exe))
     ours = set(res.dialogs)
     if set(compiled) != ours:
