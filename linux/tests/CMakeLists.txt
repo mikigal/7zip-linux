@@ -166,6 +166,15 @@ if(Qt6Widgets_FOUND)
       add_test(NAME wayland_7zfm
         COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_7zfm_wayland.py" ${Z7_WL7ZFM_ARGS})
       set_tests_properties(wayland_7zfm PROPERTIES LABELS "wayland" TIMEOUT 300)
+      # drag and drop with other clients needs the pointer of ei-input
+      if(TARGET ei-input)
+        add_test(NAME wayland_dnd
+          COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/wayland/test_dnd_wayland.py"
+                  --driver $<TARGET_FILE:z7-fm-driver> --probe $<TARGET_FILE:z7-probe>
+                  --ei-input $<TARGET_FILE:ei-input> --oracle "${Z7_ORACLE_7ZZ}"
+                  --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/wayland_dnd")
+        set_tests_properties(wayland_dnd PROPERTIES LABELS "wayland" TIMEOUT 400)
+      endif()
     endif()
   else()
     message(STATUS "Wayland tests disabled (need kwin_wayland, spectacle and ImageMagick)")

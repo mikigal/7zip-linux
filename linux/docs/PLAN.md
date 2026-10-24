@@ -741,7 +741,7 @@ Findings:
 
 ### Phase 6: Desktop integration
 - [x] App ID, `.desktop`, icons, MIME associations.
-- [ ] Drag and drop in and out (Ark protocol, lazy `uri-list`, internal MIME),
+- [x] Drag and drop in and out (Ark protocol, lazy `uri-list`, internal MIME),
       covered by Wayland scenario tests with Dolphin and a probe app.
 - [ ] Clipboard, taskbar progress, notifications, portal "Open with" and file
       dialogs, `xdg-email`.
@@ -761,6 +761,15 @@ What is where:
   and shared-mime-info lacks, and the install rules. The application icon
   is `linux/theme/icons/app/7-Zip.svg` (FM.ico redrawn on its 48 px grid),
   built into the programs as their window icon and installed in hicolor.
+- `linux/shim/ShimDragDrop.cpp`: OLE drag and drop over Qt, under the
+  upstream `PanelDrag.cpp` (built unchanged but for one POSIX branch):
+  HGLOBAL blocks, clipboard format names, CF_HDROP, `WindowFromPoint()`,
+  `RegisterDragDrop()` (a Qt event filter that calls the IDropTarget) and
+  `DoDragDrop()` (a QDrag, and the Ark protocol object on D-Bus).
+- `linux/tests/wayland/test_dnd_wayland.py` (`wayland_dnd`): drags between
+  7zFM, z7-probe and Dolphin with the libei pointer; the offscreen
+  `gui_7zfm` plays drops and drags through the driver (a drag hook stands
+  in for `QDrag::exec()`).
 - `unit_packaging`: every extension of the System page has a MIME type
   (with the package installed in a database of its own) that the .desktop
   file lists; `desktop_files`: desktop-file-validate.
@@ -769,6 +778,29 @@ Findings:
 - KWin shows the window icon (xdg-toplevel-icon) even without the .desktop
   file installed; the shim keeps the SVG application icon instead of the
   16-color bitmaps that `WM_SETICON` sets.
+- Drag and drop keeps the upstream protocol: a 7-Zip target sends the
+  folder to the source ("7-Zip::SetTargetFolder"), and the source extracts
+  after the drop. In this process the target gets the source's own data
+  object; Windows calls `QueryContinueDrag()` at the button release, the
+  shim before the target's `Drop()`, at the Ark call, or when the drag ends
+  with a drop. Another program's drag gives CF_HDROP (its local files, also
+  through the portal FileTransfer that Qt uses) or the Ark protocol (Ark,
+  another 7zFM): the folder that the target names goes to the source's
+  `extractSelectedFilesTo()`. Such drops are accepted at once and processed
+  afterwards, so that the source does not wait while the Add to Archive
+  dialog is open.
+- Archive items are offered through the Ark protocol only, as Ark does:
+  Dolphin reads text/uri-list while the pointer moves over it (to refuse
+  drops onto the dragged items), so a lazy text/uri-list would extract on
+  hover. Targets without the Ark protocol (GTK file managers, browsers)
+  cannot take archive items yet; files of the file system go as
+  text/uri-list everywhere. Dolphin calls `extractSelectedFilesTo()`
+  asynchronously, after the drag ended, so `DoDragDrop()` waits for it.
+- Upstream moves by default when the source and the target are on the same
+  drive; `IsItSameDrive()` compares devices on POSIX (every path starts
+  with "/"). Extraction to a folder counts as a move, as upstream prefers.
+- QMimeData::urls() asks a QMimeData subclass for a list; the Wayland data
+  source asks for bytes: `retrieveData()` answers both.
 - shared-mime-info 2.5 has no types for `.001`, `.esd`, `.fat`, `.ntfs`,
   `.hfs` and `.apfs`, and no globs for `.gzip`, `.bzip2` and `.tpz`; the
   package adds them (`application/x-split-archive`, ...).

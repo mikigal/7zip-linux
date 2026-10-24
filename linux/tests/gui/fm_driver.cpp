@@ -48,6 +48,10 @@
 //                               "buttons" (number on the toolbar)
 //   {"wait_file": "path"}       waits until the file exists
 //   {"log": "panels"}           logs the state of both panels and the focus
+//   {"log": {"panel": 0, "item": "name"}}
+//                               logs where an item (or the free space of the
+//                               panel) is in the top-level window (event
+//                               "point"), for tests that move the pointer
 //   {"screenshot": "name.png"}  saves a picture of the main window in --shots
 //   {"close": true}             closes the main window (WM_CLOSE)
 //   {"sleep": ms}               lets the program run for a while
@@ -420,6 +424,19 @@ public:
     }
     else if (a.contains("wait_file"))
       return QFile::exists(a["wait_file"].toString());
+    else if (a.contains("log") && a["log"].isObject())
+    {
+      // {"log": {"panel": 0, "item": "name"}}: where the item is in the
+      // top-level window (event "point"), or a panel's free space
+      QPoint pos;
+      QWidget *frame = NShim::WidgetOf(g_HWND);
+      if (PanelPoint(a["log"].toObject(), pos))
+      {
+        pos = frame->mapTo(frame->window(), pos);
+        g_Driver.Write(QJsonObject{ { "event", "point" }, { "x", pos.x() }, { "y", pos.y() },
+            { "window_width", frame->window()->width() }, { "window_height", frame->window()->height() } });
+      }
+    }
     else if (a.contains("log"))
     {
       for (unsigned i = 0; i < kNumPanelsMax; i++)
