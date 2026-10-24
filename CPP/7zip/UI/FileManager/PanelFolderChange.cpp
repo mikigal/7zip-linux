@@ -930,6 +930,12 @@ void CPanel::OpenParentFolder()
     {
       focusedName = _currentFolderPrefix;
       focusedName.DeleteBack();
+      #ifndef _WIN32
+      // "/": the root folder is the parent, and its item is "/"
+      if (focusedName.IsEmpty())
+        focusedName = _currentFolderPrefix;
+      else
+      #endif
       /*
       if (c == ':' && !focusedName.IsEmpty() && IS_PATH_SEPAR(focusedName.Back()))
       {
