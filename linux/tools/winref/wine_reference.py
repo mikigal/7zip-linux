@@ -7,7 +7,7 @@ example 7z2605-x64.exe for 26.05, the version of the merged upstream release)
 and extract it with 7zz into a directory of its own. Then:
 
   wine_reference.py --release DIR --helper build/linux/tools/winref/winref.exe \\
-      --out OUTDIR [--gallery GALLERYDIR] [--templates]
+      --out OUTDIR [--gallery GALLERYDIR] [--templates] [--live]
 
 - winref (a Winelib program, see winref.c) creates every dialog template of
   7zFM.exe with the dialog manager of Wine and writes its client area, and
@@ -17,6 +17,9 @@ and extract it with 7zz into a directory of its own. Then:
   same name (OUTDIR/compare/).
 - --templates compares the compiled dialog templates in 7zFM.exe and 7zG.exe
   with the tables of rcgen.py, control by control.
+- --live runs 7zG.exe (compress, extract, benchmark) on small test data and
+  takes screenshots of its dialogs as the program fills them, to compare
+  with the dialogs of the Linux 7zG (test-artifacts/gui_7zg).
 
 Wine runs in a nested headless KWin (wlsession.py) with its own prefix,
 HOME and D-Bus, and its Wayland driver; nothing touches the user's session
@@ -30,6 +33,7 @@ import shutil
 import struct
 import subprocess
 import sys
+import time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
@@ -51,21 +55,28 @@ def dos_path(path):
   return "Z:" + os.path.abspath(path).replace("/", "\\")
 
 
+def start_wine(s):
+  """A Wine prefix in the session, with the Wayland driver; returns the
+  environment for running Wine there."""
+  env = {
+      "WINEPREFIX": os.path.join(s.root, "wineprefix"),
+      "WINEARCH": "win64",
+      "WINEDEBUG": "-all",
+      # no Mono or Gecko installation prompts
+      "WINEDLLOVERRIDES": "mscoree,mshtml=",
+  }
+  s.run(["wineboot", "-i"], timeout=300, env=env)
+  s.run(["wine", "reg", "add", "HKCU\\Software\\Wine\\Drivers", "/v", "Graphics",
+         "/d", "wayland", "/f"], env=env)
+  s.run(["wineserver", "-w"], timeout=120, env=env)
+  return env
+
+
 def render(release, helper, raw, artifacts):
   """Renders the templates of 7zFM.exe into raw/fm and of 7zG.exe into
   raw/gui, and the options sheet of 7zFM.exe."""
   with wlsession.Session(1600, 1000, artifacts=artifacts) as s:
-    env = {
-        "WINEPREFIX": os.path.join(s.root, "wineprefix"),
-        "WINEARCH": "win64",
-        "WINEDEBUG": "-all",
-        # no Mono or Gecko installation prompts
-        "WINEDLLOVERRIDES": "mscoree,mshtml=",
-    }
-    s.run(["wineboot", "-i"], timeout=300, env=env)
-    s.run(["wine", "reg", "add", "HKCU\\Software\\Wine\\Drivers", "/v", "Graphics",
-           "/d", "wayland", "/f"], env=env)
-    s.run(["wineserver", "-w"], timeout=120, env=env)
+    env = start_wine(s)
     results = []
     for exe, sub, extra in (("7zFM.exe", "fm", ["--sheet", ",".join(str(i) for i in SHEET_PAGES)]),
                             ("7zG.exe", "gui", [])):
@@ -78,6 +89,42 @@ def render(release, helper, raw, artifacts):
     if res.returncode != 0:
       print(res.stdout + res.stderr)
       sys.exit("winref failed with exit code %d" % res.returncode)
+
+
+# 7zG.exe commands whose dialogs --live captures: (picture name, arguments);
+# {data}, {zip} and {out} are replaced with Windows paths.
+LIVE_COMMANDS = [
+    ("live-compress", ["a", "-ad", "{out}\\new.7z", "{data}\\a.txt"]),
+    ("live-extract", ["x", "-ad", "{zip}", "-o{out}\\extracted"]),
+    ("live-benchmark", ["b"]),
+]
+
+
+def live(release, out, artifacts, delay=6):
+  """Screenshots of 7zG.exe with real data: the dialogs as the program
+  fills them (formats, methods, sizes), to compare with 7zG of the port."""
+  import zipfile
+  work = os.path.join(out, "live-data")
+  shutil.rmtree(work, ignore_errors=True)
+  os.makedirs(os.path.join(work, "data"))
+  with open(os.path.join(work, "data", "a.txt"), "w") as f:
+    f.write("hello 7-Zip\n")
+  with zipfile.ZipFile(os.path.join(work, "a.zip"), "w") as z:
+    z.write(os.path.join(work, "data", "a.txt"), "a.txt")
+  paths = {"data": dos_path(os.path.join(work, "data")), "zip": dos_path(os.path.join(work, "a.zip")),
+           "out": dos_path(work)}
+  with wlsession.Session(1600, 1000, artifacts=artifacts) as s:
+    env = start_wine(s)
+    for name, args in LIVE_COMMANDS:
+      p = s.spawn(["wine", dos_path(os.path.join(release, "7zG.exe"))] + [a.format(**paths) for a in args],
+                  env=env, log="wine-" + name)
+      time.sleep(delay)
+      shot = os.path.join(out, name + ".png")
+      s.screenshot(shot)
+      subprocess.run(["magick", shot, "-trim", "+repage", shot], check=True)
+      p.kill()
+      s.run(["wineserver", "-k"], timeout=60, env=env, check=False)
+      print(name + ".png")
 
 
 def convert(raw, out):
@@ -277,6 +324,7 @@ def main():
   ap.add_argument("--out", help="directory for the pictures")
   ap.add_argument("--gallery", help="z7-gallery pictures to compare with")
   ap.add_argument("--templates", action="store_true", help="compare the compiled templates with rcgen")
+  ap.add_argument("--live", action="store_true", help="screenshots of 7zG.exe dialogs with real data")
   args = ap.parse_args()
 
   failures = 0
@@ -293,6 +341,11 @@ def main():
     print("%d reference pictures in %s" % (len(names), args.out))
     if args.gallery:
       compare(names, args.out, args.gallery)
+  if args.live:
+    if not args.out:
+      sys.exit("--out is required with --live")
+    os.makedirs(args.out, exist_ok=True)
+    live(args.release, args.out, os.path.join(args.out, "live-session"))
   return 1 if failures else 0
 
 
