@@ -6,7 +6,9 @@ directory. The plan and progress are tracked in [docs/PLAN.md](docs/PLAN.md).
 ## Requirements
 
 - CMake 3.25+, Ninja, GCC or Clang, Python 3
-- Qt 6 (Widgets, DBus, Test)
+- Qt 6 (Widgets, Svg, DBus, Test)
+- ImageMagick (`magick`) and the Noto Sans font for the golden-image test
+  (`render_gallery`; skipped when the font is missing)
 - For the Wayland tests: `kwin_wayland`, `spectacle`, ImageMagick (`magick`),
   `libei` 1.x, and `dbus-python` with PyGObject
 
@@ -26,6 +28,7 @@ The build goes to `build/linux`. It contains:
 - `tools/ei-input`: the input injection helper;
 - `tests/z7-probe`: the test window;
 - `tests/z7-test-*`: the unit tests (QtTest, label `unit`);
+- `tools/z7-gallery`: renders every dialog with the dark theme;
 - `platform/RcFm.cpp`, `platform/RcGui.cpp`: resource tables generated from
   the upstream `.rc` files by `tools/rcgen.py`.
 
@@ -45,6 +48,32 @@ To look at what rcgen reads from a resource script:
 
 ```sh
 linux/tools/rcgen.py --dump CPP/7zip/Bundles/Fm/resource.rc
+```
+
+## Dialogs: the Win32 shim and the dark theme
+
+`shim/` implements over Qt Widgets the Win32 user32 and comctl32 subset that
+the upstream `NWindows` wrappers call (`shim/win32/windows.h`, `winuser.h`,
+`CommCtrl.h`, `prsht.h`). The wrappers, `LangUtils.cpp` and the dialog sources
+compile unchanged against it (`z7_gui`, with `windows.h` force-included).
+Dialogs are built from the rcgen templates in dialog units. `theme/` holds
+the Fusion-based dark style and the SVG toolbar icons. See
+[docs/PLAN.md](docs/PLAN.md), Phase 2.
+
+To look at the dialogs, render them to PNG files:
+
+```sh
+QT_QPA_PLATFORM=offscreen build/linux/tools/z7-gallery --out /tmp/gallery
+QT_QPA_PLATFORM=offscreen build/linux/tools/z7-gallery --out /tmp/gallery --only IDD_COMPRESS
+```
+
+The `render_gallery` test compares the gallery with
+`tests/render/golden/`. When dialogs change on purpose, look at the new
+pictures in `build/linux/test-artifacts/render_gallery/rendered/` and then
+update the golden ones:
+
+```sh
+linux/tests/render/test_gallery.py --gallery build/linux/tools/z7-gallery --artifacts build/linux/test-artifacts/render_gallery --update
 ```
 
 ## Upstream source lists

@@ -390,13 +390,77 @@ Findings:
       up-down, trackbar, `CListView` (dialog subset), and property sheets as
       `QTabWidget`. `CComboBoxEx` follows with the panel in Phase 4.
 - [x] Shim behaviour: `MessageBox`, timers, `PostMsg`, and thread marshalling.
-- [ ] DLU layout engine and font calibration.
-- [ ] Dark theme: palette and QSS, SVG toolbar icons, archive `.ico` icons.
-- [ ] Dialog gallery and golden-image tests; Wine references if mingw-w64 is
-      available.
+- [x] DLU layout engine and font calibration.
+- [x] Dark theme: palette and style, SVG toolbar icons, icon resources of the
+      `.rc` files. The archive type icons (`Archive/Icons/*.ico`) come with
+      the file list in Phase 4.
+- [x] Dialog gallery and golden-image tests.
+- [ ] Wine reference screenshots: mingw-w64 is not installed (see Appendix C).
 
 Exit: every dialog renders in the dark theme with the original layout, and
-the golden tests are in ctest.
+the golden tests are in ctest. Done: `render_gallery` covers the 25 templates
+of 7zFM (7zG's are a subset), the options property sheet and the toolbar
+icons; `unit_shim` drives real templates through the upstream classes.
+
+What is where:
+- `linux/shim/win32/`: `windows.h` (constants, also read by rcgen),
+  `winuser.h` (types and functions), `CommCtrl.h`, `prsht.h`. Force-included
+  `windows.h` gives upstream GUI sources the API; `_WIN64` is defined for
+  them.
+- `linux/shim/ShimWindow.h`: `HWND__`, the window object behind an `HWND`
+  (Qt widget, control ID, styles, user data, window procedure, children in
+  Z order), window locking, thread marshalling (`OnGuiThread`).
+- `ShimCore.cpp`: handles, `SendMessage`/`PostMessage`, the message loop
+  (`GetMessage` runs the Qt loop and returns `WM_NULL`), timers, geometry,
+  focus, text, window data, screens. `SendMessageA` converts the narrow
+  messages to the wide ones that the built-in procedures handle.
+- `ShimDialog.cpp`: dialogs from the templates, base units, `DefDlgProc`,
+  modal loops, and the `IsDialogMessage` keyboard rules (an application
+  event filter): Enter, Esc, F1, arrows within groups, label mnemonics.
+- `ShimControls.cpp` (Button, Static, Edit, ComboBox, progress, up-down,
+  trackbar, registered classes), `ShimListView.cpp`, `ShimMessageBox.cpp`,
+  `ShimPropSheet.cpp`, `ShimResources.cpp` (icons, image lists, fonts,
+  accelerator tables).
+- `ShimDialog.h`: the engine for tools and tests, plus test hooks for modal
+  dialogs and message boxes.
+- `linux/theme/`: `NTheme::Apply()` and `ToolbarIcon()`; the SVG icons.
+- `linux/tools/gallery/`, `linux/tests/render/`: the gallery and its golden
+  pictures.
+
+Findings:
+- The upstream wrappers (`Window.h`, `Control/*.h`) are thin inline calls of
+  user32 functions and messages, so implementing those under them needs no
+  upstream edits at all. 12 of the 25 dialog and page sources already
+  compile against the shim (Combo, Copy, Edit, ListView, Mem, Messages,
+  Password, Split, Extract, and the Editor, Folders and 7-Zip pages); the
+  others need shell, file-system and system pieces (`SHGetFileInfo`,
+  `ShellExecute`, `ShObjIdl.h`, `CProcessAffinity`, ...) that come with
+  Phases 3 and 5.
+- `Window.h` casts pointers to `LONG` in `SetLongPtr()` unless `_WIN64` is
+  defined; without it `DialogProcedure` loses the dialog object.
+- Qt and Win32 controls differ in ways the dialog code notices, and the shim
+  follows Win32: `QDialog` hides itself on Esc (`reject()`), so those paths
+  are disabled and Esc, Enter and closing go through `WM_COMMAND` and
+  `WM_CLOSE`; a check box or radio button reacts to its whole rectangle, not
+  only to the box and the text (the templates make them wide); adding an
+  item to an empty `QComboBox` selects it, a Win32 combo box keeps no
+  selection; automatic radio buttons are exclusive within their `WS_GROUP`
+  group, not among Qt siblings, and the checked one gets `WS_TABSTOP`;
+  `WM_SETTEXT` to a single-line edit sends `EN_CHANGE`.
+- Dialog units use the Windows formula (average width of A-Z and a-z, and
+  the font height). The layouts keep their proportions with Linux UI fonts;
+  fonts with a tall line height (Noto Sans) make dialogs about 15% taller
+  than ones like Inter, as they would on Windows.
+- Fusion draws frames by darkening the window color, which is invisible on a
+  dark palette; a proxy style draws lighter frames. Style sheets are avoided:
+  a matching rule takes the drawing of the whole widget away from the style.
+- Keys reach the dialog logic only through the focus widget of the active
+  window; offscreen tests must wait for the window to be active.
+- Inter turns the `<--` text of the Browse dialog button into an arrow
+  (a ligature).
+- Rendering offscreen with a private `HOME` (no user fontconfig) and a fixed
+  font is deterministic: the golden test allows 16 differing pixels, so a
+  change of a single line is caught.
 
 ### Phase 3: 7zG
 - [ ] Compile `GUI.cpp`.
@@ -496,5 +560,7 @@ After merging a release, check that each edit is still needed.
 - **`Lang/*.txt` translations** are not in the source repo. They ship in the
   binary distribution and could be extracted with our own `7zz` from the
   official package once the user approves the download.
-- **mingw-w64** (`mingw-w64-gcc`, which needs root to install) would enable
-  Windows reference screenshots under Wine (section 4, "Fidelity check").
+- **Windows reference screenshots** (section 4, "Fidelity check"): Wine is
+  installed, but mingw-w64 (`mingw-w64-gcc`, which needs root) is not. The
+  alternative is the official 7-Zip release for Windows (same version as the
+  merged upstream) under Wine, which needs the user's approval to download.
