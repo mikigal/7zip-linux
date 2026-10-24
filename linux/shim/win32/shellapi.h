@@ -197,7 +197,9 @@ UINT ExtractIconExW(LPCWSTR file, int index, HICON *large, HICON *small, UINT nu
 #define SHCNF_FLUSH        0x1000
 void SHChangeNotify(LONG eventId, UINT flags, LPCVOID item1, LPCVOID item2);
 
-/* Files dropped with WM_DROPFILES (not used: drops come through Qt). */
+/* A list of dropped files (CF_HDROP): an HGLOBAL with DROPFILES and the
+   names (ShlObj.h). WM_DROPFILES is not used: drops come through
+   RegisterDragDrop(). */
 struct HDROP__;
 typedef HDROP__ *HDROP;
 UINT DragQueryFileW(HDROP drop, UINT index, LPWSTR file, UINT size);

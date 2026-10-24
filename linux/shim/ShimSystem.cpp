@@ -425,27 +425,7 @@ HRESULT CoCreateInstance(REFCLSID /* clsid */, IUnknown * /* outer */, DWORD /* 
   return REGDB_E_CLASSNOTREG;
 }
 
-// OLE drag and drop: drops come through Qt (see oleidl.h).
-HRESULT RegisterDragDrop(HWND /* wnd */, IDropTarget * /* target */)
-{
-  return S_OK;
-}
-
-HRESULT RevokeDragDrop(HWND /* wnd */)
-{
-  return S_OK;
-}
-
-HRESULT DoDragDrop(IDataObject * /* dataObject */, IDropSource * /* dropSource */, DWORD /* okEffects */, DWORD *effect)
-{
-  if (effect)
-    *effect = DROPEFFECT_NONE;
-  return E_NOTIMPL;
-}
-
-void ReleaseStgMedium(STGMEDIUM * /* medium */)
-{
-}
+// OLE drag and drop and ReleaseStgMedium() are in ShimDragDrop.cpp.
 
 LPVOID CoTaskMemAlloc(size_t size)
 {

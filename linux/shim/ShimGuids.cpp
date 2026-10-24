@@ -1,6 +1,7 @@
 // ShimGuids.cpp -- defines the interface IDs of the shell interfaces in
-// ShObjIdl.h (taskbar list, shell folders, context menus) once, for the
-// shim and the programs on top of it.
+// ShObjIdl.h (taskbar list, shell folders, context menus) and of the OLE
+// drag and drop interfaces (oleidl.h) once, for the shim and the programs
+// on top of it.
 
 #include <windows.h>
 #include <CommCtrl.h>
@@ -11,3 +12,6 @@
 #include "../../CPP/Common/MyGuidDef.h"
 
 #include <ShObjIdl.h>
+
+#undef Z7_LINUX_SHIM_OLEIDLGUIDS_H
+#include <oleidlguids.h>

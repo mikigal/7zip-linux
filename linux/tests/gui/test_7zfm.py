@@ -1152,6 +1152,120 @@ class FmTest(unittest.TestCase):
     items = {i["text"]: i for i in run.of("menu")[0]["items"]}
     self.assertFalse(items["&Alternate streams"]["enabled"])
 
+  # ---------- Drag and drop ----------
+
+  def outside_files(self):
+    outside = os.path.join(self.tmp, "outside")
+    os.makedirs(os.path.join(outside, "folder"))
+    with open(os.path.join(outside, "one.txt"), "w") as f:
+      f.write("one\n")
+    with open(os.path.join(outside, "folder", "two.txt"), "w") as f:
+      f.write("two\n")
+    return [os.path.join(outside, "one.txt"), os.path.join(outside, "folder")]
+
+  def test_drop_files_on_folder_panel(self):
+    # as from Explorer on Windows: the files go to a new archive
+    files = self.outside_files()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"drop": {"files": files, "panel": 0, "item": "sub"}}),
+        {"on": "dialog", "name": "IDD_COMPRESS", "actions": [
+            {"expect": [ID("IDC_COMPRESS_ARCHIVE"), r"^outside\.7z$"]},
+            {"screenshot": "compress.png"},
+            {"click": ID("IDOK")}]},
+        main_step({"wait_file": os.path.join(self.data, "sub", "outside.7z")}),
+    ], self.data)
+    self.assertRun(run)
+    # the folder item under the pointer is the folder of the archive
+    listing = oracle("l", "-slt", os.path.join(self.data, "sub", "outside.7z")).stdout
+    self.assertIn("Path = one.txt", listing)
+    self.assertIn("Path = folder" + os.sep + "two.txt", listing)
+
+  def test_drop_files_on_archive_panel(self):
+    archive = self.make_archive()
+    files = self.outside_files()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"drop": {"files": files, "panel": 0}}),
+        {"on": "messagebox", "contains": "copy files to archive", "answer": IDYES},
+        main_step({"wait": {"items": ["folder", "inner", "nested.zip", "one.txt", "top.txt"]}}),
+    ], archive)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertIn("Path = folder" + os.sep + "two.txt", listing)
+    oracle("t", archive)
+
+  def test_drag_between_panels(self):
+    archive = self.make_archive()
+    sub = os.path.join(self.data, "sub")
+    run = self.run_fm([
+        main_step(
+            *self.two_panels(sub),
+            # Ctrl: a copy, by the target
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"drag": {"panel": 0, "to": {"panel": 1, "mods": "ctrl"}}},
+            {"wait": {"panel": 1, "items": ["b.txt"]}},
+            # no keys, the same file system: a move, as on one drive on Windows
+            {"click": {"panel": 0, "item": "c10.bin"}},
+            {"drag": {"panel": 0, "to": {"panel": 1}}},
+            {"wait": {"panel": 1, "items": ["b.txt", "c10.bin"]}},
+            {"wait": {"panel": 0, "items": ["docs", "sub", "arc.7z", "b.txt"]}},
+            # out of an archive: the source extracts into the folder that
+            # the target names
+            {"address": [0, archive]},
+            {"wait": {"panel": 0, "path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "inner"}},
+            {"drag": {"panel": 0, "to": {"panel": 1}}},
+            {"wait": {"panel": 1, "items": ["inner", "b.txt", "c10.bin"]}},
+            # into an archive: a copy, after a question
+            {"focus": 1},
+            {"click": {"panel": 1, "item": "b.txt"}},
+            {"drag": {"panel": 1, "to": {"panel": 0}}}),
+        {"on": "messagebox", "contains": "copy files to archive", "answer": IDYES},
+        main_step(
+            {"wait": {"panel": 0, "items": ["inner", "b.txt", "nested.zip", "top.txt"]}}),
+    ], self.data)
+    self.assertRun(run)
+    with open(os.path.join(sub, "inner", "x.txt")) as f:
+      self.assertEqual(f.read(), "x\n")
+    self.assertTrue(os.path.exists(os.path.join(self.data, "b.txt")))
+    self.assertFalse(os.path.exists(os.path.join(self.data, "c10.bin")))
+    self.assertEqual(os.path.getsize(os.path.join(sub, "c10.bin")), 1000)
+    self.assertTrue(os.path.exists(os.path.join(sub, "b.txt")))
+    self.assertIn("Path = b.txt", oracle("l", "-slt", archive).stdout)
+    # copy, move, move (extraction: upstream prefers move, the archive
+    # stays as it is), copy (into the archive)
+    self.assertEqual([d["action"] for d in run.of("drag")], [1, 2, 2, 1])
+
+  def test_drag_to_other_program(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"click": {"panel": 0, "item": "docs", "mods": "ctrl"}},
+            {"drag": {"panel": 0, "to": "outside"}},
+            {"key": "Return"}),
+        main_step(
+            {"click": {"panel": 0, "item": "arc.7z"}},
+            {"key": "Return"},
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"drag": {"panel": 0, "to": "outside"}}),
+    ], self.data)
+    self.assertRun(run)
+    drags = run.of("drag")
+    # files of the file system: their paths
+    self.assertIn("text/uri-list", drags[0]["formats"])
+    self.assertEqual(sorted(drags[0]["files"]),
+                     [os.path.join(self.data, "b.txt"), os.path.join(self.data, "docs")])
+    # archive items: no paths before the target names a folder (the Ark
+    # protocol needs a session bus, which these tests do not have)
+    self.assertNotIn("text/uri-list", drags[1]["formats"])
+    self.assertEqual(drags[1]["action"], 0)
+
   # ---------- Window ----------
 
   def test_two_panels(self):

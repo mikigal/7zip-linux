@@ -62,4 +62,20 @@ typedef LPBROWSEINFOA LPBROWSEINFO;
 
 HRESULT SHGetSpecialFolderLocation(HWND owner, int folder, LPITEMIDLIST *pidl);
 
+/* Data of drag and drop: the files of CF_HDROP, and the names of the
+   formats that drop targets and sources exchange. */
+typedef struct _DROPFILES
+{
+  DWORD pFiles;   // offset of the names
+  POINT pt;
+  BOOL fNC;
+  BOOL fWide;     // wchar_t names
+} DROPFILES, *LPDROPFILES;
+
+#define CFSTR_PREFERREDDROPEFFECT        TEXT("Preferred DropEffect")
+#define CFSTR_PERFORMEDDROPEFFECT        TEXT("Performed DropEffect")
+#define CFSTR_PASTESUCCEEDED             TEXT("Paste Succeeded")
+#define CFSTR_LOGICALPERFORMEDDROPEFFECT TEXT("Logical Performed DropEffect")
+#define CFSTR_TARGETCLSID                TEXT("TargetCLSID")
+
 #endif

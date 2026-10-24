@@ -53,6 +53,8 @@ namespace NFile {
 namespace NName {
 
 inline bool IsDevicePath(CFSTR /* s */) throw() { return false; }
+// "path:" of NTFS alternate streams
+inline bool IsAltStreamPrefixWithColon(const UString & /* s */) throw() { return false; }
 // returns true, if a super prefix was removed
 inline bool If_IsSuperPath_RemoveSuperPrefix(UString & /* s */) { return false; }
 

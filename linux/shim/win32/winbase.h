@@ -29,6 +29,23 @@ HMODULE GetModuleHandleW(LPCWSTR name);
 #define GetProcAddress Shim_GetProcAddress
 void *GetProcAddress(HMODULE module, LPCSTR procName);
 
+/* Global memory blocks (HGLOBAL), for clipboard and drag and drop data:
+   a block keeps its size; locking gives its data. */
+typedef void *HGLOBAL;
+#define GMEM_FIXED     0x0000
+#define GMEM_MOVEABLE  0x0002
+#define GMEM_ZEROINIT  0x0040
+#define GMEM_SHARE     0x2000
+#define GMEM_DDESHARE  GMEM_SHARE
+#define GHND           (GMEM_MOVEABLE | GMEM_ZEROINIT)
+#define GPTR           (GMEM_FIXED | GMEM_ZEROINIT)
+HGLOBAL GlobalAlloc(UINT flags, SIZE_T size);
+HGLOBAL GlobalReAlloc(HGLOBAL mem, SIZE_T size, UINT flags);
+LPVOID GlobalLock(HGLOBAL mem);
+BOOL GlobalUnlock(HGLOBAL mem);
+SIZE_T GlobalSize(HGLOBAL mem);
+HGLOBAL GlobalFree(HGLOBAL mem);
+
 /* Process priority. IDLE_PRIORITY_CLASS runs the threads of the process
    with SCHED_IDLE; going back to NORMAL_PRIORITY_CLASS needs a RLIMIT_NICE
    that allows nice 0 (or CAP_SYS_NICE), as raising a priority does on Linux. */

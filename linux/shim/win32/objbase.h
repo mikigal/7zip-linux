@@ -30,8 +30,8 @@ LPVOID CoTaskMemAlloc(size_t size);
 void CoTaskMemFree(LPVOID p);
 
 
-/* Windows/COM.h has CComInitializer for _WIN32 only; the shell code of
-   the file manager creates one around its COM calls. */
+/* Windows/COM.h has CComInitializer and CStgMedium for _WIN32 only; the
+   shell and drag and drop code of the file manager uses them. */
 namespace NWindows {
 namespace NCOM {
 class CComInitializer
@@ -39,6 +39,21 @@ class CComInitializer
 public:
   CComInitializer() { CoInitialize(NULL); }
   ~CComInitializer() { CoUninitialize(); }
+};
+
+// as in Windows/COM.h (_WIN32 only there): a medium released at the end
+struct CStgMedium: public STGMEDIUM
+{
+  CStgMedium()
+  {
+    tymed = TYMED_NULL;
+    hGlobal = NULL;
+    pUnkForRelease = NULL;
+  }
+  ~CStgMedium()
+  {
+    ReleaseStgMedium(this);
+  }
 };
 }}
 

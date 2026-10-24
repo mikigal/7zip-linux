@@ -15,6 +15,7 @@ add_library(z7_shim STATIC
   ShimControls.cpp
   ShimCore.cpp
   ShimDialog.cpp
+  ShimDragDrop.cpp
   ShimGuids.cpp
   ShimInput.cpp
   ShimListView.cpp

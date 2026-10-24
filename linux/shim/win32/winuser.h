@@ -32,6 +32,9 @@
 #define CONST const
 #endif
 #define CALLBACK
+// the pointer qualifiers of 16-bit Windows, still in some declarations
+#define FAR
+#define NEAR
 #define APIENTRY
 #define WINUSERAPI
 #define WINGDIAPI
@@ -579,8 +582,17 @@ HWND GetCapture();
 BOOL SetCursorPos(int x, int y);
 UINT GetDoubleClickTime();
 BOOL DragDetect(HWND wnd, POINT pt);
+/* Windows at a point (screen coordinates for WindowFromPoint(), client
+   coordinates of the parent for the others). Qt has no global screen
+   coordinates on Wayland, so a point is matched first against the window
+   that a drag is over. */
 HWND WindowFromPoint(POINT point);
 HWND ChildWindowFromPoint(HWND parent, POINT point);
+#define CWP_ALL             0x0000
+#define CWP_SKIPINVISIBLE   0x0001
+#define CWP_SKIPDISABLED    0x0002
+#define CWP_SKIPTRANSPARENT 0x0004
+HWND ChildWindowFromPointEx(HWND parent, POINT point, UINT flags);
 BOOL IsChild(HWND parent, HWND wnd);
 HWND SetParent(HWND child, HWND newParent);
 BOOL BringWindowToTop(HWND wnd);
@@ -611,5 +623,15 @@ HBITMAP LoadBitmapW(HINSTANCE instance, LPCWSTR name);
 HINSTANCE ShellExecuteA(HWND wnd, LPCSTR operation, LPCSTR file, LPCSTR parameters, LPCSTR directory, int showCmd);
 HINSTANCE ShellExecuteW(HWND wnd, LPCWSTR operation, LPCWSTR file, LPCWSTR parameters, LPCWSTR directory, int showCmd);
 #define ShellExecute ShellExecuteA
+
+/* Clipboard formats: CF_HDROP and the registered names (drag and drop
+   data, ShimDragDrop.cpp). Registered formats get IDs from 0xC000 on. */
+#define CF_TEXT        1
+#define CF_UNICODETEXT 13
+#define CF_HDROP       15
+UINT RegisterClipboardFormatA(LPCSTR name);
+UINT RegisterClipboardFormatW(LPCWSTR name);
+#define RegisterClipboardFormat RegisterClipboardFormatA
+int GetClipboardFormatNameW(UINT format, LPWSTR name, int maxCount);
 
 #endif

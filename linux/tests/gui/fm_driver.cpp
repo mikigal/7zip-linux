@@ -26,6 +26,13 @@
 //                               clicks an item of the list of a panel
 //   {"header": {"panel": 0, "column": "Size"}}
 //                               clicks a column header of the list
+//   {"drop": {"files": [...], "panel": 1, "item": "name", "mods": "shift"}}
+//                               drops files of another program on a panel
+//                               (on an item, or below the items)
+//   {"drag": {"panel": 0, "to": {"panel": 1, "item": "name"}}}
+//                               drags the selected items of a panel to a
+//                               panel; "to": "outside" plays another program
+//                               that reads text/uri-list (event "drag")
 //   {"focus": panel}            gives the focus to the list of a panel
 //   {"address": "path"}         types a path into the address bar of the
 //                               focused panel ({"address": [panel, path]})
@@ -50,6 +57,10 @@
 
 #include <QApplication>
 #include <QElapsedTimer>
+#include <QUrl>
+#include <QMimeData>
+#include <QDropEvent>
+#include <QDrag>
 #include <QHeaderView>
 #include <QJsonArray>
 #include <QJsonObject>
@@ -360,6 +371,10 @@ public:
     }
     else if (a.contains("click"))
       Click(a["click"].toObject());
+    else if (a.contains("drop"))
+      Drop(a["drop"].toObject());
+    else if (a.contains("drag"))
+      Drag(a["drag"].toObject());
     else if (a.contains("header"))
       ClickHeader(a["header"].toObject());
     else if (a.contains("focus"))
@@ -496,6 +511,129 @@ public:
     }
     else
       QTest::mouseClick(target, button, mods, pos);
+  }
+
+  // A point of a panel in the coordinates of the main window's widget: the
+  // middle of an item, or the free space below the items.
+  static bool PanelPoint(const QJsonObject &c, QPoint &pos)
+  {
+    const unsigned panel = (unsigned)c.value("panel").toInt((int)g_App.LastFocusedPanel);
+    HWND list = g_App.Panels[panel]._listView;
+    QWidget *lw = ListWidget(panel);
+    QWidget *frame = NShim::WidgetOf(g_HWND);
+    if (!lw || !frame)
+      return false;
+    if (!c.contains("item"))
+    {
+      pos = lw->mapTo(frame, QPoint(lw->width() / 2, lw->height() - 20));
+      return true;
+    }
+    const QString name = c["item"].toString();
+    const int count = (int)SendMessageW(list, LVM_GETITEMCOUNT, 0, 0);
+    for (int i = 0; i < count; i++)
+      if (ItemText(list, i) == name)
+      {
+        RECT r;
+        r.left = LVIR_LABEL;
+        SendMessageW(list, LVM_GETITEMRECT, (WPARAM)i, (LPARAM)&r);
+        pos = lw->mapTo(frame, QPoint((r.left + r.right) / 2, (r.top + r.bottom) / 2));
+        return true;
+      }
+    g_Driver.Fail(QStringLiteral("panel %1 has no item \"%2\"").arg(panel).arg(name));
+    return false;
+  }
+
+  static Qt::KeyboardModifiers Mods(const QJsonObject &c)
+  {
+    Qt::KeyboardModifiers mods;
+    const QString m = c["mods"].toString().toLower();
+    if (m.contains(QLatin1String("ctrl")))
+      mods |= Qt::ControlModifier;
+    if (m.contains(QLatin1String("shift")))
+      mods |= Qt::ShiftModifier;
+    if (m.contains(QLatin1String("alt")))
+      mods |= Qt::AltModifier;
+    return mods;
+  }
+
+  // Plays a drag over the main window, as Qt delivers it; returns the action
+  // of the drop.
+  static Qt::DropAction PlayDrop(const QMimeData *mime, const QJsonObject &to, Qt::DropActions actions)
+  {
+    QPoint pos;
+    QWidget *frame = NShim::WidgetOf(g_HWND);
+    if (!PanelPoint(to, pos))
+      return Qt::IgnoreAction;
+    const Qt::KeyboardModifiers mods = Mods(to);
+    QDragEnterEvent enter(QPointF(pos), actions, mime, Qt::LeftButton, mods);
+    QCoreApplication::sendEvent(frame, &enter);
+    QDragMoveEvent move(QPointF(pos), actions, mime, Qt::LeftButton, mods);
+    QCoreApplication::sendEvent(frame, &move);
+    if (!move.isAccepted())
+    {
+      QDragLeaveEvent leave;
+      QCoreApplication::sendEvent(frame, &leave);
+      return Qt::IgnoreAction;
+    }
+    QDropEvent drop(QPointF(pos), actions, mime, Qt::NoButton, mods);
+    QCoreApplication::sendEvent(frame, &drop);
+    return drop.isAccepted() ? drop.dropAction() : Qt::IgnoreAction;
+  }
+
+  // {"drop": {"files": [...], "panel": 1, "item": "sub", "mods": "shift"}}
+  void Drop(const QJsonObject &c)
+  {
+    QMimeData *mime = new QMimeData;
+    QList<QUrl> urls;
+    for (const QJsonValue &f : c["files"].toArray())
+      urls.append(QUrl::fromLocalFile(f.toString()));
+    mime->setUrls(urls);
+    const Qt::DropAction a = PlayDrop(mime, c, Qt::CopyAction | Qt::MoveAction);
+    g_Driver.Write(QJsonObject{ { "event", "drop" }, { "action", (int)a } });
+    // the target may read the data until the deferred drop has run
+    mime->setParent(qApp);
+    QTimer::singleShot(1000, mime, [mime]() { mime->deleteLater(); });
+  }
+
+  /* {"drag": {"panel": 0, "to": {"panel": 1, "item": "sub", "mods": "shift"}}}
+     drags the selected items of a panel to a panel of this window, or with
+     "to": "outside" to another program, which reads text/uri-list. */
+  void Drag(const QJsonObject &c)
+  {
+    const unsigned panel = (unsigned)c.value("panel").toInt((int)g_App.LastFocusedPanel);
+    const QJsonValue to = c["to"];
+    NShim::SetDragHook([to](QDrag *drag, Qt::DropActions actions) -> Qt::DropAction
+    {
+      const QMimeData *mime = drag->mimeData();
+      QJsonObject o{ { "event", "drag" }, { "formats", QJsonArray::fromStringList(mime->formats()) } };
+      Qt::DropAction a = Qt::IgnoreAction;
+      if (to.isString())
+      {
+        if (mime->hasFormat(QStringLiteral("text/uri-list")))
+        {
+          QJsonArray files;
+          for (const QUrl &u : mime->urls())
+            files.append(u.toLocalFile());
+          o["files"] = files;
+          a = Qt::CopyAction;
+        }
+      }
+      else
+        a = PlayDrop(mime, to.toObject(), actions);
+      o["action"] = (int)a;
+      g_Driver.Write(o);
+      return a;
+    });
+    // the list starts a drag as the Windows control does: LVN_BEGINDRAG
+    HWND list = g_App.Panels[panel]._listView;
+    NMLISTVIEW nm;
+    memset(&nm, 0, sizeof(nm));
+    nm.hdr.hwndFrom = list;
+    nm.hdr.idFrom = (UINT_PTR)GetDlgCtrlID(list);
+    nm.hdr.code = LVN_BEGINDRAG;
+    nm.iItem = (int)SendMessageW(list, LVM_GETNEXTITEM, (WPARAM)-1, LVNI_FOCUSED);
+    SendMessageW(GetParent(list), WM_NOTIFY, nm.hdr.idFrom, (LPARAM)&nm);
+    NShim::SetDragHook(NShim::CDragHook());
   }
 
   void ClickHeader(const QJsonObject &c)

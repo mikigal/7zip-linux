@@ -19,6 +19,8 @@ namespace NRc {
 struct CDialog;
 }
 
+class QDrag;
+
 namespace NShim {
 
 // Dialog base units: the pixel size of 4 horizontal and 8 vertical dialog units.
@@ -75,6 +77,13 @@ struct CFileDialogRequest
 };
 typedef std::function<bool(CFileDialogRequest &request)> CFileDialogHook;
 void SetFileDialogHook(const CFileDialogHook &hook);
+
+/* The drag hook runs instead of QDrag::exec() in DoDragDrop(): it plays
+   the drop target with the drag's mime data and the actions that the
+   source allows, and returns the action the target took
+   (Qt::IgnoreAction: no drop). */
+typedef std::function<Qt::DropAction(QDrag *drag, Qt::DropActions actions)> CDragHook;
+void SetDragHook(const CDragHook &hook);
 
 }
 

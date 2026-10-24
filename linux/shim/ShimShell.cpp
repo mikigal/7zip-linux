@@ -622,14 +622,7 @@ void SHChangeNotify(LONG /* eventId */, UINT /* flags */, LPCVOID /* item1 */, L
 {
 }
 
-UINT DragQueryFileW(HDROP /* drop */, UINT /* index */, LPWSTR /* file */, UINT /* size */)
-{
-  return 0;
-}
-
-void DragFinish(HDROP /* drop */)
-{
-}
+// DragQueryFileW() and DragFinish() are in ShimDragDrop.cpp.
 
 void DragAcceptFiles(HWND /* wnd */, BOOL /* accept */)
 {
@@ -694,13 +687,8 @@ bool GetPathFromIDList(LPCITEMIDLIST itemIDList, UString &path)
   return true;
 }
 
-// Data objects come with OLE drag and drop, which Linux does not have.
-HRESULT DataObject_GetData_HDROP_or_IDLIST_Names(IDataObject * /* dataObject */, UStringVector &names)
-{
-  names.Clear();
-  return E_NOTIMPL;
-}
-
+// DataObject_GetData_HDROP_or_IDLIST_Names() is in ShimDragDrop.cpp; data
+// objects of drops have no attributes array.
 HRESULT DataObject_GetData_FILE_ATTRS(IDataObject * /* dataObject */, CFileAttribs & /* attribs */)
 {
   return E_NOTIMPL;

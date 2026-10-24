@@ -10,16 +10,17 @@
 # in Bundles/Fm/makefile, minus the files that are already in z7_ui and
 # z7_gui, the Windows file system folders (FSFolder, FSFolderCopy,
 # RootFolder, FSDrives, NetFolder, AltStreamsFolder: linux/platform has the
-# POSIX ones), OLE drag and drop (PanelDrag, EnumFormatEtc: see
-# PanelDragLinux.cpp) and the Windows registry associations
+# POSIX ones) and the Windows registry associations
 # (RegistryAssociations: see RegistryAssociationsLinux.cpp).
 set(Z7_FM_SOURCES
+  CPP/Windows/MemoryGlobal.cpp
   CPP/7zip/UI/Common/CompressCall2.cpp
   CPP/7zip/UI/Explorer/ContextMenu.cpp
   CPP/7zip/UI/FileManager/AboutDialog.cpp
   CPP/7zip/UI/FileManager/App.cpp
   CPP/7zip/UI/FileManager/BrowseDialog2.cpp
   CPP/7zip/UI/FileManager/CopyDialog.cpp
+  CPP/7zip/UI/FileManager/EnumFormatEtc.cpp
   CPP/7zip/UI/FileManager/EditPage.cpp
   CPP/7zip/UI/FileManager/FileFolderPluginOpen.cpp
   CPP/7zip/UI/FileManager/FilePlugins.cpp
@@ -34,6 +35,7 @@ set(Z7_FM_SOURCES
   CPP/7zip/UI/FileManager/Panel.cpp
   CPP/7zip/UI/FileManager/PanelCopy.cpp
   CPP/7zip/UI/FileManager/PanelCrc.cpp
+  CPP/7zip/UI/FileManager/PanelDrag.cpp
   CPP/7zip/UI/FileManager/PanelFolderChange.cpp
   CPP/7zip/UI/FileManager/PanelItemOpen.cpp
   CPP/7zip/UI/FileManager/PanelItems.cpp
@@ -65,7 +67,6 @@ target_link_libraries(z7_fm PUBLIC z7_gui)
 add_library(z7_fm_linux STATIC
   ClassDefsShell.cpp
   ContextMenuRegistration.cpp
-  PanelDragLinux.cpp
   PendingCommands.cpp
   RootFolderNames.cpp
 )
