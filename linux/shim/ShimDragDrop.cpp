@@ -27,6 +27,7 @@
 // drop, when the Ark call comes, or when the drag ends with a drop.
 
 #include <QApplication>
+#include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusConnectionInterface>
 #include <QDBusMessage>
@@ -823,6 +824,7 @@ class CDropDataObject Z7_final:
 public:
   CMyComPtr<IDataObject> Source;  // a drag of this process
   QStringList Files;              // the local files of another program's drag
+  DWORD PreferredEffect = DROPEFFECT_NONE; // of files on the clipboard
   QString ArkService, ArkPath;    // the Ark protocol of another program
   QString TargetFolder;           // "7-Zip::SetTargetFolder" for the Ark source
 
@@ -866,6 +868,9 @@ STDMETHODIMP CDropDataObject::QueryGetData(FORMATETC *etc)
 {
   if (Source)
     return Source->QueryGetData(etc);
+  if (etc && PreferredEffect != DROPEFFECT_NONE
+      && FormatName(etc->cfFormat) == QLatin1String("Preferred DropEffect"))
+    return (etc->tymed & TYMED_HGLOBAL) ? S_OK : DV_E_TYMED;
   if (!etc || etc->cfFormat != CF_HDROP)
     return DV_E_FORMATETC;
   if (!(etc->tymed & TYMED_HGLOBAL))
@@ -883,6 +888,11 @@ STDMETHODIMP CDropDataObject::GetData(FORMATETC *etc, STGMEDIUM *medium)
   medium->hGlobal = NULL;
   medium->pUnkForRelease = NULL;
   RINOK(QueryGetData(etc))
+  if (etc->cfFormat != CF_HDROP)
+  {
+    const DWORD effect = PreferredEffect;
+    return MediumFromBytes(medium, QByteArray((const char *)&effect, sizeof(effect)));
+  }
   // the Ark source extracts on its own: no names
   return MediumFromGlobal(medium, CreateHDrop(Files));
 }
@@ -1077,6 +1087,35 @@ HRESULT RevokeDragDrop(HWND wnd)
     w->Widget->removeEventFilter(bridge);
     w->Widget->setAcceptDrops(false);
     delete bridge;
+    return S_OK;
+  });
+}
+
+
+// ---------- The clipboard ----------
+
+/* OleGetClipboard(): the files on the clipboard of the desktop, as file
+   managers put them there: CF_HDROP, and "Preferred DropEffect" with
+   DROPEFFECT_MOVE for files that were cut. */
+HRESULT OleGetClipboard(IDataObject **dataObject)
+{
+  if (!dataObject)
+    return E_INVALIDARG;
+  *dataObject = NULL;
+  return OnGuiThread<HRESULT>([=]() -> HRESULT
+  {
+    const QMimeData *mime = QGuiApplication::clipboard()->mimeData();
+    if (!mime)
+      return E_FAIL;
+    CDropDataObject *spec = new CDropDataObject;
+    CMyComPtr<IDataObject> obj = spec;
+    for (const QUrl &u : mime->urls())
+      if (u.isLocalFile())
+        spec->Files.append(u.toLocalFile());
+    const bool cut = mime->data(QStringLiteral("application/x-kde-cutselection")) == "1"
+        || mime->data(QStringLiteral("x-special/gnome-copied-files")).startsWith("cut\n");
+    spec->PreferredEffect = cut ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
+    *dataObject = obj.Detach();
     return S_OK;
   });
 }

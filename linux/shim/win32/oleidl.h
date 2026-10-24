@@ -151,6 +151,9 @@ HRESULT RegisterDragDrop(HWND wnd, IDropTarget *target);
 HRESULT RevokeDragDrop(HWND wnd);
 HRESULT DoDragDrop(IDataObject *dataObject, IDropSource *dropSource, DWORD okEffects, DWORD *effect);
 void ReleaseStgMedium(STGMEDIUM *medium);
+/* The files on the clipboard of the desktop (CF_HDROP and "Preferred
+   DropEffect"), as file managers copied or cut them. */
+HRESULT OleGetClipboard(IDataObject **dataObject);
 
 #include "oleidlguids.h"
 

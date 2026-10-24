@@ -3,11 +3,15 @@
 // that hold paths, and the context menu of files (IContextMenu), which is
 // the "System" submenu of 7zFM and runs its Properties command. Its verbs:
 //   "open"        opens the items with the desktop's applications;
+//   "cut", "copy" put the items on the clipboard as file managers do
+//                 (text/uri-list, x-special/gnome-copied-files,
+//                 application/x-kde-cutselection), with their names as text;
 //   "properties"  shows the Properties dialog of the desktop's file manager
 //                 (org.freedesktop.FileManager1.ShowItemProperties), or a
 //                 message box with the basic properties where none runs.
 
 #include <QApplication>
+#include <QClipboard>
 #include <QDBusConnection>
 #include <QDBusMessage>
 #include <QDBusPendingCallWatcher>
@@ -16,6 +20,7 @@
 #include <QDesktopServices>
 #include <QFileInfo>
 #include <QLocale>
+#include <QMimeData>
 #include <QMimeDatabase>
 #include <QPointer>
 #include <QUrl>
@@ -86,11 +91,37 @@ struct CVerb
 static const CVerb kVerbs[] =
 {
   { "open", "&Open", "Opens the selected items with their applications." },
+  { "cut", "Cu&t", "Moves the selected items to the clipboard." },
+  { "copy", "&Copy", "Copies the selected items to the clipboard." },
   { "properties", "P&roperties", "Shows the properties of the selected items." }
 };
 
 static const unsigned kVerb_Open = 0;
-static const unsigned kVerb_Properties = 1;
+static const unsigned kVerb_Cut = 1;
+static const unsigned kVerb_Copy = 2;
+static const unsigned kVerb_Properties = 3;
+
+// The clipboard data of file managers for the items (cut: to be moved).
+static QMimeData *FilesMimeData(const QStringList &paths, bool cut)
+{
+  QMimeData *mime = new QMimeData;
+  QList<QUrl> urls;
+  QStringList names;
+  QByteArray gnome = cut ? "cut" : "copy";
+  for (const QString &path : paths)
+  {
+    const QUrl url = QUrl::fromLocalFile(path);
+    urls.append(url);
+    names.append(QFileInfo(path).fileName());
+    gnome += '\n' + url.toEncoded();
+  }
+  mime->setUrls(urls);
+  // the names as text, as the Copy command of 7-Zip gives them
+  mime->setText(names.join(QLatin1Char('\n')));
+  mime->setData(QStringLiteral("x-special/gnome-copied-files"), gnome);
+  mime->setData(QStringLiteral("application/x-kde-cutselection"), cut ? "1" : "0");
+  return mime;
+}
 
 static QString SizeText(qint64 size)
 {
@@ -213,6 +244,9 @@ STDMETHODIMP CFileContextMenu::QueryContextMenu(HMENU menu, UINT indexMenu, UINT
   if (!(flags & CMF_DEFAULTONLY))
   {
     InsertMenuW(menu, pos++, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
+    for (unsigned v = kVerb_Cut; v <= kVerb_Copy; v++)
+      InsertMenuW(menu, pos++, MF_BYPOSITION | MF_STRING, idCmdFirst + v, ToU(QString::fromLatin1(kVerbs[v].Text)));
+    InsertMenuW(menu, pos++, MF_BYPOSITION | MF_SEPARATOR, 0, NULL);
     InsertMenuW(menu, pos++, MF_BYPOSITION | MF_STRING, idCmdFirst + kVerb_Properties,
         ToU(QString::fromLatin1(kVerbs[kVerb_Properties].Text)));
   }
@@ -239,6 +273,10 @@ STDMETHODIMP CFileContextMenu::InvokeCommand(LPCMINVOKECOMMANDINFO ci)
     case kVerb_Open:
       for (const QString &path : _paths)
         QDesktopServices::openUrl(QUrl::fromLocalFile(path));
+      return S_OK;
+    case kVerb_Cut:
+    case kVerb_Copy:
+      QGuiApplication::clipboard()->setMimeData(FilesMimeData(_paths, verb == kVerb_Cut));
       return S_OK;
     case kVerb_Properties:
       ShowProperties(owner, _paths);

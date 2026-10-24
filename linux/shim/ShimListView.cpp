@@ -1576,6 +1576,15 @@ LRESULT CListViewWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
         case VK_TAB:
           // the list does not move the focus itself; its parent does
           return 0;
+        case 'C':
+        case VK_INSERT:
+          // the Windows control copies nothing (QAbstractItemView would
+          // copy the text of the current item over what the program put
+          // on the clipboard)
+          if (GetKeyState(VK_CONTROL) < 0)
+            return 0;
+          InputDefault = true;
+          return 0;
         default:
           InputDefault = true;
           return 0;

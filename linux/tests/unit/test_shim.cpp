@@ -5,6 +5,9 @@
 
 #include <QAbstractButton>
 #include <QApplication>
+#include <QClipboard>
+#include <QMimeData>
+#include <QUrl>
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
@@ -32,6 +35,7 @@
 
 #include "../../../CPP/Common/MyCom.h"
 
+#include "../../../CPP/Windows/Shell.h"
 #include "../../../CPP/Windows/Control/ComboBox.h"
 #include "../../../CPP/Windows/Control/Dialog.h"
 #include "../../../CPP/Windows/Control/Edit.h"
@@ -906,16 +910,16 @@ private slots:
     QVERIFY(menu);
     HMENU popup = CreatePopupMenu();
     const HRESULT res = menu->QueryContextMenu(popup, 0, 100, 0x7FFF, CMF_EXPLORE);
-    QCOMPARE(res, (HRESULT)2);
-    QCOMPARE(GetMenuItemCount(popup), 3);
+    QCOMPARE(res, (HRESULT)4);
+    QCOMPARE(GetMenuItemCount(popup), 6); // Open, -, Cut, Copy, -, Properties
     wchar_t text[64];
     QVERIFY(GetMenuStringW(popup, 100, text, 64, MF_BYCOMMAND) > 0);
     QCOMPARE(QString::fromWCharArray(text), QStringLiteral("&Open"));
-    QVERIFY(GetMenuStringW(popup, 101, text, 64, MF_BYCOMMAND) > 0);
+    QVERIFY(GetMenuStringW(popup, 103, text, 64, MF_BYCOMMAND) > 0);
     QCOMPARE(QString::fromWCharArray(text), QStringLiteral("P&roperties"));
     DestroyMenu(popup);
     char verb[32];
-    QCOMPARE(menu->GetCommandString(1, GCS_VERBA, NULL, verb, sizeof(verb)), S_OK);
+    QCOMPARE(menu->GetCommandString(3, GCS_VERBA, NULL, verb, sizeof(verb)), S_OK);
     QCOMPARE(QByteArray(verb), QByteArray("properties"));
     wchar_t verbW[32];
     QCOMPARE(menu->GetCommandString(0, GCS_VERBW, NULL, (LPSTR)(void *)verbW, 32), S_OK);
@@ -935,7 +939,29 @@ private slots:
     QCOMPARE(menu->InvokeCommand(&ci), S_OK);
     QVERIFY2(shown.startsWith("Properties: Name: file.txt\nLocation: " + dir + "\n"), qPrintable(shown));
     QVERIFY2(shown.contains("Size: 5 bytes"), qPrintable(shown));
-    ci.lpVerb = MAKEINTRESOURCEA(2);
+    // "cut": the clipboard of file managers
+    ci.lpVerb = MAKEINTRESOURCEA(1);
+    QCOMPARE(menu->InvokeCommand(&ci), S_OK);
+    const QMimeData *clip = QGuiApplication::clipboard()->mimeData();
+    QVERIFY(clip);
+    QCOMPARE(clip->urls(), QList<QUrl>({ QUrl::fromLocalFile(dir + "/file.txt") }));
+    QCOMPARE(clip->text(), QStringLiteral("file.txt"));
+    QCOMPARE(clip->data("application/x-kde-cutselection"), QByteArray("1"));
+    QCOMPARE(clip->data("x-special/gnome-copied-files"),
+        "cut\n" + QUrl::fromLocalFile(dir + "/file.txt").toEncoded());
+    CMyComPtr<IDataObject> fromClipboard;
+    QCOMPARE(OleGetClipboard(&fromClipboard), S_OK);
+    UStringVector names;
+    QCOMPARE(NWindows::NShell::DataObject_GetData_HDROP_or_IDLIST_Names(fromClipboard, names), S_OK);
+    QCOMPARE((int)names.Size(), 1);
+    QCOMPARE(QString::fromWCharArray(names[0].Ptr()), dir + "/file.txt");
+    FORMATETC etc = { (CLIPFORMAT)RegisterClipboardFormatA("Preferred DropEffect"), NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+    STGMEDIUM medium;
+    QCOMPARE(fromClipboard->GetData(&etc, &medium), S_OK);
+    QCOMPARE(*(const DWORD *)GlobalLock(medium.hGlobal), (DWORD)DROPEFFECT_MOVE);
+    GlobalUnlock(medium.hGlobal);
+    ReleaseStgMedium(&medium);
+    ci.lpVerb = MAKEINTRESOURCEA(4);
     QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
     ci.lpVerb = "delete";
     QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
