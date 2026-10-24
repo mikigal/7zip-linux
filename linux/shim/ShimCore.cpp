@@ -61,6 +61,13 @@ void RegisterWindow(HWND wnd, QWidget *widget)
   wnd->Proxy = new CEventProxy(wnd, widget);
   g_Windows.insert(wnd);
   g_WidgetWindows.insert(widget, wnd);
+  /* Every window has a cursor of its own on Windows (its class cursor, the
+     arrow by default), but Qt widgets inherit the cursor of their parent:
+     the children of 7zFM's main window showed the resize cursor of its
+     class, which is meant for the splitter between the panels. Cursors
+     that Qt sets itself (the I-beam of an edit box) stay. */
+  if (!widget->testAttribute(Qt::WA_SetCursor))
+    widget->setCursor(Qt::ArrowCursor);
 }
 
 HWND FromHandle(HWND wnd)

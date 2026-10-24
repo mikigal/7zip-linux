@@ -969,6 +969,31 @@ private slots:
     QCOMPARE(menu->InvokeCommand(&ci), E_INVALIDARG);
   }
 
+  void classCursor()
+  {
+    // the class cursor of a window is for its own area, not for its children
+    // (7zFM's main window: the resize cursor of the splitter)
+    WNDCLASSW wc;
+    memset(&wc, 0, sizeof(wc));
+    wc.lpfnWndProc = DefWindowProcW;
+    wc.hCursor = LoadCursor(NULL, IDC_SIZEWE);
+    wc.lpszClassName = L"Z7ShimCursorTest";
+    QVERIFY(RegisterClassW(&wc));
+    const HWND main = CreateWindowExW(0, L"Z7ShimCursorTest", L"main", WS_OVERLAPPEDWINDOW,
+        0, 0, 400, 300, NULL, NULL, NULL, NULL);
+    QVERIFY(main);
+    const HWND button = CreateWindowExW(0, L"BUTTON", L"OK", WS_CHILD | WS_VISIBLE,
+        10, 10, 80, 24, main, NULL, NULL, NULL);
+    const HWND edit = CreateWindowExW(0, L"EDIT", L"", WS_CHILD | WS_VISIBLE,
+        10, 40, 80, 24, main, NULL, NULL, NULL);
+    QVERIFY(button && edit);
+    QWidget *b = NShim::WidgetOf(button);
+    QCOMPARE(b->parentWidget()->cursor().shape(), Qt::SizeHorCursor);
+    QCOMPARE(b->cursor().shape(), Qt::ArrowCursor);
+    QCOMPARE(NShim::WidgetOf(edit)->cursor().shape(), Qt::IBeamCursor);
+    DestroyWindow(main);
+  }
+
   void moduleFunctions()
   {
     // what the code built without _UNICODE looks up with Z7_GET_PROC_ADDRESS
