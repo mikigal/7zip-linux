@@ -3,6 +3,7 @@
 // environment strings, process priority, COM start-up and OLE drag and
 // drop registration.
 
+#include <QFileInfo>
 #include <QProcess>
 #include <QString>
 #include <QStringList>
@@ -317,7 +318,8 @@ namespace NWindows {
 
 /* Windows/ProcessUtils.cpp runs CreateProcess(). Here the program is
    started detached, with params split like a Windows command line, and
-   the object gets no handle. */
+   the object gets no handle. Upstream names its own programs with the
+   Windows suffix ("7zFM.exe"), which the Linux ones do not have. */
 WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
 {
   Close();
@@ -326,9 +328,11 @@ WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
   QStringList args;
   FOR_VECTOR (i, parts)
     args.append(NShim::FromU(parts[i]));
-  const QString program = NShim::FromW(imageName);
+  QString program = NShim::FromW(imageName);
   if (program.isEmpty())
     return EINVAL;
+  if (program.endsWith(QLatin1String(".exe"), Qt::CaseInsensitive) && !QFileInfo::exists(program))
+    program.chop(4);
   if (!QProcess::startDetached(program, args, curDir ? NShim::FromW(curDir) : QString()))
     return ENOENT;
   return 0;

@@ -11,6 +11,7 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDir>
+#include <QFile>
 #include <QHeaderView>
 #include <QLabel>
 #include <QLineEdit>
@@ -35,6 +36,7 @@
 
 #include "../../../CPP/Common/MyCom.h"
 
+#include "../../../CPP/Windows/ProcessUtils.h"
 #include "../../../CPP/Windows/Shell.h"
 #include "../../../CPP/Windows/Control/ComboBox.h"
 #include "../../../CPP/Windows/Control/Dialog.h"
@@ -983,6 +985,26 @@ private slots:
     QVERIFY(!GetModuleHandleA("dwmapi.dll"));
     QVERIFY(!GetModuleHandleA(NULL));
     QVERIFY(!GetProcAddress(NULL, "SHFileOperationW"));
+  }
+
+  void createProcess()
+  {
+    // upstream starts its programs by their Windows names ("7zFM.exe")
+    QTemporaryDir dir;
+    const QString program = dir.filePath("7zFM");
+    const QString log = dir.filePath("args");
+    QFile script(program);
+    QVERIFY(script.open(QIODevice::WriteOnly));
+    script.write(QStringLiteral("#!/bin/sh\nprintf '%s\\n' \"$@\" > '%1.tmp' && mv '%1.tmp' '%1'\n").arg(log).toUtf8());
+    script.close();
+    QVERIFY(script.setPermissions(QFile::ReadOwner | QFile::WriteOwner | QFile::ExeOwner));
+    const UString image = UString(program.toStdWString().c_str()) + L".exe";
+    QCOMPARE(MyCreateProcess(image, UString(L"\"/tmp/a b.7z\" -t7z")), (WRes)0);
+    QTRY_VERIFY_WITH_TIMEOUT(QFile::exists(log), 10000);
+    QFile f(log);
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QCOMPARE(f.readAll(), QByteArray("/tmp/a b.7z\n-t7z\n"));
+    QVERIFY(MyCreateProcess(UString(dir.filePath("none.exe").toStdWString().c_str()), UString()) != 0);
   }
 };
 
