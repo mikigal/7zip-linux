@@ -427,10 +427,24 @@ void CPanel::Properties()
 void CPanel::EditCut()
 {
   // InvokeSystemCommand("cut");
+  #ifndef _WIN32
+  // POSIX: files go to the clipboard of the desktop for file managers
+  if (IsFsOrPureDrivesFolder())
+    InvokeSystemCommand("cut");
+  #endif
 }
 
 void CPanel::EditCopy()
 {
+  #ifndef _WIN32
+  /* POSIX: files go to the clipboard of the desktop for file managers,
+     with their names as text */
+  if (IsFsOrPureDrivesFolder())
+  {
+    InvokeSystemCommand("copy");
+    return;
+  }
+  #endif
   /*
   CMyComPtr<IGetFolderArcProps> getFolderArcProps;
   _folder.QueryInterface(IID_IGetFolderArcProps, &getFolderArcProps);
@@ -454,6 +468,36 @@ void CPanel::EditCopy()
 
 void CPanel::EditPaste()
 {
+  #ifndef _WIN32
+  /* POSIX: files that a file manager copied or cut are copied or moved
+     here, as dropped files are */
+  {
+    CMyComPtr<IDataObject> dataObject;
+    UStringVector names;
+    if (OleGetClipboard(&dataObject) != S_OK || !dataObject
+        || NShell::DataObject_GetData_HDROP_or_IDLIST_Names(dataObject, names) != S_OK
+        || names.IsEmpty())
+      return;
+    bool moveMode = false;
+    {
+      FORMATETC etc = { (CLIPFORMAT)RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT),
+          NULL, DVASPECT_CONTENT, -1, TYMED_HGLOBAL };
+      NCOM::CStgMedium medium;
+      if (dataObject->GetData(&etc, &medium) == S_OK
+          && GlobalSize(medium.hGlobal) >= sizeof(DWORD))
+      {
+        const DWORD *effect = (const DWORD *)GlobalLock(medium.hGlobal);
+        moveMode = (effect && (*effect & DROPEFFECT_MOVE) != 0);
+        GlobalUnlock(medium.hGlobal);
+      }
+    }
+    UInt32 targetFlags = 0;
+    CompressDropFiles(names, IsFSFolder() ? GetFsPath() : UString(),
+        false, // createNewArchive
+        moveMode, 0, targetFlags);
+    return;
+  }
+  #endif
   /*
   UStringVector names;
   ClipboardGetFileNames(names);
