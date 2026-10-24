@@ -31,7 +31,13 @@ set(Z7_UI_EXTRA_SOURCES
   CPP/7zip/UI/FileManager/ViewSettings.cpp
 )
 
-z7_upstream_paths(Z7_UI_SOURCES ${Z7_7ZZ_UI_COMMON_SOURCES} ${Z7_UI_EXTRA_SOURCES})
+# From the 7zz list: UI/Common and its support code (streams, command line
+# parser, error messages), everything except the core and the console UI.
+set(Z7_UI_7ZZ_SOURCES ${Z7_7ZZ_SOURCES})
+list(REMOVE_ITEM Z7_UI_7ZZ_SOURCES
+  ${Z7_7ZZ_ARC_SOURCES} ${Z7_7ZZ_SYS_SOURCES} ${Z7_7ZZ_CONSOLE_SOURCES})
+
+z7_upstream_paths(Z7_UI_SOURCES ${Z7_UI_7ZZ_SOURCES} ${Z7_UI_EXTRA_SOURCES})
 
 add_library(z7_ui STATIC ${Z7_UI_SOURCES})
 target_compile_definitions(z7_ui PUBLIC ${Z7_BASE_DEFINITIONS} Z7_LANG)
@@ -39,8 +45,11 @@ target_compile_options(z7_ui PRIVATE ${Z7_UPSTREAM_WARNINGS} -include "${Z7_COMP
 
 add_library(z7_platform STATIC
   ClassDefs.cpp
+  Globals.cpp
+  Locale.cpp
   RcTables.cpp
   Registry.cpp
+  ResourceString.cpp
 )
 z7_port_target(z7_platform)
 # Upstream COM interfaces have no virtual destructors by design.
