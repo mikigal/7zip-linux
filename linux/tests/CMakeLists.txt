@@ -3,6 +3,11 @@ find_package(Python3 REQUIRED COMPONENTS Interpreter)
 add_test(NAME upstream_sources_current
   COMMAND Python3::Interpreter -I "${Z7_ROOT}/linux/tools/upstream_sources.py" --check)
 
+add_test(NAME rcgen
+  COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/rcgen/test_rcgen.py")
+set_tests_properties(rcgen PROPERTIES LABELS "unit" TIMEOUT 120
+  ENVIRONMENT "CC=${CMAKE_C_COMPILER}")
+
 if(Z7_BUILD_ORACLE)
   add_test(NAME core_roundtrip
     COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/core/test_roundtrip.py"
@@ -22,8 +27,10 @@ function(z7_unit_test name)
   z7_port_target(z7-test-${name})
   target_compile_options(z7-test-${name} PRIVATE -Wno-non-virtual-dtor)
   set_target_properties(z7-test-${name} PROPERTIES AUTOMOC ON)
-  z7_link_ui(z7-test-${name})
+  z7_link_ui(z7-test-${name} FM)
   target_link_libraries(z7-test-${name} PRIVATE Qt6::Core Qt6::Test)
+  target_include_directories(z7-test-${name} PRIVATE "${Z7_ROOT}/linux/shim/win32")
+  target_compile_definitions(z7-test-${name} PRIVATE Z7_SOURCE_ROOT="${Z7_ROOT}")
   add_test(NAME unit_${name} COMMAND z7-test-${name})
   set_tests_properties(unit_${name} PROPERTIES LABELS "unit" TIMEOUT 120
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen;HOME=${Z7_UNIT_HOME};XDG_CONFIG_HOME=${Z7_UNIT_HOME}/config;XDG_DATA_HOME=${Z7_UNIT_HOME}/data;XDG_CACHE_HOME=${Z7_UNIT_HOME}/cache;XDG_STATE_HOME=${Z7_UNIT_HOME}/state")

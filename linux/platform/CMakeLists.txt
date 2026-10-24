@@ -39,6 +39,7 @@ target_compile_options(z7_ui PRIVATE ${Z7_UPSTREAM_WARNINGS} -include "${Z7_COMP
 
 add_library(z7_platform STATIC
   ClassDefs.cpp
+  RcTables.cpp
   Registry.cpp
 )
 z7_port_target(z7_platform)
@@ -51,8 +52,32 @@ target_include_directories(z7_platform PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(z7_ui PUBLIC z7_platform)
 target_link_libraries(z7_platform PUBLIC z7_ui)
 
-# z7_link_ui(<target>): links the platform layer, the shared UI code and the
-# 7-Zip core into <target>.
-function(z7_link_ui target)
-  target_link_libraries(${target} PRIVATE z7_platform z7_ui z7_core)
+# Resource tables generated from the upstream .rc files by tools/rcgen.py:
+# z7_rc_fm for 7zFM (Bundles/Fm/resource.rc) and z7_rc_gui for 7zG
+# (UI/GUI/resource.rc). Each defines NRc::g_Resources.
+find_package(Python3 REQUIRED COMPONENTS Interpreter)
+
+# z7_rc_library(<library> <generated file name> <resource script>)
+function(z7_rc_library lib name script)
+  set(out "${CMAKE_CURRENT_BINARY_DIR}/${name}")
+  add_custom_command(OUTPUT "${out}"
+    COMMAND Python3::Interpreter -I "${Z7_ROOT}/linux/tools/rcgen.py" "${Z7_ROOT}/${script}"
+            --cpp "${out}" --depfile "${out}.d" --cc "${CMAKE_C_COMPILER}"
+    DEPENDS "${Z7_ROOT}/linux/tools/rcgen.py" "${Z7_ROOT}/${script}"
+    DEPFILE "${out}.d"
+    COMMENT "Generating resource tables from ${script}"
+    VERBATIM)
+  add_library(${lib} STATIC "${out}")
+  z7_port_target(${lib})
+  target_include_directories(${lib} PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+endfunction()
+
+z7_rc_library(z7_rc_fm RcFm.cpp CPP/7zip/Bundles/Fm/resource.rc)
+z7_rc_library(z7_rc_gui RcGui.cpp CPP/7zip/UI/GUI/resource.rc)
+
+# z7_link_ui(<target> FM|GUI): links the platform layer, the shared UI code,
+# the resource tables of 7zFM or 7zG and the 7-Zip core into <target>.
+function(z7_link_ui target program)
+  string(TOLOWER "${program}" program)
+  target_link_libraries(${target} PRIVATE z7_platform z7_ui z7_rc_${program} z7_core)
 endfunction()
