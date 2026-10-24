@@ -25,13 +25,15 @@
 //
 // The log has one JSON object per line: each dialog with the state of its
 // controls when it is shown and when it is closed, each message box and file
-// dialog, script errors, and the exit code; the first line names the Qt
+// dialog, the URLs it opens (help), script errors, and the exit code; the
+// first line names the Qt
 // platform. The exit code is that of 7zG, or 100 when the script failed.
 
 #include <QAbstractButton>
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QDesktopServices>
 #include <QFile>
 #include <QJsonArray>
 #include <QJsonDocument>
@@ -42,6 +44,7 @@
 #include <QSet>
 #include <QTimer>
 #include <QTreeWidget>
+#include <QUrl>
 
 #include <stdio.h>
 #include <unistd.h>
@@ -282,7 +285,10 @@ class CDialogRunner: public QObject
   HWND _dlg;
   QJsonArray _actions;
   int _next = 0;
+  bool _inAction = false;
   bool _closed = false;
+
+  static bool IsWait(const QJsonObject &a) { return a.contains("wait") || a.contains("wait_file"); }
 public:
   CDialogRunner(HWND dlg, const QJsonArray &actions, QWidget *w):
       QObject(w), _dlg(dlg), _actions(actions)
@@ -296,7 +302,10 @@ public:
   {
     while (_next < _actions.size() && Alive())
     {
-      if (!Apply(_dlg, _actions[_next].toObject()))
+      _inAction = true;
+      const bool done = Apply(_dlg, _actions[_next].toObject());
+      _inAction = false;
+      if (!done)
       {
         QTimer::singleShot(50, this, [this]() { Run(); });
         return;
@@ -311,6 +320,10 @@ public:
     {
       _closed = true;
       g_Driver.Write(DialogState("dialog_closed", _dlg));
+      // an action that closes the dialog is done; a wait may be cut short
+      const int pending = _next + (_inAction ? 1 : 0);
+      if (pending < _actions.size() && !IsWait(_actions[pending].toObject()))
+        g_Driver.Fail(QStringLiteral("%1 closed before action %2").arg(DialogName(_dlg)).arg(pending));
     }
     return false;
   }
@@ -335,6 +348,17 @@ void OnModal(HWND dlg)
   CDialogRunner *runner = new CDialogRunner(dlg, step.value("actions").toArray(), NShim::WidgetOf(dlg));
   runner->Run();
 }
+
+// Logs the URLs that the program opens (help topics) instead of opening them.
+class CUrlLogger: public QObject
+{
+  Q_OBJECT
+public slots:
+  void openUrl(const QUrl &url)
+  {
+    g_Driver.Write(QJsonObject{ { "event", "open_url" }, { "url", url.toString() } });
+  }
+};
 
 int OnMessageBox(HWND /* owner */, const QString &text, const QString &caption, UINT type)
 {
@@ -449,6 +473,9 @@ int main(int argc, char *argv[])
   }
 
   g_Driver.Write(QJsonObject{ { "event", "start" }, { "platform", QGuiApplication::platformName() } });
+  CUrlLogger urlLogger;
+  for (const char *scheme : { "http", "https", "file" })
+    QDesktopServices::setUrlHandler(QString::fromLatin1(scheme), &urlLogger, "openUrl");
   NShim::SetModalHook(OnModal);
   NShim::SetMessageBoxHook(OnMessageBox);
   NShim::SetFileDialogHook(OnFileDialog);
@@ -479,3 +506,5 @@ int main(int argc, char *argv[])
     code = 100;
   return code;
 }
+
+#include "gui_driver.moc"

@@ -208,6 +208,24 @@ class GuiTest(unittest.TestCase):
     oracle("x", "-bso0", archive, "-o" + out)
     self.assertEqual(snapshot(out), snapshot(self.src))
 
+  def test_add_browse(self):
+    chosen = os.path.join(self.tmp, "chosen name.7z")
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_COMPRESS", "actions": [
+            {"click": ID("IDB_COMPRESS_SET_ARCHIVE")},
+            # the folder is shown above the name
+            {"expect": [ID("IDC_COMPRESS_ARCHIVE"), r"^chosen name\.7z$"]},
+            {"expect": [ID("IDT_COMPRESS_ARCHIVE_FOLDER"), "^" + re.escape(self.tmp) + "/$"]},
+            {"click": ID("IDOK")}]},
+        {"on": "filedialog", "answer": chosen},
+    ], "a", "-ad", os.path.join(self.tmp, "default.7z"), "small.txt", cwd=self.src)
+    self.assertRun(run)
+    request = run.of("filedialog")[0]
+    self.assertEqual(request["kind"], 2)   # save
+    self.assertTrue(any(f.startswith("7z ") and "*.7z" in f for f in request["filters"]),
+                    request["filters"])
+    oracle("t", chosen)
+
   def test_add_encrypted(self):
     archive = os.path.join(self.tmp, "secret.7z")
     run = self.run_7zg([
@@ -279,6 +297,23 @@ class GuiTest(unittest.TestCase):
     self.assertRun(run, K_USER_BREAK)
     self.assertFalse(os.path.exists(archive))
 
+  def test_add_background(self):
+    big = os.path.join(self.src, "big.bin")
+    with open(big, "wb") as f:
+      for _ in range(64):
+        f.write(os.urandom(1 << 20))
+    archive = os.path.join(self.tmp, "big.7z")
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_PROGRESS", "actions": [
+            {"click": ID("IDB_PROGRESS_BACKGROUND")},
+            {"expect": [ID("IDB_PROGRESS_BACKGROUND"), "Foreground"]},
+            {"click": ID("IDCANCEL")}]},
+        {"on": "messagebox", "contains": "", "answer": ID("IDYES")},
+    ], "a", "-mx9", "-mmt1", archive, "big.bin", cwd=self.src)
+    self.assertRun(run, K_USER_BREAK)
+    closed = run.of("dialog_closed", "IDD_PROGRESS")[-1]
+    self.assertIn("Background", closed["caption"])
+
   # ---------- Extract ----------
 
   def test_extract_with_dialog(self):
@@ -295,6 +330,25 @@ class GuiTest(unittest.TestCase):
     ], "x", "-ad", archive, "-o" + os.path.join(self.tmp, "unused"))
     self.assertRun(run)
     self.assertEqual(snapshot(out), snapshot(self.src))
+
+  def test_extract_browse_and_help(self):
+    archive = self.make_archive("a.7z")
+    out = os.path.join(self.tmp, "chosen")
+    os.makedirs(out)
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_EXTRACT", "actions": [
+            {"click": ID("IDHELP")},
+            {"click": ID("IDB_EXTRACT_SET_PATH")},
+            {"expect": [ID("IDC_EXTRACT_PATH"), "^" + re.escape(out) + "/?$"]},
+            {"check": [ID("IDX_EXTRACT_NAME_ENABLE"), False]},
+            {"click": ID("IDOK")}]},
+        {"on": "filedialog", "answer": out},
+    ], "x", "-ad", archive)
+    self.assertRun(run)
+    self.assertEqual(snapshot(out), snapshot(self.src))
+    self.assertEqual([e["url"] for e in run.of("open_url")],
+                     ["https://7-zip.opensource.jp/chm/fm/plugins/7-zip/extract.htm"])
+    self.assertEqual(run.of("filedialog")[0]["kind"], 0)   # folder
 
   def test_extract_password(self):
     archive = self.make_archive("enc.7z", "-psecret", "-mhe=on")

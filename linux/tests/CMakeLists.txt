@@ -65,6 +65,7 @@ endif()
 if(TARGET 7zG)
   add_executable(z7-gui-driver gui/gui_driver.cpp)
   z7_port_target(z7-gui-driver)
+  set_target_properties(z7-gui-driver PROPERTIES AUTOMOC ON)
   # Upstream COM interfaces have no virtual destructors by design.
   target_compile_options(z7-gui-driver PRIVATE -Wno-non-virtual-dtor)
   z7_link_ui(z7-gui-driver GUI)
