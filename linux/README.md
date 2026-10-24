@@ -168,6 +168,15 @@ to compare with the `gui_7zg` screenshots:
 linux/tools/winref/wine_reference.py --release build/windows-release/26.05 --out build/linux/test-artifacts/wine_reference --live
 ```
 
+## Packages and releases
+
+`cmake --install` puts 7zFM, 7zG, `7z-context-menu` and `Lang/` in the
+program folder (`lib/7zip-linux`, with links in `bin`), and the file manager
+extensions where their file managers look for them (Phase 7 in
+[docs/PLAN.md](docs/PLAN.md)). The AUR packages `7zip-linux` (from source)
+and `7zip-linux-bin` (prebuilt) are in `packaging/aur/`; a GitHub release
+builds and publishes them, see [docs/RELEASE.md](docs/RELEASE.md).
+
 ## Upstream source lists
 
 `cmake/UpstreamSources.cmake` is generated from the upstream makefiles. After

@@ -889,10 +889,10 @@ Findings:
   setting, with `Lang/` in the program folder. KIO sorts service menu
   actions by their text; the plugin keeps the upstream order.
 - "Integrate 7-Zip to shell context menu" on the 7-Zip options page stays
-  disabled: the page looks for `7-zip.dll` in the program folder and
-  `ContextMenuRegistration.cpp` is a stub. The plugin is switched on and
-  off in Dolphin's settings (`kservicemenurc`, `[Show]`); the install
-  layout (Phase 7) could connect the two.
+  disabled (the user's choice): the page looks for `7-zip.dll` in the
+  program folder and `ContextMenuRegistration.cpp` is a stub. The installed
+  package always registers the menus; the KDE plugin is switched on and off
+  in Dolphin's settings (`kservicemenurc`, `[Show]`).
 - GTK file managers cannot load Qt, hence `7z-context-menu`. Labels are
   GTK mnemonic texts ("_" doubled). Nemo needs a non-NULL tip; only Nemo
   has separators; GTK3 menus show no icons by default and Nautilus 4 none.
@@ -901,13 +901,35 @@ Findings:
   ThunarxMenu never drop their items: lsan.supp names the libraries.
 
 ### Phase 7: Packaging and upstream sync
-- [ ] Install layout, `PKGBUILD` (Arch/CachyOS), AppStream metadata, `Lang`
-      files; Flatpak is optional (portal FileTransfer for drag and drop).
+- [x] Install layout, AUR packages (Arch/CachyOS), AppStream metadata,
+      `Lang` files; Flatpak is optional (portal FileTransfer for drag and
+      drop) and not done.
 - [ ] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
       consistency checks, check the templates against the new Windows release
       (`rcgen_windows_release`) and look at the Wine reference pictures,
       review the upstream edits (Appendix B), then the full test suite.
+
+Notes:
+- Install layout: 7zFM, 7zG, `7z-context-menu` and `Lang/` go to the
+  program folder `lib/7zip-linux` (`Z7_PROGRAM_SUBDIR`), where the programs
+  find each other and the language files, with relative links in `bin`.
+  The KDE plugin goes to the Qt plugin folder, the GTK extensions to the
+  folders that their pkg-config files name (re-rooted on the install
+  prefix). AppStream metadata: `share/metainfo`, checked by `appstreamcli`.
+  The license files are installed by the packages, as Arch does.
+- AUR (`linux/packaging/aur`, `docs/RELEASE.md`): `7zip-linux` builds from
+  the GitHub tarball of the tag `vVERSION` (CMake build type None, no 7zz
+  oracle, no `-Werror`; `check()` runs the unit tests); `7zip-linux-bin`
+  installs that package as built by makepkg in the release workflow
+  (`.github/workflows/release.yml`, Arch container), attached to the GitHub
+  release, so both have the same files and the prebuilt one Arch's compiler
+  flags. `release.sh` builds both, compares their files and writes the
+  `.SRCINFO` files; the workflow pushes them to the AUR with the
+  `AUR_SSH_PRIVATE_KEY` secret. VERSION is the 7-Zip version plus the port
+  release (26.05.1); `unit_packaging` checks that the PKGBUILDs and the
+  AppStream metadata agree with `C/7zVersion.h`.
+- The console `7z` is not part of the packages: Arch's `7zip` has it.
 
 ## Appendix A: Windows features and their Linux counterparts
 
@@ -961,5 +983,5 @@ After merging a release, check that each edit is still needed.
   without mingw-w64. The user approved downloading the official release for
   Windows (26.05, `7z2605-x64.exe`, SHA-256 checked against the GitHub
   release); a Winelib helper renders its templates (see Phase 2). The
-  release also contains the `Lang/*.txt` files; shipping them is still open
-  (see the item above).
+  release also contains the `Lang/*.txt` files, which are shipped (see
+  the item above).

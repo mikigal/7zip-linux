@@ -1,0 +1,29 @@
+# Maintainer: mikigal <mikigal.priv at gmail dot com>
+#
+# The AUR package with the prebuilt Linux port: the 7zip-linux package that
+# makepkg built on Arch Linux for the GitHub release, attached to it. For a
+# release, linux/packaging/aur/release.sh sets the checksum and the release
+# workflow pushes the package to the AUR (linux/docs/RELEASE.md).
+
+pkgname=7zip-linux-bin
+pkgver=26.05.1
+pkgrel=1
+pkgdesc="7-Zip File Manager and GUI for Linux: the original 7-Zip design on Qt 6 and Wayland, in a dark theme (prebuilt)"
+arch=(x86_64)
+url="https://github.com/mikigal/7zip-linux"
+license=('LGPL-2.1-or-later AND LicenseRef-UnRAR AND BSD-3-Clause AND BSD-2-Clause')
+depends=(glibc libgcc libstdc++ qt6-base qt6-svg qt6-wayland hicolor-icon-theme)
+optdepends=('kio: the 7-Zip menu in Dolphin and other KDE programs'
+            'nemo: the 7-Zip menu in Nemo'
+            'thunar: the 7-Zip menu in Thunar'
+            'nautilus: the 7-Zip menu in Nautilus')
+provides=("7zip-linux=$pkgver")
+conflicts=(7zip-linux)
+options=(!strip !debug)
+source=("$url/releases/download/v$pkgver/7zip-linux-$pkgver-x86_64.pkg.tar.zst")
+sha256sums=('SKIP')
+
+package() {
+  # the files of the package, without its metadata (.PKGINFO, .MTREE, ...)
+  cp -a usr "$pkgdir/"
+}

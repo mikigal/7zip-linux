@@ -3,7 +3,9 @@
 // linux/packaging against 7-Zip and shared-mime-info: every type that 7-Zip
 // associates (the System options page) has a MIME type, with the MIME
 // package installed, and the .desktop file of 7zFM lists it; the files are
-// named by the application ID of platform/AppId.h.
+// named by the application ID of platform/AppId.h. The AUR packages
+// (linux/packaging/aur) have the version of the last release in the
+// AppStream metadata, which is the 7-Zip version and the port release.
 
 #include <QDir>
 #include <QFile>
@@ -20,6 +22,7 @@
 
 #include "Win32Compat.h"
 
+#include "../../../C/7zVersion.h"
 #include "../../../CPP/Common/MyCom.h"
 #include "../../../CPP/7zip/UI/Agent/Agent.h"
 
@@ -143,6 +146,31 @@ private slots:
     QVERIFY2(!r.hasError(), qPrintable(r.errorString()));
     QCOMPARE(id, QStringLiteral(Z7_APP_ID));
     QCOMPARE(launchable, QStringLiteral(Z7_FM_DESKTOP_FILE));
+  }
+
+  void releaseVersion()
+  {
+    // the first <release> of the metadata is the last one
+    QFile f(kPackaging + Z7_APP_ID ".metainfo.xml");
+    QVERIFY(f.open(QIODevice::ReadOnly));
+    QXmlStreamReader r(&f);
+    QString version;
+    while (!r.atEnd() && version.isEmpty())
+      if (r.readNext() == QXmlStreamReader::StartElement && r.name() == QLatin1String("release"))
+        version = r.attributes().value("version").toString();
+    const QString upstream = QStringLiteral(MY_VERSION_NUMBERS ".");
+    QVERIFY2(version.startsWith(upstream), qPrintable(version));
+    bool ok = false;
+    version.mid(upstream.size()).toUInt(&ok);
+    QVERIFY2(ok, qPrintable(version));
+    for (const char *name : { "7zip-linux", "7zip-linux-bin" })
+    {
+      QFile pkgbuild(kPackaging + "aur/" + name + "/PKGBUILD");
+      QVERIFY(pkgbuild.open(QIODevice::ReadOnly | QIODevice::Text));
+      const QStringList lines = QString::fromUtf8(pkgbuild.readAll()).split('\n');
+      QVERIFY2(lines.contains("pkgver=" + version), name);
+      QVERIFY2(lines.contains("pkgrel=1"), name);
+    }
   }
 
   void kdePlugin()

@@ -1,0 +1,41 @@
+# Maintainer: mikigal <mikigal.priv at gmail dot com>
+#
+# The AUR package that builds the Linux port from source. For a release,
+# linux/packaging/aur/release.sh sets the checksum and the release workflow
+# pushes the package to the AUR (linux/docs/RELEASE.md).
+
+pkgname=7zip-linux
+pkgver=26.05.1
+pkgrel=1
+pkgdesc="7-Zip File Manager and GUI for Linux: the original 7-Zip design on Qt 6 and Wayland, in a dark theme"
+arch=(x86_64)
+url="https://github.com/mikigal/7zip-linux"
+license=('LGPL-2.1-or-later AND LicenseRef-UnRAR AND BSD-3-Clause AND BSD-2-Clause')
+depends=(glibc libgcc libstdc++ qt6-base qt6-svg qt6-wayland hicolor-icon-theme)
+makedepends=(cmake python kio nemo thunar libnautilus-extension)
+optdepends=('kio: the 7-Zip menu in Dolphin and other KDE programs'
+            'nemo: the 7-Zip menu in Nemo'
+            'thunar: the 7-Zip menu in Thunar'
+            'nautilus: the 7-Zip menu in Nautilus')
+source=("$pkgname-$pkgver.tar.gz::$url/archive/refs/tags/v$pkgver.tar.gz")
+sha256sums=('SKIP')
+
+build() {
+  # no upstream 7zz test oracle; new compiler warnings must not stop a build
+  cmake -S "$pkgname-$pkgver/linux" -B build \
+    -DCMAKE_BUILD_TYPE=None \
+    -DCMAKE_INSTALL_PREFIX=/usr \
+    -DZ7_BUILD_ORACLE=OFF \
+    -DZ7_WERROR=OFF
+  cmake --build build
+}
+
+check() {
+  ctest --test-dir build -L unit --output-on-failure
+}
+
+package() {
+  DESTDIR="$pkgdir" cmake --install build
+  cd "$pkgname-$pkgver/DOC"
+  install -Dm644 -t "$pkgdir/usr/share/licenses/$pkgname" License.txt copying.txt unRarLicense.txt
+}

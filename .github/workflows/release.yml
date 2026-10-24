@@ -1,0 +1,76 @@
+# The release of the Linux port (linux/docs/RELEASE.md): when a GitHub
+# release is published for a tag vVERSION, this builds the 7zip-linux package
+# with makepkg on Arch Linux, attaches it to the release (7zip-linux-bin
+# installs it), and pushes the AUR packages 7zip-linux and 7zip-linux-bin.
+name: Release
+
+on:
+  release:
+    types: [published]
+  # again for an existing release, for example after a failed AUR push
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (vVERSION)
+        required: true
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    container: archlinux:base-devel
+    env:
+      TAG: ${{ github.event.release.tag_name || inputs.tag }}
+    steps:
+      - name: Install the build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed --disable-sandbox git github-cli openssh \
+            cmake python qt6-base qt6-svg qt6-wayland hicolor-icon-theme \
+            kio nemo thunar libnautilus-extension
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.TAG }}
+
+      - name: Build the packages
+        run: |
+          # makepkg does not run as root
+          useradd -m builder
+          chown -R builder .
+          su builder -c "linux/packaging/aur/release.sh '${TAG#v}' out"
+
+      - name: Attach the package to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$TAG" out/*.pkg.tar.zst --clobber --repo "$GITHUB_REPOSITORY"
+
+      - name: Push to the AUR
+        env:
+          AUR_SSH_PRIVATE_KEY: ${{ secrets.AUR_SSH_PRIVATE_KEY }}
+        run: |
+          if [ -z "$AUR_SSH_PRIVATE_KEY" ]; then
+            echo "::warning::No AUR_SSH_PRIVATE_KEY secret; the AUR packages are in the build log only"
+            cat out/aur/*/PKGBUILD
+            exit 0
+          fi
+          install -dm700 ~/.ssh
+          printf '%s\n' "$AUR_SSH_PRIVATE_KEY" > ~/.ssh/aur
+          chmod 600 ~/.ssh/aur
+          # the host key that aur.archlinux.org publishes
+          echo "aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN" > ~/.ssh/known_hosts
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          git config --global user.name "$GITHUB_ACTOR"
+          git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
+          for name in 7zip-linux 7zip-linux-bin; do
+            git clone "ssh://aur@aur.archlinux.org/$name.git" "aur-$name"
+            cp "out/aur/$name/PKGBUILD" "out/aur/$name/.SRCINFO" "aur-$name/"
+            git -C "aur-$name" add PKGBUILD .SRCINFO
+            if git -C "aur-$name" diff --cached --quiet; then
+              echo "$name: no change"
+              continue
+            fi
+            git -C "aur-$name" commit -m "Update to ${TAG#v}"
+            git -C "aur-$name" push origin HEAD:master
+          done
