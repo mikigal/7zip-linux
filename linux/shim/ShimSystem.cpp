@@ -1,15 +1,29 @@
-// ShimSystem.cpp -- the kernel32 and ole32 calls of the GUI code: sleeping,
-// strings, modules, process priority and COM start-up.
+// ShimSystem.cpp -- the kernel32, advapi32 and ole32 calls of the GUI code:
+// sleeping, strings, modules, handles, processes, the user name and
+// environment strings, process priority, COM start-up and OLE drag and
+// drop registration.
+
+#include <QProcess>
+#include <QString>
+#include <QStringList>
 
 #include <dirent.h>
 #include <errno.h>
+#include <pwd.h>
 #include <sched.h>
 #include <stdlib.h>
 #include <string.h>
 #include <time.h>
+#include <unistd.h>
 #include <wchar.h>
 
 #include <windows.h>
+#include <TlHelp32.h>
+
+#include "../../CPP/Common/CommandLineParser.h"
+#include "../../CPP/Windows/ProcessUtils.h"
+
+#include "ShimWindow.h"
 
 void Sleep(DWORD milliseconds)
 {
@@ -39,6 +53,237 @@ HMODULE GetModuleHandleA(LPCSTR /* name */)
 HMODULE GetModuleHandleW(LPCWSTR /* name */)
 {
   return NULL;
+}
+
+HMODULE LoadLibraryA(LPCSTR /* name */)
+{
+  return NULL;
+}
+
+HMODULE LoadLibraryW(LPCWSTR /* name */)
+{
+  return NULL;
+}
+
+DWORD GetVersion()
+{
+  // Windows 10 (10.0, build 19041)
+  return ((DWORD)19041 << 16) | 0x000A;
+}
+
+// ---------- Handles ----------
+
+BOOL CloseHandle(HANDLE handle)
+{
+  return (handle && handle != INVALID_HANDLE_VALUE) ? TRUE : FALSE;
+}
+
+DWORD WaitForSingleObject(HANDLE /* handle */, DWORD /* milliseconds */)
+{
+  return WAIT_FAILED;
+}
+
+// ---------- User and environment ----------
+
+static QString UserName()
+{
+  const struct passwd *pw = getpwuid(geteuid());
+  if (pw && pw->pw_name)
+    return QString::fromLocal8Bit(pw->pw_name);
+  const char *s = getenv("USER");
+  return QString::fromLocal8Bit(s ? s : "");
+}
+
+// The buffer sizes count characters with the terminating zero.
+BOOL GetUserNameW(LPWSTR buffer, LPDWORD size)
+{
+  const QString name = UserName();
+  const DWORD need = (DWORD)NShim::LengthW(name) + 1;
+  if (!buffer || !size || *size < need)
+  {
+    if (size)
+      *size = need;
+    SetLastError(ERANGE);
+    return FALSE;
+  }
+  NShim::CopyToW(name, buffer, (int)*size);
+  *size = need;
+  return TRUE;
+}
+
+BOOL GetUserNameA(LPSTR buffer, LPDWORD size)
+{
+  const QString name = UserName();
+  const DWORD need = (DWORD)NShim::LengthA(name) + 1;
+  if (!buffer || !size || *size < need)
+  {
+    if (size)
+      *size = need;
+    SetLastError(ERANGE);
+    return FALSE;
+  }
+  NShim::CopyToA(name, buffer, (int)*size);
+  *size = need;
+  return TRUE;
+}
+
+// %NAME% is the variable NAME; an unknown name stays as it is.
+static QString ExpandEnvironment(const QString &src)
+{
+  QString r;
+  int i = 0;
+  while (i < src.size())
+  {
+    const int start = src.indexOf(QLatin1Char('%'), i);
+    if (start < 0)
+      break;
+    const int end = src.indexOf(QLatin1Char('%'), start + 1);
+    if (end < 0)
+      break;
+    r += src.mid(i, start - i);
+    const QString name = src.mid(start + 1, end - start - 1);
+    const QByteArray value = qgetenv(name.toLocal8Bit().constData());
+    if (!name.isEmpty() && !value.isNull())
+    {
+      r += QString::fromLocal8Bit(value);
+      i = end + 1;
+    }
+    else
+    {
+      r += src.mid(start, end - start);
+      i = end;
+    }
+  }
+  r += src.mid(i);
+  return r;
+}
+
+DWORD ExpandEnvironmentStringsW(LPCWSTR src, LPWSTR dest, DWORD size)
+{
+  const QString r = ExpandEnvironment(NShim::FromW(src));
+  const DWORD need = (DWORD)NShim::LengthW(r) + 1;
+  if (dest && size >= need)
+    NShim::CopyToW(r, dest, (int)size);
+  return need;
+}
+
+DWORD ExpandEnvironmentStringsA(LPCSTR src, LPSTR dest, DWORD size)
+{
+  const QString r = ExpandEnvironment(NShim::FromA(src));
+  const DWORD need = (DWORD)NShim::LengthA(r) + 1;
+  if (dest && size >= need)
+    NShim::CopyToA(r, dest, (int)size);
+  return need;
+}
+
+// ---------- Processes ----------
+
+/* Programs are started detached (QProcess::startDetached()): there are no
+   process handles to wait for or to ask about, so the calls below fail. */
+
+HANDLE OpenProcess(DWORD /* desiredAccess */, BOOL /* inheritHandle */, DWORD /* processId */)
+{
+  return NULL;
+}
+
+BOOL GetExitCodeProcess(HANDLE /* process */, LPDWORD /* exitCode */)
+{
+  return FALSE;
+}
+
+BOOL TerminateProcess(HANDLE /* process */, UINT /* exitCode */)
+{
+  return FALSE;
+}
+
+BOOL GetProcessTimes(HANDLE /* process */, LPFILETIME /* creationTime */, LPFILETIME /* exitTime */,
+    LPFILETIME /* kernelTime */, LPFILETIME /* userTime */)
+{
+  return FALSE;
+}
+
+DWORD WaitForInputIdle(HANDLE /* process */, DWORD /* milliseconds */)
+{
+  return WAIT_FAILED;
+}
+
+BOOL ReadProcessMemory(HANDLE, LPCVOID, LPVOID, SIZE_T, SIZE_T *)
+{
+  return FALSE;
+}
+
+BOOL WriteProcessMemory(HANDLE, LPVOID, LPCVOID, SIZE_T, SIZE_T *)
+{
+  return FALSE;
+}
+
+BOOL FlushInstructionCache(HANDLE, LPCVOID, SIZE_T)
+{
+  return FALSE;
+}
+
+LPVOID VirtualAllocEx(HANDLE, LPVOID, SIZE_T, DWORD, DWORD)
+{
+  return NULL;
+}
+
+BOOL VirtualFreeEx(HANDLE, LPVOID, SIZE_T, DWORD)
+{
+  return FALSE;
+}
+
+DWORD GetProcessId(HANDLE /* process */)
+{
+  return 0;
+}
+
+DWORD GetCurrentProcessId()
+{
+  return (DWORD)getpid();
+}
+
+HANDLE CreateToolhelp32Snapshot(DWORD /* flags */, DWORD /* processId */)
+{
+  return INVALID_HANDLE_VALUE;
+}
+
+BOOL Process32First(HANDLE /* snapshot */, LPPROCESSENTRY32 /* entry */)
+{
+  return FALSE;
+}
+
+BOOL Process32Next(HANDLE /* snapshot */, LPPROCESSENTRY32 /* entry */)
+{
+  return FALSE;
+}
+
+namespace NWindows {
+
+/* Windows/ProcessUtils.cpp runs CreateProcess(). Here the program is
+   started detached, with params split like a Windows command line, and
+   the object gets no handle. */
+WRes CProcess::Create(LPCWSTR imageName, const UString &params, LPCWSTR curDir)
+{
+  Close();
+  UStringVector parts;
+  NCommandLineParser::SplitCommandLine(params, parts);
+  QStringList args;
+  FOR_VECTOR (i, parts)
+    args.append(NShim::FromU(parts[i]));
+  const QString program = NShim::FromW(imageName);
+  if (program.isEmpty())
+    return EINVAL;
+  if (!QProcess::startDetached(program, args, curDir ? NShim::FromW(curDir) : QString()))
+    return ENOENT;
+  return 0;
+}
+
+WRes MyCreateProcess(LPCWSTR imageName, const UString &params)
+{
+  CProcess process;
+  return process.Create(imageName, params, NULL);
+}
+
 }
 
 // ---------- Process priority ----------
@@ -122,6 +367,28 @@ HRESULT CoCreateInstance(REFCLSID /* clsid */, IUnknown * /* outer */, DWORD /* 
   if (object)
     *object = NULL;
   return REGDB_E_CLASSNOTREG;
+}
+
+// OLE drag and drop: drops come through Qt (see oleidl.h).
+HRESULT RegisterDragDrop(HWND /* wnd */, IDropTarget * /* target */)
+{
+  return S_OK;
+}
+
+HRESULT RevokeDragDrop(HWND /* wnd */)
+{
+  return S_OK;
+}
+
+HRESULT DoDragDrop(IDataObject * /* dataObject */, IDropSource * /* dropSource */, DWORD /* okEffects */, DWORD *effect)
+{
+  if (effect)
+    *effect = DROPEFFECT_NONE;
+  return E_NOTIMPL;
+}
+
+void ReleaseStgMedium(STGMEDIUM * /* medium */)
+{
 }
 
 LPVOID CoTaskMemAlloc(size_t size)

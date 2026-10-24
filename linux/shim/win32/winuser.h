@@ -40,6 +40,8 @@ typedef void *HANDLE;
 typedef HANDLE *PHANDLE;
 typedef void *LPVOID;
 typedef void *PVOID;
+typedef const void *LPCVOID;
+typedef FILETIME *LPFILETIME;
 typedef CHAR *LPSTR;
 typedef WCHAR *LPWSTR;
 typedef BOOL *PBOOL;
@@ -94,7 +96,13 @@ typedef void *HGDIOBJ;
 #define IDI_EXCLAMATION  MAKEINTRESOURCE(32515)
 #define IDI_ASTERISK     MAKEINTRESOURCE(32516)
 #define IDC_ARROW        MAKEINTRESOURCE(32512)
+#define IDC_IBEAM        MAKEINTRESOURCE(32513)
 #define IDC_WAIT         MAKEINTRESOURCE(32514)
+#define IDC_CROSS        MAKEINTRESOURCE(32515)
+#define IDC_SIZEWE       MAKEINTRESOURCE(32644)
+#define IDC_SIZENS       MAKEINTRESOURCE(32645)
+#define IDC_NO           MAKEINTRESOURCE(32648)
+#define IDC_APPSTARTING  MAKEINTRESOURCE(32650)
 
 #define CW_USEDEFAULT  ((int)0x80000000)
 
@@ -459,5 +467,149 @@ HFONT CreateFontIndirectA(const LOGFONTA *font);
 HFONT CreateFontIndirectW(const LOGFONTW *font);
 #define CreateFontIndirect CreateFontIndirectA
 BOOL DeleteObject(HGDIOBJ object);
+
+
+/* Menus (ShimMenu.cpp). An HMENU is a tree of items that lives apart from
+   any window; SetMenu() shows it as the menu bar of a top-level window and
+   TrackPopupMenuEx() as a popup menu. Both send WM_INITMENUPOPUP before a
+   menu opens, so the window can update the items, and WM_COMMAND when an
+   item is chosen. */
+typedef struct tagMENUITEMINFOA
+{
+  UINT cbSize;
+  UINT fMask;
+  UINT fType;
+  UINT fState;
+  UINT wID;
+  HMENU hSubMenu;
+  HBITMAP hbmpChecked;
+  HBITMAP hbmpUnchecked;
+  ULONG_PTR dwItemData;
+  LPSTR dwTypeData;
+  UINT cch;
+  HBITMAP hbmpItem;
+} MENUITEMINFOA, *LPMENUITEMINFOA;
+
+typedef struct tagMENUITEMINFOW
+{
+  UINT cbSize;
+  UINT fMask;
+  UINT fType;
+  UINT fState;
+  UINT wID;
+  HMENU hSubMenu;
+  HBITMAP hbmpChecked;
+  HBITMAP hbmpUnchecked;
+  ULONG_PTR dwItemData;
+  LPWSTR dwTypeData;
+  UINT cch;
+  HBITMAP hbmpItem;
+} MENUITEMINFOW, *LPMENUITEMINFOW;
+
+typedef MENUITEMINFOA MENUITEMINFO;
+typedef LPMENUITEMINFOA LPMENUITEMINFO;
+typedef const MENUITEMINFOA *LPCMENUITEMINFOA;
+typedef const MENUITEMINFOW *LPCMENUITEMINFOW;
+typedef LPCMENUITEMINFOA LPCMENUITEMINFO;
+
+typedef struct tagTPMPARAMS
+{
+  UINT cbSize;
+  RECT rcExclude;
+} TPMPARAMS, *LPTPMPARAMS;
+
+HMENU CreateMenu();
+HMENU CreatePopupMenu();
+BOOL DestroyMenu(HMENU menu);
+BOOL IsMenu(HMENU menu);
+HMENU LoadMenuA(HINSTANCE instance, LPCSTR name);
+HMENU LoadMenuW(HINSTANCE instance, LPCWSTR name);
+#define LoadMenu LoadMenuA
+HMENU GetMenu(HWND wnd);
+BOOL SetMenu(HWND wnd, HMENU menu);
+BOOL DrawMenuBar(HWND wnd);
+int GetMenuItemCount(HMENU menu);
+UINT GetMenuItemID(HMENU menu, int pos);
+UINT GetMenuState(HMENU menu, UINT id, UINT flags);
+HMENU GetSubMenu(HMENU menu, int pos);
+int GetMenuStringA(HMENU menu, UINT item, LPSTR s, int maxCount, UINT flags);
+int GetMenuStringW(HMENU menu, UINT item, LPWSTR s, int maxCount, UINT flags);
+#define GetMenuString GetMenuStringA
+BOOL GetMenuItemInfoA(HMENU menu, UINT item, BOOL byPosition, LPMENUITEMINFOA info);
+BOOL GetMenuItemInfoW(HMENU menu, UINT item, BOOL byPosition, LPMENUITEMINFOW info);
+BOOL SetMenuItemInfoA(HMENU menu, UINT item, BOOL byPosition, LPCMENUITEMINFOA info);
+BOOL SetMenuItemInfoW(HMENU menu, UINT item, BOOL byPosition, LPCMENUITEMINFOW info);
+BOOL InsertMenuItemA(HMENU menu, UINT item, BOOL byPosition, LPCMENUITEMINFOA info);
+BOOL InsertMenuItemW(HMENU menu, UINT item, BOOL byPosition, LPCMENUITEMINFOW info);
+#define GetMenuItemInfo GetMenuItemInfoA
+#define SetMenuItemInfo SetMenuItemInfoA
+#define InsertMenuItem  InsertMenuItemA
+BOOL AppendMenuA(HMENU menu, UINT flags, UINT_PTR idNewItem, LPCSTR newItem);
+BOOL AppendMenuW(HMENU menu, UINT flags, UINT_PTR idNewItem, LPCWSTR newItem);
+BOOL InsertMenuA(HMENU menu, UINT position, UINT flags, UINT_PTR idNewItem, LPCSTR newItem);
+BOOL InsertMenuW(HMENU menu, UINT position, UINT flags, UINT_PTR idNewItem, LPCWSTR newItem);
+BOOL ModifyMenuA(HMENU menu, UINT position, UINT flags, UINT_PTR idNewItem, LPCSTR newItem);
+BOOL ModifyMenuW(HMENU menu, UINT position, UINT flags, UINT_PTR idNewItem, LPCWSTR newItem);
+#define AppendMenu AppendMenuA
+#define InsertMenu InsertMenuA
+#define ModifyMenu ModifyMenuA
+BOOL RemoveMenu(HMENU menu, UINT position, UINT flags);
+BOOL DeleteMenu(HMENU menu, UINT position, UINT flags);
+DWORD CheckMenuItem(HMENU menu, UINT id, UINT check);
+BOOL CheckMenuRadioItem(HMENU menu, UINT first, UINT last, UINT check, UINT flags);
+BOOL EnableMenuItem(HMENU menu, UINT id, UINT enable);
+BOOL SetMenuDefaultItem(HMENU menu, UINT item, UINT byPosition);
+BOOL SetMenuItemBitmaps(HMENU menu, UINT position, UINT flags, HBITMAP unchecked, HBITMAP checked);
+/* Returns the command with TPM_RETURNCMD (0 if none was chosen), else
+   whether the menu was shown; the command then comes as WM_COMMAND. */
+BOOL TrackPopupMenu(HMENU menu, UINT flags, int x, int y, int reserved, HWND wnd, const RECT *rect);
+BOOL TrackPopupMenuEx(HMENU menu, UINT flags, int x, int y, HWND wnd, LPTPMPARAMS params);
+BOOL EndMenu();
+
+/* Keyboard and mouse input (ShimInput.cpp). Qt key and mouse events of
+   the windows reach their window procedures as WM_KEYDOWN, WM_CHAR,
+   WM_LBUTTONDOWN, ...; scan codes in lParam are the virtual keys, so
+   MapVirtualKey() between them is the identity. */
+UINT MapVirtualKeyA(UINT code, UINT mapType);
+UINT MapVirtualKeyW(UINT code, UINT mapType);
+#define MapVirtualKey MapVirtualKeyA
+HWND SetCapture(HWND wnd);
+BOOL ReleaseCapture();
+HWND GetCapture();
+BOOL SetCursorPos(int x, int y);
+UINT GetDoubleClickTime();
+BOOL DragDetect(HWND wnd, POINT pt);
+HWND WindowFromPoint(POINT point);
+HWND ChildWindowFromPoint(HWND parent, POINT point);
+BOOL IsChild(HWND parent, HWND wnd);
+HWND SetParent(HWND child, HWND newParent);
+BOOL BringWindowToTop(HWND wnd);
+HWND FindWindowA(LPCSTR className, LPCSTR windowName);
+HWND FindWindowW(LPCWSTR className, LPCWSTR windowName);
+#define FindWindow FindWindowA
+
+typedef struct tagACCEL
+{
+  BYTE fVirt;
+  WORD key;
+  WORD cmd;
+} ACCEL, *LPACCEL;
+
+BOOL DestroyAcceleratorTable(HACCEL accel);
+
+
+/* The module handle of the program, from WinMain() (linux/platform). */
+extern HINSTANCE g_hInstance;
+
+/* Bitmap resources: the toolbar bitmaps of the .rc files (rcgen) and the
+   standard comctl32 bitmaps are icons of the theme (ShimResources.cpp). */
+HBITMAP LoadBitmapA(HINSTANCE instance, LPCSTR name);
+HBITMAP LoadBitmapW(HINSTANCE instance, LPCWSTR name);
+#define LoadBitmap LoadBitmapA
+
+/* Opens a document or URL with the desktop's default application. */
+HINSTANCE ShellExecuteA(HWND wnd, LPCSTR operation, LPCSTR file, LPCSTR parameters, LPCSTR directory, int showCmd);
+HINSTANCE ShellExecuteW(HWND wnd, LPCWSTR operation, LPCWSTR file, LPCWSTR parameters, LPCWSTR directory, int showCmd);
+#define ShellExecute ShellExecuteA
 
 #endif

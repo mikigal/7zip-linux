@@ -2,6 +2,8 @@
 
 #include "Win32Compat.h"
 
+#include <pwd.h>
+#include <stdlib.h>
 #include <unistd.h>
 
 #include "../../CPP/Windows/DLL.h"
@@ -35,6 +37,20 @@ bool MyGetModuleFileName(FString &path)
 }}
 
 namespace NPlatform {
+
+FString GetHomeDir()
+{
+  const char *home = getenv("HOME");
+  if (!home || home[0] != '/')
+  {
+    const struct passwd *pw = getpwuid(getuid());
+    home = (pw && pw->pw_dir && pw->pw_dir[0] == '/') ? pw->pw_dir : NULL;
+  }
+  FString s (home ? home : "/");
+  while (s.Len() > 1 && s.Back() == '/')
+    s.DeleteBack();
+  return s;
+}
 
 void InitModuleDirPrefix(const char *argv0)
 {

@@ -770,9 +770,11 @@ private slots:
       QCOMPARE(QString::fromWCharArray(buf), QStringLiteral("3"));
 
       // the user: click, double-click, keys
-      QTreeWidget *tree = ItemAs<QTreeWidget>(d, IDL_LISTVIEW);
+      QWidget *listWidget = ItemAs<QWidget>(d, IDL_LISTVIEW);
+      QVERIFY(listWidget);
+      QTreeView *tree = listWidget->findChild<QTreeView *>();
       QVERIFY(tree);
-      const QRect r = tree->visualItemRect(tree->topLevelItem(3));
+      const QRect r = tree->visualRect(tree->model()->index(3, 0));
       dlg.Clicks.clear();
       QTest::mouseClick(tree->viewport(), Qt::LeftButton, Qt::NoModifier, r.center());
       QCOMPARE(lv.GetFocusedItem(), 3);

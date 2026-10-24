@@ -38,9 +38,14 @@ enum EKind
   kKind_Edit,
   kKind_ComboBox,
   kKind_ListView,
+  kKind_Header,
   kKind_Progress,
   kKind_UpDown,
-  kKind_Trackbar
+  kKind_Trackbar,
+  kKind_ComboBoxEx,
+  kKind_Toolbar,
+  kKind_ReBar,
+  kKind_StatusBar
 };
 
 class CEventProxy;
@@ -54,6 +59,9 @@ public:
   const NShim::EKind Kind;
   const UInt64 Serial;         // unique for the process; detects reused addresses
   QPointer<QWidget> Widget;
+  // The client area of a top-level window with a frame (menu bar), else
+  // NULL: children, client coordinates and WM_SIZE belong to it.
+  QPointer<QWidget> Client;
   HWND Parent;                 // parent of a child window, owner of a top-level one
   std::vector<HWND> Children;  // in creation order, which is the Z order and tab order
   UINT Id;                     // GWL_ID
@@ -69,12 +77,26 @@ public:
   int Locks;                   // calls into the object that are in progress
   NShim::CEventProxy *Proxy;   // receives the widget's signals and events
   QString TextValue;           // the window text of a child without its own text
+  HMENU Menu;                  // the menu bar of a top-level window (SetMenu)
+  // Set when an input message (WM_KEYDOWN, WM_CHAR, mouse messages) reaches
+  // the default processing (DefWindowProc): Qt then handles the event.
+  bool InputDefault;
 
   HWND__(NShim::EKind kind);
   virtual ~HWND__();
 
   bool IsChild() const { return (Style & WS_CHILD) != 0; }
   HWND TopLevel();
+  QWidget *ClientArea() const { return Client ? Client.data() : Widget.data(); }
+
+  // Whether Qt input events of the widget become window messages (see
+  // ShimInput.cpp): for windows with a window procedure of the program
+  // (registered classes, subclassed controls) and for classes whose
+  // built-in procedure handles input messages.
+  virtual bool WantsInputMessages() const { return WndProc != NULL; }
+
+  // Called after SetWindowLong(GWL_STYLE) changed the style.
+  virtual void OnStyleChanged(DWORD /* oldStyle */) {}
 
   // The built-in window procedure of the class. Text parameters are always
   // wide: SendMessageA converts the narrow messages before they get here.
@@ -209,11 +231,24 @@ HWND CreateListView(DWORD style, DWORD exStyle, QWidget *parent);
 HWND CreateProgress(DWORD style, QWidget *parent);
 HWND CreateUpDown(DWORD style, QWidget *parent);
 HWND CreateTrackbar(DWORD style, QWidget *parent);
+HWND CreateComboBoxEx(DWORD style, QWidget *parent);
+// ShimBars.cpp
+HWND CreateToolbar(DWORD style, QWidget *parent);
+HWND CreateReBar(DWORD style, QWidget *parent);
+HWND CreateStatusBar(DWORD style, QWidget *parent);
+
+// The height that a bar keeps whatever height it is given (rebars, status
+// bars and toolbars without CCS_NORESIZE size themselves), or 0.
+int BarOwnHeight(HWND wnd);
+
+// Moves a window to another parent (SetParent()).
+void Reparent(HWND wnd, HWND newParent);
 
 // The window class of a control ("Button", "SysListView32", ...).
 const char *ClassName(HWND wnd);
 
-// Pixel size of a closed combo box (the template height includes the list).
+// Pixel size of a closed combo box (the template height includes the list);
+// also for ComboBoxEx.
 int ComboBoxClosedHeight(HWND wnd);
 
 // For the dialog code: radio buttons and push buttons.
@@ -227,6 +262,27 @@ void ClickButton(HWND wnd);
 
 // The Win32 virtual key of a Qt key event, or 0.
 UINT VirtualKeyFromQt(const QKeyEvent *e);
+
+// Turns a Qt input or focus event of a window's widget into window
+// messages (WM_KEYDOWN, WM_CHAR, WM_LBUTTONDOWN, WM_SETFOCUS, ...) and the
+// accelerators of the top-level window into WM_COMMAND. Returns true if
+// the event must not reach the widget: the window procedure handled it
+// instead of passing it to the default processing.
+bool DispatchInputEvent(HWND wnd, QObject *watched, QEvent *event);
+
+// Sends a key event to a widget past DispatchInputEvent(), for the default
+// processing of a key message.
+void SendNativeKeyEvent(QWidget *widget, QKeyEvent *event);
+
+// The mouse position in a window message: client coordinates of wnd.
+LPARAM MousePosLParam(HWND wnd, const QPoint &globalPos);
+WPARAM MouseKeyFlags(Qt::MouseButtons buttons, Qt::KeyboardModifiers modifiers);
+
+// ---------- Menus (ShimMenu.cpp) ----------
+
+// Shows a menu as the menu bar of a top-level window (NULL removes it).
+void SetWindowMenuBar(HWND wnd, HMENU menu);
+void DestroyWindowMenu(HWND wnd);
 
 // ---------- Icons ----------
 

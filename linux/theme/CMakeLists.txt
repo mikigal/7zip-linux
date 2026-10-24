@@ -10,7 +10,7 @@ target_include_directories(z7_theme PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}")
 target_link_libraries(z7_theme PUBLIC Qt6::Widgets Qt6::Svg)
 
 set(Z7_TOOLBAR_ICONS Add Extract Test Copy Move Delete Info)
-set(Z7_TOOLBAR_FILES)
+set(Z7_TOOLBAR_FILES icons/toolbar/ParentFolder.svg)
 foreach(name IN LISTS Z7_TOOLBAR_ICONS)
   list(APPEND Z7_TOOLBAR_FILES icons/toolbar/${name}.svg icons/toolbar/${name}2.svg)
 endforeach()

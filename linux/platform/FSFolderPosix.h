@@ -150,6 +150,14 @@ public:
    symbolic links. */
 bool RemoveTree(const FString &path);
 
+/* Copies or moves files and directories (full paths) into destDirPrefix
+   (FileManager/FSFolder.h). Not implemented yet: returns E_NOTIMPL. */
+HRESULT CopyFileSystemItems(
+    const UStringVector &itemsPaths,
+    const FString &destDirPrefix,
+    bool moveMode,
+    IFolderOperationsExtractCallback *callback);
+
 }
 
 #endif

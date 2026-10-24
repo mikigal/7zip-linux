@@ -30,6 +30,12 @@ struct HFONT__
   QFont Font;
 };
 
+// A bitmap resource is an icon of the theme (see LoadBitmap()).
+struct HBITMAP__
+{
+  QIcon Icon;
+};
+
 namespace NShim {
 
 // The icon of an icon resource ID (IDI_*), or a null icon.
@@ -40,6 +46,13 @@ HICON NewIconHandle(const QIcon &icon);
 
 // The system image list of small (16 px) or large (32 px) icons.
 HIMAGELIST SystemImageList(bool smallIcons);
+
+// The picture of a standard comctl32 toolbar bitmap (HINST_COMMCTRL:
+// IDB_STD_*, IDB_VIEW_*) at an image index, or a null icon.
+QIcon StandardToolbarIcon(UINT_PTR bitmapId, int index);
+
+// The cursor of a cursor handle (LoadCursor() gives the IDC_* ID).
+Qt::CursorShape CursorShape(HCURSOR cursor);
 
 }
 

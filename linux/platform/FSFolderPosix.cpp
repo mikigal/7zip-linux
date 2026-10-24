@@ -775,4 +775,13 @@ Z7_COM7F_IMF(CFSFolder::SetProperty(UInt32 index, PROPID propID,
   return S_OK;
 }
 
+HRESULT CopyFileSystemItems(
+    const UStringVector & /* itemsPaths */,
+    const FString & /* destDirPrefix */,
+    bool /* moveMode */,
+    IFolderOperationsExtractCallback * /* callback */)
+{
+  return E_NOTIMPL;
+}
+
 }

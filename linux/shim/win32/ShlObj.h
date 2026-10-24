@@ -22,8 +22,6 @@ typedef struct _ITEMIDLIST
 typedef ITEMIDLIST *LPITEMIDLIST;
 typedef const ITEMIDLIST *LPCITEMIDLIST;
 
-/* Data objects come with drag and drop (Phase 6); declared for Shell.h. */
-struct IDataObject;
 
 typedef int (CALLBACK *BFFCALLBACK)(HWND wnd, UINT message, LPARAM lParam, LPARAM data);
 

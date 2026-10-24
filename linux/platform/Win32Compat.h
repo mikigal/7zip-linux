@@ -74,6 +74,12 @@ LANGID GetSystemDefaultLangID();
 #define ERROR_UNSUPPORTED_TYPE ((HRESULT)0x8007065EL)
 #endif
 
+// Privileges of Windows/MemoryLock.h; the lock-memory and symbolic link
+// privileges do not exist on Linux (linux/docs/PLAN.md, Appendix A).
+#define SE_LOCK_MEMORY_NAME TEXT("SeLockMemoryPrivilege")
+#define SE_RESTORE_NAME     TEXT("SeRestorePrivilege")
+#define SE_BACKUP_NAME      TEXT("SeBackupPrivilege")
+
 // Registry: Windows/Registry.h compiles unchanged against these names, and
 // linux/platform/Registry.cpp implements its CKey class on top of an INI file.
 struct HKEY__;

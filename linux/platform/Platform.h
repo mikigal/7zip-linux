@@ -15,6 +15,10 @@ namespace NPlatform {
    start. */
 void InitModuleDirPrefix(const char *argv0);
 
+/* The home directory ($HOME, else the password database), without a
+   trailing '/'. */
+FString GetHomeDir();
+
 /* Sets the command line that GetCommandLineW() returns from the arguments
    of main() (argv[0] included). Call it at program start. */
 void SetCommandLine(int argc, const char * const *argv);

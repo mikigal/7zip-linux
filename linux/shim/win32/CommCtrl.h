@@ -12,6 +12,272 @@
 #define PROGRESS_CLASSA   "msctls_progress32"
 #define UPDOWN_CLASSA     "msctls_updown32"
 #define TRACKBAR_CLASSA   "msctls_trackbar32"
+#define TOOLBARCLASSNAMEA "ToolbarWindow32"
+#define REBARCLASSNAMEA   "ReBarWindow32"
+#define STATUSCLASSNAMEA  "msctls_statusbar32"
+#define WC_HEADERA        "SysHeader32"
+
+/* Styles shared by the toolbar, rebar and status bar (CCS_*) */
+#define CCS_TOP           0x00000001L
+#define CCS_NOMOVEY       0x00000002L
+#define CCS_BOTTOM        0x00000003L
+#define CCS_NORESIZE      0x00000004L
+#define CCS_NOPARENTALIGN 0x00000008L
+#define CCS_ADJUSTABLE    0x00000020L
+#define CCS_NODIVIDER     0x00000040L
+#define CCS_VERT          0x00000080L
+#define CCS_LEFT          (CCS_VERT | CCS_TOP)
+#define CCS_RIGHT         (CCS_VERT | CCS_BOTTOM)
+#define CCS_NOMOVEX       (CCS_VERT | CCS_NOMOVEY)
+
+/* Toolbar styles, button states and button styles */
+#define TBSTYLE_BUTTON       0x0000
+#define TBSTYLE_SEP          0x0001
+#define TBSTYLE_CHECK        0x0002
+#define TBSTYLE_GROUP        0x0004
+#define TBSTYLE_DROPDOWN     0x0008
+#define TBSTYLE_AUTOSIZE     0x0010
+#define TBSTYLE_NOPREFIX     0x0020
+#define TBSTYLE_TOOLTIPS     0x0100
+#define TBSTYLE_WRAPABLE     0x0200
+#define TBSTYLE_ALTDRAG      0x0400
+#define TBSTYLE_FLAT         0x0800
+#define TBSTYLE_LIST         0x1000
+#define TBSTYLE_CUSTOMERASE  0x2000
+#define TBSTYLE_REGISTERDROP 0x4000
+#define TBSTYLE_TRANSPARENT  0x8000
+#define BTNS_BUTTON        TBSTYLE_BUTTON
+#define BTNS_SEP           TBSTYLE_SEP
+#define BTNS_CHECK         TBSTYLE_CHECK
+#define BTNS_GROUP         TBSTYLE_GROUP
+#define BTNS_CHECKGROUP    (TBSTYLE_GROUP | TBSTYLE_CHECK)
+#define BTNS_DROPDOWN      TBSTYLE_DROPDOWN
+#define BTNS_AUTOSIZE      TBSTYLE_AUTOSIZE
+#define BTNS_NOPREFIX      TBSTYLE_NOPREFIX
+#define BTNS_SHOWTEXT      0x0040
+#define BTNS_WHOLEDROPDOWN 0x0080
+#define TBSTATE_CHECKED       0x01
+#define TBSTATE_PRESSED       0x02
+#define TBSTATE_ENABLED       0x04
+#define TBSTATE_HIDDEN        0x08
+#define TBSTATE_INDETERMINATE 0x10
+#define TBSTATE_WRAP          0x20
+#define TBSTYLE_EX_DRAWDDARROWS     0x00000001
+#define TBSTYLE_EX_MIXEDBUTTONS     0x00000008
+#define TBSTYLE_EX_HIDECLIPPEDBUTTONS 0x00000010
+#define TBSTYLE_EX_DOUBLEBUFFER     0x00000080
+
+/* Toolbar messages */
+#define TB_ENABLEBUTTON        (WM_USER + 1)
+#define TB_CHECKBUTTON         (WM_USER + 2)
+#define TB_PRESSBUTTON         (WM_USER + 3)
+#define TB_HIDEBUTTON          (WM_USER + 4)
+#define TB_INDETERMINATE       (WM_USER + 5)
+#define TB_ISBUTTONENABLED     (WM_USER + 9)
+#define TB_ISBUTTONCHECKED     (WM_USER + 10)
+#define TB_ISBUTTONPRESSED     (WM_USER + 11)
+#define TB_ISBUTTONHIDDEN      (WM_USER + 12)
+#define TB_SETSTATE            (WM_USER + 17)
+#define TB_GETSTATE            (WM_USER + 18)
+#define TB_ADDBITMAP           (WM_USER + 19)
+#define TB_ADDBUTTONSA         (WM_USER + 20)
+#define TB_INSERTBUTTONA       (WM_USER + 21)
+#define TB_DELETEBUTTON        (WM_USER + 22)
+#define TB_GETBUTTON           (WM_USER + 23)
+#define TB_BUTTONCOUNT         (WM_USER + 24)
+#define TB_COMMANDTOINDEX      (WM_USER + 25)
+#define TB_ADDSTRINGA          (WM_USER + 28)
+#define TB_GETITEMRECT         (WM_USER + 29)
+#define TB_BUTTONSTRUCTSIZE    (WM_USER + 30)
+#define TB_SETBUTTONSIZE       (WM_USER + 31)
+#define TB_SETBITMAPSIZE       (WM_USER + 32)
+#define TB_AUTOSIZE            (WM_USER + 33)
+#define TB_GETTOOLTIPS         (WM_USER + 35)
+#define TB_SETTOOLTIPS         (WM_USER + 36)
+#define TB_SETPARENT           (WM_USER + 37)
+#define TB_SETROWS             (WM_USER + 39)
+#define TB_GETROWS             (WM_USER + 40)
+#define TB_SETCMDID            (WM_USER + 42)
+#define TB_GETBUTTONTEXTA      (WM_USER + 45)
+#define TB_SETINDENT           (WM_USER + 47)
+#define TB_SETIMAGELIST        (WM_USER + 48)
+#define TB_GETIMAGELIST        (WM_USER + 49)
+#define TB_LOADIMAGES          (WM_USER + 50)
+#define TB_GETRECT             (WM_USER + 51)
+#define TB_SETHOTIMAGELIST     (WM_USER + 52)
+#define TB_GETHOTIMAGELIST     (WM_USER + 53)
+#define TB_SETDISABLEDIMAGELIST (WM_USER + 54)
+#define TB_GETDISABLEDIMAGELIST (WM_USER + 55)
+#define TB_SETSTYLE            (WM_USER + 56)
+#define TB_GETSTYLE            (WM_USER + 57)
+#define TB_GETBUTTONSIZE       (WM_USER + 58)
+#define TB_SETBUTTONWIDTH      (WM_USER + 59)
+#define TB_SETMAXTEXTROWS      (WM_USER + 60)
+#define TB_GETTEXTROWS         (WM_USER + 61)
+#define TB_GETBUTTONINFOW      (WM_USER + 63)
+#define TB_SETBUTTONINFOW      (WM_USER + 64)
+#define TB_GETBUTTONINFOA      (WM_USER + 65)
+#define TB_SETBUTTONINFOA      (WM_USER + 66)
+#define TB_INSERTBUTTONW       (WM_USER + 67)
+#define TB_ADDBUTTONSW         (WM_USER + 68)
+#define TB_HITTEST             (WM_USER + 69)
+#define TB_GETBUTTONTEXTW      (WM_USER + 75)
+#define TB_ADDSTRINGW          (WM_USER + 77)
+#define TB_GETMAXSIZE          (WM_USER + 83)
+#define TB_SETEXTENDEDSTYLE    (WM_USER + 84)
+#define TB_GETEXTENDEDSTYLE    (WM_USER + 85)
+#define TB_GETPADDING          (WM_USER + 86)
+#define TB_SETPADDING          (WM_USER + 87)
+#define TB_ADDBUTTONS    TB_ADDBUTTONSA
+#define TB_INSERTBUTTON  TB_INSERTBUTTONA
+#define TB_ADDSTRING     TB_ADDSTRINGA
+#define TB_GETBUTTONTEXT TB_GETBUTTONTEXTA
+
+/* Standard toolbar bitmaps of comctl32 (HINST_COMMCTRL) */
+#define IDB_STD_SMALL_COLOR  0
+#define IDB_STD_LARGE_COLOR  1
+#define IDB_VIEW_SMALL_COLOR 4
+#define IDB_VIEW_LARGE_COLOR 5
+#define IDB_HIST_SMALL_COLOR 8
+#define IDB_HIST_LARGE_COLOR 9
+#define VIEW_LARGEICONS    0
+#define VIEW_SMALLICONS    1
+#define VIEW_LIST          2
+#define VIEW_DETAILS       3
+#define VIEW_SORTNAME      4
+#define VIEW_SORTSIZE      5
+#define VIEW_SORTDATE      6
+#define VIEW_SORTTYPE      7
+#define VIEW_PARENTFOLDER  8
+#define VIEW_NETCONNECT    9
+#define VIEW_NETDISCONNECT 10
+#define VIEW_NEWFOLDER     11
+#define VIEW_VIEWMENU      12
+
+/* Rebar styles, band styles and band info masks */
+#define RBS_TOOLTIPS        0x0100
+#define RBS_VARHEIGHT       0x0200
+#define RBS_BANDBORDERS     0x0400
+#define RBS_FIXEDORDER      0x0800
+#define RBS_REGISTERDROP    0x1000
+#define RBS_AUTOSIZE        0x2000
+#define RBS_VERTICALGRIPPER 0x4000
+#define RBS_DBLCLKTOGGLE    0x8000
+#define RBBS_BREAK          0x00000001
+#define RBBS_FIXEDSIZE      0x00000002
+#define RBBS_CHILDEDGE      0x00000004
+#define RBBS_HIDDEN         0x00000008
+#define RBBS_NOVERT         0x00000010
+#define RBBS_FIXEDBMP       0x00000020
+#define RBBS_VARIABLEHEIGHT 0x00000040
+#define RBBS_GRIPPERALWAYS  0x00000080
+#define RBBS_NOGRIPPER      0x00000100
+#define RBBS_USECHEVRON     0x00000200
+#define RBBS_HIDETITLE      0x00000400
+#define RBBS_TOPALIGN       0x00000800
+#define RBBIM_STYLE      0x00000001
+#define RBBIM_COLORS     0x00000002
+#define RBBIM_TEXT       0x00000004
+#define RBBIM_IMAGE      0x00000008
+#define RBBIM_CHILD      0x00000010
+#define RBBIM_CHILDSIZE  0x00000020
+#define RBBIM_SIZE       0x00000040
+#define RBBIM_BACKGROUND 0x00000080
+#define RBBIM_ID         0x00000100
+#define RBBIM_IDEALSIZE  0x00000200
+#define RBBIM_LPARAM     0x00000400
+#define RBBIM_HEADERSIZE 0x00000800
+#define RBIM_IMAGELIST   0x00000001
+
+/* Rebar messages */
+#define RB_INSERTBANDA    (WM_USER + 1)
+#define RB_DELETEBAND     (WM_USER + 2)
+#define RB_GETBARINFO     (WM_USER + 3)
+#define RB_SETBARINFO     (WM_USER + 4)
+#define RB_SETBANDINFOA   (WM_USER + 6)
+#define RB_SETPARENT      (WM_USER + 7)
+#define RB_HITTEST        (WM_USER + 8)
+#define RB_GETRECT        (WM_USER + 9)
+#define RB_INSERTBANDW    (WM_USER + 10)
+#define RB_SETBANDINFOW   (WM_USER + 11)
+#define RB_GETBANDCOUNT   (WM_USER + 12)
+#define RB_GETROWCOUNT    (WM_USER + 13)
+#define RB_GETROWHEIGHT   (WM_USER + 14)
+#define RB_IDTOINDEX      (WM_USER + 16)
+#define RB_SETBKCOLOR     (WM_USER + 19)
+#define RB_GETBKCOLOR     (WM_USER + 20)
+#define RB_SETTEXTCOLOR   (WM_USER + 21)
+#define RB_GETTEXTCOLOR   (WM_USER + 22)
+#define RB_SIZETORECT     (WM_USER + 23)
+#define RB_GETBARHEIGHT   (WM_USER + 27)
+#define RB_GETBANDINFOW   (WM_USER + 28)
+#define RB_GETBANDINFOA   (WM_USER + 29)
+#define RB_MINIMIZEBAND   (WM_USER + 30)
+#define RB_MAXIMIZEBAND   (WM_USER + 31)
+#define RB_GETBANDBORDERS (WM_USER + 34)
+#define RB_SHOWBAND       (WM_USER + 35)
+#define RB_MOVEBAND       (WM_USER + 39)
+#define RB_INSERTBAND  RB_INSERTBANDA
+#define RB_SETBANDINFO RB_SETBANDINFOA
+#define RB_GETBANDINFO RB_GETBANDINFOA
+
+/* Status bar styles, messages and text types */
+#define SBARS_SIZEGRIP     0x0100
+#define SBARS_TOOLTIPS     0x0800
+#define SB_SETTEXTA        (WM_USER + 1)
+#define SB_GETTEXTA        (WM_USER + 2)
+#define SB_GETTEXTLENGTHA  (WM_USER + 3)
+#define SB_SETPARTS        (WM_USER + 4)
+#define SB_GETPARTS        (WM_USER + 6)
+#define SB_GETBORDERS      (WM_USER + 7)
+#define SB_SETMINHEIGHT    (WM_USER + 8)
+#define SB_SIMPLE          (WM_USER + 9)
+#define SB_GETRECT         (WM_USER + 10)
+#define SB_SETTEXTW        (WM_USER + 11)
+#define SB_GETTEXTLENGTHW  (WM_USER + 12)
+#define SB_GETTEXTW        (WM_USER + 13)
+#define SB_ISSIMPLE        (WM_USER + 14)
+#define SB_SETICON         (WM_USER + 15)
+#define SB_SETTEXT       SB_SETTEXTA
+#define SB_GETTEXT       SB_GETTEXTA
+#define SB_GETTEXTLENGTH SB_GETTEXTLENGTHA
+#define SBT_NOBORDERS    0x0100
+#define SBT_POPOUT       0x0200
+#define SBT_RTLREADING   0x0400
+#define SBT_NOTABPARSING 0x0800
+#define SBT_OWNERDRAW    0x1000
+
+/* Header control messages and notifications */
+#define HDM_FIRST          0x1200
+#define HDM_GETITEMCOUNT   (HDM_FIRST + 0)
+#define HDM_GETITEMRECT    (HDM_FIRST + 7)
+#define HDM_HITTEST        (HDM_FIRST + 6)
+#define HDM_ORDERTOINDEX   (HDM_FIRST + 15)
+
+/* Custom draw (NM_CUSTOMDRAW) */
+#define CDDS_PREPAINT      0x00000001
+#define CDDS_POSTPAINT     0x00000002
+#define CDDS_PREERASE      0x00000003
+#define CDDS_POSTERASE     0x00000004
+#define CDDS_ITEM          0x00010000
+#define CDDS_ITEMPREPAINT  (CDDS_ITEM | CDDS_PREPAINT)
+#define CDDS_ITEMPOSTPAINT (CDDS_ITEM | CDDS_POSTPAINT)
+#define CDDS_SUBITEM       0x00020000
+#define CDRF_DODEFAULT         0x00000000
+#define CDRF_NEWFONT           0x00000002
+#define CDRF_SKIPDEFAULT       0x00000004
+#define CDRF_DOERASE           0x00000008
+#define CDRF_NOTIFYPOSTPAINT   0x00000010
+#define CDRF_NOTIFYITEMDRAW    0x00000020
+#define CDRF_NOTIFYSUBITEMDRAW 0x00000020
+#define CDRF_NOTIFYPOSTERASE   0x00000040
+#define CDIS_SELECTED 0x0001
+#define CDIS_GRAYED   0x0002
+#define CDIS_DISABLED 0x0004
+#define CDIS_CHECKED  0x0008
+#define CDIS_FOCUS    0x0010
+#define CDIS_DEFAULT  0x0020
+#define CDIS_HOT      0x0040
 
 /* List view styles */
 #define LVS_ICON            0x0000
@@ -78,6 +344,10 @@
 #define HDN_FIRST  (0U - 300U)
 #define UDN_FIRST  (0U - 721U)
 #define CBEN_FIRST (0U - 800U)
+#define TBN_FIRST  (0U - 700U)
+#define TTN_FIRST  (0U - 520U)
+#define RBN_FIRST  (0U - 831U)
+#define SBN_FIRST  (0U - 880U)
 
 #define NM_OUTOFMEMORY (NM_FIRST - 1)
 #define NM_CLICK       (NM_FIRST - 2)
@@ -89,6 +359,33 @@
 #define NM_KILLFOCUS   (NM_FIRST - 8)
 #define NM_CUSTOMDRAW  (NM_FIRST - 12)
 #define NM_HOVER       (NM_FIRST - 13)
+#define NM_NCHITTEST   (NM_FIRST - 14)
+#define NM_KEYDOWN     (NM_FIRST - 15)
+#define NM_RELEASEDCAPTURE (NM_FIRST - 16)
+
+/* Toolbar, tooltip, rebar and header notifications */
+#define TBN_GETBUTTONINFOA (TBN_FIRST - 0)
+#define TBN_BEGINDRAG      (TBN_FIRST - 1)
+#define TBN_ENDDRAG        (TBN_FIRST - 2)
+#define TBN_DROPDOWN       (TBN_FIRST - 10)
+#define TBN_HOTITEMCHANGE  (TBN_FIRST - 13)
+#define TBN_GETBUTTONINFOW (TBN_FIRST - 20)
+#define TTN_GETDISPINFOA   (TTN_FIRST - 0)
+#define TTN_SHOW           (TTN_FIRST - 1)
+#define TTN_POP            (TTN_FIRST - 2)
+#define TTN_GETDISPINFOW   (TTN_FIRST - 10)
+#define TTN_NEEDTEXTA      TTN_GETDISPINFOA
+#define TTN_NEEDTEXTW      TTN_GETDISPINFOW
+#define TTN_GETDISPINFO    TTN_GETDISPINFOA
+#define TTN_NEEDTEXT       TTN_NEEDTEXTA
+#define RBN_HEIGHTCHANGE   (RBN_FIRST - 0)
+#define RBN_AUTOSIZE       (RBN_FIRST - 3)
+#define RBN_BEGINDRAG      (RBN_FIRST - 4)
+#define RBN_ENDDRAG        (RBN_FIRST - 5)
+#define RBN_CHILDSIZE      (RBN_FIRST - 8)
+#define HDN_ITEMCLICKW     (HDN_FIRST - 22)
+#define HDN_ENDTRACKW      (HDN_FIRST - 27)
+#define HDN_ENDDRAG        (HDN_FIRST - 11)
 
 /* List view messages */
 #define LVM_FIRST                    0x1000
@@ -356,6 +653,29 @@
 #define CBEIF_OVERLAY       0x00000008
 #define CBEIF_INDENT        0x00000010
 #define CBEIF_LPARAM        0x00000020
+#define CBEIF_DI_SETITEM    0x10000000
+#define CBES_EX_NOEDITIMAGE       0x00000001
+#define CBES_EX_NOEDITIMAGEINDENT 0x00000002
+#define CBES_EX_PATHWORDBREAKPROC 0x00000004
+#define CBES_EX_NOSIZELIMIT       0x00000008
+#define CBES_EX_CASESENSITIVE     0x00000010
+#define CBES_EX_TEXTENDELLIPSIS   0x00000020
+#define CBEN_GETDISPINFOA (CBEN_FIRST - 0)
+#define CBEN_INSERTITEM   (CBEN_FIRST - 1)
+#define CBEN_DELETEITEM   (CBEN_FIRST - 2)
+#define CBEN_BEGINEDIT    (CBEN_FIRST - 4)
+#define CBEN_ENDEDITA     (CBEN_FIRST - 5)
+#define CBEN_ENDEDITW     (CBEN_FIRST - 6)
+#define CBEN_GETDISPINFOW (CBEN_FIRST - 7)
+#define CBEN_DRAGBEGINA   (CBEN_FIRST - 8)
+#define CBEN_DRAGBEGINW   (CBEN_FIRST - 9)
+#define CBEN_ENDEDIT      CBEN_ENDEDITA
+#define CBEN_GETDISPINFO  CBEN_GETDISPINFOA
+#define CBENF_KILLFOCUS 1
+#define CBENF_RETURN    2
+#define CBENF_ESCAPE    3
+#define CBENF_DROPDOWN  4
+#define CBEMAXSTRLEN    260
 
 /* Image lists */
 #define ILC_MASK     0x00000001
@@ -377,6 +697,11 @@
 #define ICC_TAB_CLASSES      0x00000008
 #define ICC_UPDOWN_CLASS     0x00000010
 #define ICC_PROGRESS_CLASS   0x00000020
+#define ICC_HOTKEY_CLASS     0x00000040
+#define ICC_ANIMATE_CLASS    0x00000080
+#define ICC_DATE_CLASSES     0x00000100
+#define ICC_USEREX_CLASSES   0x00000200
+#define ICC_COOL_CLASSES     0x00000400
 #define ICC_WIN95_CLASSES    0x000000FF
 #define ICC_STANDARD_CLASSES 0x00004000
 
@@ -387,6 +712,17 @@
 #define WC_COMBOBOXEXA    "ComboBoxEx32"
 #define WC_COMBOBOXEXW    L"ComboBoxEx32"
 #define WC_COMBOBOXEX     WC_COMBOBOXEXA
+#define TOOLBARCLASSNAMEW L"ToolbarWindow32"
+#define TOOLBARCLASSNAME  TOOLBARCLASSNAMEA
+#define REBARCLASSNAMEW   L"ReBarWindow32"
+#define REBARCLASSNAME    REBARCLASSNAMEA
+#define STATUSCLASSNAMEW  L"msctls_statusbar32"
+#define STATUSCLASSNAME   STATUSCLASSNAMEA
+#define WC_HEADERW        L"SysHeader32"
+#define WC_HEADER         WC_HEADERA
+
+/* The module handle of the standard comctl32 bitmaps */
+#define HINST_COMMCTRL ((HINSTANCE)(INT_PTR)-1)
 #define PROGRESS_CLASS    PROGRESS_CLASSA
 #define UPDOWN_CLASS      UPDOWN_CLASSA
 #define TRACKBAR_CLASS    TRACKBAR_CLASSA
@@ -587,6 +923,182 @@ typedef struct tagCOMBOBOXEXITEMW
 } COMBOBOXEXITEMW;
 
 typedef COMBOBOXEXITEMA COMBOBOXEXITEM;
+
+
+/* Toolbars (ToolbarWindow32). Button images come from the image list of
+   TB_SETIMAGELIST or from TB_ADDBITMAP; texts from iString (a string
+   pointer, or an index of TB_ADDSTRING). */
+typedef struct _TBBUTTON
+{
+  int iBitmap;
+  int idCommand;
+  BYTE fsState;
+  BYTE fsStyle;
+  BYTE bReserved[6];
+  DWORD_PTR dwData;
+  INT_PTR iString;
+} TBBUTTON, *PTBBUTTON, *LPTBBUTTON;
+typedef const TBBUTTON *LPCTBBUTTON;
+
+typedef struct tagTBADDBITMAP
+{
+  HINSTANCE hInst;
+  UINT_PTR nID;
+} TBADDBITMAP, *LPTBADDBITMAP;
+
+HWND CreateToolbarEx(HWND wnd, DWORD style, UINT id, int numBitmaps, HINSTANCE bitmapInstance,
+    UINT_PTR bitmapId, LPCTBBUTTON buttons, int numButtons, int dxButton, int dyButton,
+    int dxBitmap, int dyBitmap, UINT structSize);
+
+typedef struct tagNMTTDISPINFOA
+{
+  NMHDR hdr;
+  LPSTR lpszText;
+  char szText[80];
+  HINSTANCE hinst;
+  UINT uFlags;
+  LPARAM lParam;
+} NMTTDISPINFOA, *LPNMTTDISPINFOA, TOOLTIPTEXTA, *LPTOOLTIPTEXTA;
+
+typedef struct tagNMTTDISPINFOW
+{
+  NMHDR hdr;
+  LPWSTR lpszText;
+  WCHAR szText[80];
+  HINSTANCE hinst;
+  UINT uFlags;
+  LPARAM lParam;
+} NMTTDISPINFOW, *LPNMTTDISPINFOW, TOOLTIPTEXTW, *LPTOOLTIPTEXTW;
+
+typedef NMTTDISPINFOA NMTTDISPINFO;
+typedef LPNMTTDISPINFOA LPNMTTDISPINFO;
+typedef TOOLTIPTEXTA TOOLTIPTEXT;
+typedef LPTOOLTIPTEXTA LPTOOLTIPTEXT;
+
+/* Rebars (ReBarWindow32): bands in one row, each with a child window. */
+typedef struct tagREBARINFO
+{
+  UINT cbSize;
+  UINT fMask;
+  HIMAGELIST himl;
+} REBARINFO, *LPREBARINFO;
+
+typedef struct tagREBARBANDINFOA
+{
+  UINT cbSize;
+  UINT fMask;
+  UINT fStyle;
+  COLORREF clrFore;
+  COLORREF clrBack;
+  LPSTR lpText;
+  UINT cch;
+  int iImage;
+  HWND hwndChild;
+  UINT cxMinChild;
+  UINT cyMinChild;
+  UINT cx;
+  HBITMAP hbmBack;
+  UINT wID;
+  UINT cyChild;
+  UINT cyMaxChild;
+  UINT cyIntegral;
+  UINT cxIdeal;
+  LPARAM lParam;
+  UINT cxHeader;
+  RECT rcChevronLocation;
+  UINT uChevronState;
+} REBARBANDINFOA, *LPREBARBANDINFOA;
+
+typedef struct tagREBARBANDINFOW
+{
+  UINT cbSize;
+  UINT fMask;
+  UINT fStyle;
+  COLORREF clrFore;
+  COLORREF clrBack;
+  LPWSTR lpText;
+  UINT cch;
+  int iImage;
+  HWND hwndChild;
+  UINT cxMinChild;
+  UINT cyMinChild;
+  UINT cx;
+  HBITMAP hbmBack;
+  UINT wID;
+  UINT cyChild;
+  UINT cyMaxChild;
+  UINT cyIntegral;
+  UINT cxIdeal;
+  LPARAM lParam;
+  UINT cxHeader;
+  RECT rcChevronLocation;
+  UINT uChevronState;
+} REBARBANDINFOW, *LPREBARBANDINFOW;
+
+typedef REBARBANDINFOA REBARBANDINFO;
+typedef LPREBARBANDINFOA LPREBARBANDINFO;
+
+/* Status bars (msctls_statusbar32) */
+HWND CreateStatusWindowA(LONG style, LPCSTR text, HWND parent, UINT id);
+HWND CreateStatusWindowW(LONG style, LPCWSTR text, HWND parent, UINT id);
+#define CreateStatusWindow CreateStatusWindowA
+
+/* ComboBoxEx notifications */
+typedef struct
+{
+  NMHDR hdr;
+  BOOL fChanged;
+  int iNewSelection;
+  char szText[CBEMAXSTRLEN];
+  int iWhy;
+} NMCBEENDEDITA, *LPNMCBEENDEDITA, *PNMCBEENDEDITA;
+
+typedef struct
+{
+  NMHDR hdr;
+  BOOL fChanged;
+  int iNewSelection;
+  WCHAR szText[CBEMAXSTRLEN];
+  int iWhy;
+} NMCBEENDEDITW, *LPNMCBEENDEDITW, *PNMCBEENDEDITW;
+
+typedef NMCBEENDEDITA NMCBEENDEDIT;
+typedef LPNMCBEENDEDITA LPNMCBEENDEDIT;
+typedef PNMCBEENDEDITA PNMCBEENDEDIT;
+
+typedef struct
+{
+  NMHDR hdr;
+  COMBOBOXEXITEMW ceItem;
+} NMCOMBOBOXEXW, *PNMCOMBOBOXEXW;
+
+/* Custom draw. hdc is NULL: the colors are all that the code may change. */
+typedef struct tagNMCUSTOMDRAWINFO
+{
+  NMHDR hdr;
+  DWORD dwDrawStage;
+  HDC hdc;
+  RECT rc;
+  DWORD_PTR dwItemSpec;
+  UINT uItemState;
+  LPARAM lItemlParam;
+} NMCUSTOMDRAW, *LPNMCUSTOMDRAW;
+
+typedef struct tagNMLVCUSTOMDRAW
+{
+  NMCUSTOMDRAW nmcd;
+  COLORREF clrText;
+  COLORREF clrTextBk;
+  int iSubItem;
+  DWORD dwItemType;
+  COLORREF clrFace;
+  int iIconEffect;
+  int iIconPhase;
+  int iPartId;
+  int iStateId;
+  RECT rcText;
+  UINT uAlign;
+} NMLVCUSTOMDRAW, *LPNMLVCUSTOMDRAW;
 
 typedef struct _IMAGEINFO
 {

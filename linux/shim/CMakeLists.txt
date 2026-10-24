@@ -11,10 +11,13 @@ find_package(Qt6 REQUIRED COMPONENTS Widgets)
 set(Z7_SHIM_INCLUDE "${CMAKE_CURRENT_SOURCE_DIR}/win32" CACHE INTERNAL "Stub Windows headers of linux/shim")
 
 add_library(z7_shim STATIC
+  ShimBars.cpp
   ShimControls.cpp
   ShimCore.cpp
   ShimDialog.cpp
+  ShimInput.cpp
   ShimListView.cpp
+  ShimMenu.cpp
   ShimMessageBox.cpp
   ShimPropSheet.cpp
   ShimResources.cpp
@@ -38,6 +41,7 @@ set(Z7_GUI_SOURCES
   CPP/Windows/Control/ListView.cpp
   CPP/Windows/Control/PropertyPage.cpp
   CPP/Windows/Control/Window2.cpp
+  CPP/Windows/Menu.cpp
   CPP/7zip/UI/Explorer/MyMessages.cpp
   CPP/7zip/UI/FileManager/BrowseDialog.cpp
   CPP/7zip/UI/FileManager/ComboDialog.cpp

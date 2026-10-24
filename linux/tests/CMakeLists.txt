@@ -60,16 +60,25 @@ else()
   message(STATUS "Unit tests disabled (need Qt6 Test)")
 endif()
 
+# The script engine of the GUI test drivers (gui/DriverCore.cpp).
+if(TARGET z7_gui)
+  add_library(z7_driver_core STATIC gui/DriverCore.cpp)
+  z7_port_target(z7_driver_core)
+  set_target_properties(z7_driver_core PROPERTIES AUTOMOC ON)
+  target_compile_options(z7_driver_core PRIVATE -Wno-non-virtual-dtor)
+  target_include_directories(z7_driver_core PUBLIC "${CMAKE_CURRENT_SOURCE_DIR}/gui")
+  target_link_libraries(z7_driver_core PUBLIC z7_gui z7_theme)
+endif()
+
 # z7-gui-driver: 7zG with the dialogs answered by a script (gui/gui_driver.cpp),
 # for the end-to-end tests of 7zG.
 if(TARGET 7zG)
   add_executable(z7-gui-driver gui/gui_driver.cpp)
   z7_port_target(z7-gui-driver)
-  set_target_properties(z7-gui-driver PROPERTIES AUTOMOC ON)
   # Upstream COM interfaces have no virtual destructors by design.
   target_compile_options(z7-gui-driver PRIVATE -Wno-non-virtual-dtor)
   z7_link_ui(z7-gui-driver GUI)
-  target_link_libraries(z7-gui-driver PRIVATE z7_7zg_main z7_gui z7_theme)
+  target_link_libraries(z7-gui-driver PRIVATE z7_7zg_main z7_driver_core z7_gui z7_theme)
 
   if(Z7_BUILD_ORACLE)
     add_test(NAME gui_7zg
@@ -78,6 +87,17 @@ if(TARGET 7zG)
               --artifacts "${CMAKE_BINARY_DIR}/test-artifacts/gui_7zg")
     set_tests_properties(gui_7zg PROPERTIES LABELS "gui" TIMEOUT 600)
   endif()
+endif()
+
+# z7-fm-driver: 7zFM with its main window and dialogs worked by a script
+# (gui/fm_driver.cpp), for the end-to-end tests of 7zFM.
+if(TARGET 7zFM)
+  add_executable(z7-fm-driver gui/fm_driver.cpp)
+  z7_port_target(z7-fm-driver)
+  target_compile_options(z7-fm-driver PRIVATE -Wno-non-virtual-dtor)
+  z7_link_ui(z7-fm-driver FM)
+  target_link_libraries(z7-fm-driver PRIVATE z7_driver_core
+    "$<LINK_GROUP:RESCAN,z7_fm,z7_fm_linux>" z7_gui z7_theme Qt6::Test)
 endif()
 
 find_program(Z7_MAGICK magick)

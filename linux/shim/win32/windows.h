@@ -223,6 +223,49 @@
 #define MF_MENUBREAK    0x00000040L
 #define MF_SEPARATOR    0x00000800L
 #define MF_HELP         0x00004000L
+#define MF_INSERT       0x00000000L
+#define MF_CHANGE       0x00000080L
+#define MF_APPEND       0x00000100L
+#define MF_DELETE       0x00000200L
+#define MF_REMOVE       0x00001000L
+#define MF_BYCOMMAND    0x00000000L
+#define MF_BYPOSITION   0x00000400L
+#define MF_ENABLED      0x00000000L
+#define MF_UNCHECKED    0x00000000L
+#define MF_STRING       0x00000000L
+#define MF_BITMAP       0x00000004L
+#define MF_OWNERDRAW    0x00000100L
+#define MF_USECHECKBITMAPS 0x00000200L
+#define MF_HILITE       0x00000080L
+#define MF_UNHILITE     0x00000000L
+#define MF_DEFAULT      0x00001000L
+#define MF_RIGHTJUSTIFY 0x00004000L
+
+/* MENUITEMINFO masks */
+#define MIIM_STATE      0x00000001
+#define MIIM_ID         0x00000002
+#define MIIM_SUBMENU    0x00000004
+#define MIIM_CHECKMARKS 0x00000008
+#define MIIM_TYPE       0x00000010
+#define MIIM_DATA       0x00000020
+#define MIIM_STRING     0x00000040
+#define MIIM_BITMAP     0x00000080
+#define MIIM_FTYPE      0x00000100
+
+/* TrackPopupMenu() */
+#define TPM_LEFTBUTTON   0x0000L
+#define TPM_RIGHTBUTTON  0x0002L
+#define TPM_LEFTALIGN    0x0000L
+#define TPM_CENTERALIGN  0x0004L
+#define TPM_RIGHTALIGN   0x0008L
+#define TPM_TOPALIGN     0x0000L
+#define TPM_VCENTERALIGN 0x0010L
+#define TPM_BOTTOMALIGN  0x0020L
+#define TPM_HORIZONTAL   0x0000L
+#define TPM_VERTICAL     0x0040L
+#define TPM_NONOTIFY     0x0080L
+#define TPM_RETURNCMD    0x0100L
+#define TPM_RECURSE      0x0001L
 
 /* Accelerator flags (ACCEL.fVirt) */
 #define FVIRTKEY  0x01
@@ -232,6 +275,10 @@
 #define FALT      0x10
 
 /* Virtual keys */
+#define VK_LBUTTON  0x01
+#define VK_RBUTTON  0x02
+#define VK_CANCEL   0x03
+#define VK_MBUTTON  0x04
 #define VK_BACK     0x08
 #define VK_TAB      0x09
 #define VK_CLEAR    0x0C
@@ -291,6 +338,35 @@
 #define VK_F12      0x7B
 #define VK_NUMLOCK  0x90
 #define VK_SCROLL   0x91
+#define VK_LSHIFT   0xA0
+#define VK_RSHIFT   0xA1
+#define VK_LCONTROL 0xA2
+#define VK_RCONTROL 0xA3
+#define VK_LMENU    0xA4
+#define VK_RMENU    0xA5
+#define VK_OEM_1      0xBA
+#define VK_OEM_PLUS   0xBB
+#define VK_OEM_COMMA  0xBC
+#define VK_OEM_MINUS  0xBD
+#define VK_OEM_PERIOD 0xBE
+#define VK_OEM_2      0xBF
+#define VK_OEM_3      0xC0
+#define VK_OEM_4      0xDB
+#define VK_OEM_5      0xDC
+#define VK_OEM_6      0xDD
+#define VK_OEM_7      0xDE
+
+/* MapVirtualKey() */
+#define MAPVK_VK_TO_VSC   0
+#define MAPVK_VSC_TO_VK   1
+#define MAPVK_VK_TO_CHAR  2
+
+/* Mouse messages: key state in wParam */
+#define MK_LBUTTON  0x0001
+#define MK_RBUTTON  0x0002
+#define MK_SHIFT    0x0004
+#define MK_CONTROL  0x0008
+#define MK_MBUTTON  0x0010
 
 /* Languages */
 #define LANG_NEUTRAL       0x00
@@ -318,14 +394,18 @@
 #define WM_QUIT            0x0012
 #define WM_ERASEBKGND      0x0014
 #define WM_SHOWWINDOW      0x0018
+#define WM_SETTINGCHANGE   0x001A
 #define WM_ACTIVATEAPP     0x001C
+#define WM_CANCELMODE      0x001F
 #define WM_SETCURSOR       0x0020
 #define WM_GETMINMAXINFO   0x0024
 #define WM_NEXTDLGCTL      0x0028
 #define WM_DRAWITEM        0x002B
 #define WM_SETFONT         0x0030
 #define WM_GETFONT         0x0031
+#define WM_WINDOWPOSCHANGING 0x0046
 #define WM_WINDOWPOSCHANGED 0x0047
+#define WM_COPYDATA        0x004A
 #define WM_NOTIFY          0x004E
 #define WM_HELP            0x0053
 #define WM_CONTEXTMENU     0x007B
@@ -345,9 +425,12 @@
 #define WM_TIMER           0x0113
 #define WM_HSCROLL         0x0114
 #define WM_VSCROLL         0x0115
+#define WM_INITMENU        0x0116
 #define WM_INITMENUPOPUP   0x0117
 #define WM_MENUSELECT      0x011F
+#define WM_MENUCHAR        0x0120
 #define WM_ENTERIDLE       0x0121
+#define WM_UNINITMENUPOPUP 0x0125
 #define WM_CHANGEUISTATE   0x0127
 #define WM_UPDATEUISTATE   0x0128
 #define WM_QUERYUISTATE    0x0129
@@ -359,8 +442,16 @@
 #define WM_LBUTTONDBLCLK   0x0203
 #define WM_RBUTTONDOWN     0x0204
 #define WM_RBUTTONUP       0x0205
+#define WM_RBUTTONDBLCLK   0x0206
+#define WM_MBUTTONDOWN     0x0207
+#define WM_MBUTTONUP       0x0208
 #define WM_MOUSEWHEEL      0x020A
+#define WM_ENTERMENULOOP   0x0211
+#define WM_EXITMENULOOP    0x0212
+#define WM_CAPTURECHANGED  0x0215
+#define WM_DEVICECHANGE    0x0219
 #define WM_DROPFILES       0x0233
+#define WM_MOUSELEAVE      0x02A3
 #define WM_USER            0x0400
 #define WM_APP             0x8000
 
@@ -371,10 +462,26 @@
 #define UISF_HIDEFOCUS 0x1
 #define UISF_HIDEACCEL 0x2
 
+/* WM_ACTIVATE wParam */
+#define WA_INACTIVE    0
+#define WA_ACTIVE      1
+#define WA_CLICKACTIVE 2
+
+/* WM_SYSCOMMAND wParam */
+#define SC_SIZE     0xF000
+#define SC_MOVE     0xF010
+#define SC_MINIMIZE 0xF020
+#define SC_MAXIMIZE 0xF030
+#define SC_CLOSE    0xF060
+#define SC_KEYMENU  0xF100
+#define SC_RESTORE  0xF120
+
 /* WM_SIZE wParam */
 #define SIZE_RESTORED  0
 #define SIZE_MINIMIZED 1
 #define SIZE_MAXIMIZED 2
+#define SIZE_MAXSHOW   3
+#define SIZE_MAXHIDE   4
 
 /* ShowWindow() */
 #define SW_HIDE            0
@@ -600,6 +707,10 @@
 #define LR_SHARED       0x00008000
 
 /* System colors */
+#define COLOR_SCROLLBAR     0
+#define COLOR_BACKGROUND    1
+#define COLOR_ACTIVECAPTION 2
+#define COLOR_MENU          4
 #define COLOR_WINDOW        5
 #define COLOR_WINDOWTEXT    8
 #define COLOR_HIGHLIGHT     13

@@ -3,11 +3,14 @@
 
 #include <QApplication>
 #include <QBuffer>
+#include <QFile>
 #include <QImageReader>
 #include <QPixmap>
 #include <QFontDatabase>
 #include <QHash>
 #include <QStyle>
+
+#include <unordered_set>
 
 #include "ShimDialog.h"
 #include "ShimResources.h"
@@ -153,6 +156,25 @@ HCURSOR LoadCursorA(HINSTANCE instance, LPCSTR name)
   return LoadCursorW(instance, (LPCWSTR)(const void *)name);
 }
 
+namespace NShim {
+
+Qt::CursorShape CursorShape(HCURSOR cursor)
+{
+  switch ((uintptr_t)cursor)
+  {
+    case 32513: return Qt::IBeamCursor;       // IDC_IBEAM
+    case 32514: return Qt::WaitCursor;        // IDC_WAIT
+    case 32515: return Qt::CrossCursor;       // IDC_CROSS
+    case 32644: return Qt::SizeHorCursor;     // IDC_SIZEWE
+    case 32645: return Qt::SizeVerCursor;     // IDC_SIZENS
+    case 32648: return Qt::ForbiddenCursor;   // IDC_NO
+    case 32650: return Qt::BusyCursor;        // IDC_APPSTARTING
+    default: return Qt::ArrowCursor;
+  }
+}
+
+}
+
 HCURSOR SetCursor(HCURSOR cursor)
 {
   static HCURSOR current = NULL;
@@ -201,15 +223,18 @@ BOOL ImageList_GetImageInfo(HIMAGELIST list, int index, IMAGEINFO *info)
   return TRUE;
 }
 
-int ImageList_Add(HIMAGELIST /* list */, HBITMAP /* image */, HBITMAP /* mask */)
+int ImageList_Add(HIMAGELIST list, HBITMAP image, HBITMAP /* mask */)
 {
-  // bitmaps are not used with image lists on Linux
-  return -1;
+  // a bitmap is one picture (the theme draws it), not a strip of images
+  if (!list || !image)
+    return -1;
+  list->Icons.append(image->Icon);
+  return (int)list->Icons.size() - 1;
 }
 
-int ImageList_AddMasked(HIMAGELIST /* list */, HBITMAP /* image */, COLORREF /* mask */)
+int ImageList_AddMasked(HIMAGELIST list, HBITMAP image, COLORREF /* mask */)
 {
-  return -1;
+  return ImageList_Add(list, image, NULL);
 }
 
 int ImageList_ReplaceIcon(HIMAGELIST list, int index, HICON icon)
@@ -278,6 +303,10 @@ COLORREF ImageList_SetBkColor(HIMAGELIST /* list */, COLORREF /* color */)
 
 // ---------- Fonts ----------
 
+// The GDI objects that exist, by type (for DeleteObject()).
+static std::unordered_set<HGDIOBJ> g_Fonts;
+static std::unordered_set<HGDIOBJ> g_Bitmaps;
+
 static HFONT CreateFontImpl(LONG height, LONG weight, bool italic, BYTE pitchAndFamily, const QString &face)
 {
   QFont f = QApplication::font();
@@ -297,6 +326,7 @@ static HFONT CreateFontImpl(LONG height, LONG weight, bool italic, BYTE pitchAnd
     f.setWeight(weight >= FW_BOLD ? QFont::Bold : QFont::Normal);
   f.setItalic(italic);
   HFONT h = new HFONT__;
+  g_Fonts.insert(h);
   h->Font = f;
   return h;
 }
@@ -325,42 +355,69 @@ HFONT CreateFontIndirectA(const LOGFONTA *font)
 
 BOOL DeleteObject(HGDIOBJ object)
 {
-  // fonts are the only GDI objects that are created
-  delete (HFONT)object;
-  return TRUE;
+  if (g_Fonts.erase(object))
+  {
+    delete (HFONT)object;
+    return TRUE;
+  }
+  if (g_Bitmaps.erase(object))
+  {
+    delete (HBITMAP)object;
+    return TRUE;
+  }
+  return FALSE;
 }
 
-// ---------- Accelerators ----------
+// ---------- Bitmaps ----------
 
-struct HACCEL__
+namespace NShim {
+
+QIcon StandardToolbarIcon(UINT_PTR bitmapId, int index)
 {
-  const NRc::CAccelTable *Table;
-};
+  switch (bitmapId)
+  {
+    case IDB_VIEW_SMALL_COLOR:
+    case IDB_VIEW_LARGE_COLOR:
+      if (index == VIEW_PARENTFOLDER)
+        return QIcon(QStringLiteral(":/z7/toolbar/ParentFolder.svg"));
+      break;
+    default:
+      break;
+  }
+  return QIcon();
+}
 
-HACCEL LoadAcceleratorsW(HINSTANCE /* instance */, LPCWSTR name)
+}
+
+/* The bitmaps of the .rc files are the toolbar buttons: the theme has an
+   SVG icon for each of them, by file name (Add.bmp is :/z7/toolbar/Add.svg).
+   The menu logo of the Explorer context menu is the program icon. */
+HBITMAP LoadBitmapW(HINSTANCE /* instance */, LPCWSTR name)
 {
   if (!IS_INTRESOURCE(name))
     return NULL;
-  const NRc::CAccelTable *t = NRc::FindAccelTable((UInt32)(uintptr_t)name);
-  if (!t)
-    return NULL;
-  HACCEL h = new HACCEL__;
-  h->Table = t;
-  return h;
+  return OnGuiThread<HBITMAP>([=]() -> HBITMAP
+  {
+    const NRc::CBitmap *res = NRc::FindBitmap((UInt32)(uintptr_t)name);
+    if (!res)
+      return NULL;
+    QIcon icon;
+    const QString path = QStringLiteral(":/z7/toolbar/%1.svg").arg(QLatin1String(res->Name));
+    if (QFile::exists(path))
+      icon = QIcon(path);
+    else if (strcmp(res->Name, "MenuLogo") == 0)
+      icon = ResourceIcon(1);  // IDI_ICON
+    if (icon.isNull())
+      return NULL;
+    HBITMAP h = new HBITMAP__;
+    h->Icon = icon;
+    g_Bitmaps.insert(h);
+    return h;
+  });
 }
 
-HACCEL LoadAcceleratorsA(HINSTANCE instance, LPCSTR name)
+HBITMAP LoadBitmapA(HINSTANCE instance, LPCSTR name)
 {
-  return LoadAcceleratorsW(instance, (LPCWSTR)(const void *)name);
+  return LoadBitmapW(instance, (LPCWSTR)(const void *)name);
 }
 
-int TranslateAcceleratorW(HWND /* wnd */, HACCEL /* accel */, LPMSG /* msg */)
-{
-  // the Qt main window maps the table to QActions instead
-  return 0;
-}
-
-int TranslateAcceleratorA(HWND wnd, HACCEL accel, LPMSG msg)
-{
-  return TranslateAcceleratorW(wnd, accel, msg);
-}

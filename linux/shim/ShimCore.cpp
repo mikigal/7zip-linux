@@ -93,7 +93,7 @@ QWidget *WidgetOf(HWND wnd)
 QWidget *ParentWidgetFor(HWND parent)
 {
   parent = FromHandle(parent);
-  return parent ? parent->Widget.data() : NULL;
+  return parent ? parent->ClientArea() : NULL;
 }
 
 CWindowLock::CWindowLock(HWND wnd): _wnd(FromHandle(wnd))
@@ -112,6 +112,10 @@ bool CEventProxy::eventFilter(QObject *watched, QEvent *event)
 {
   CWindowLock lock(_wnd);
   if (!lock)
+    return false;
+  if (lock.Get()->WantsInputMessages() && DispatchInputEvent(lock.Get(), watched, event))
+    return true;
+  if (!FromHandle(lock.Get()))
     return false;
   return lock.Get()->OnEvent(watched, event);
 }
@@ -159,6 +163,8 @@ bool DestroyWindowTree(HWND wnd)
   if (widget && !wnd->IsChild())
     widget->hide();
   DestroyRecursive(wnd);
+  // as on Windows, the menu bar of the window goes with it
+  DestroyWindowMenu(wnd);
 
   // Unregister bottom-up: owned top-level windows and children first.
   std::vector<HWND> all;
@@ -206,7 +212,9 @@ HWND__::HWND__(NShim::EKind kind):
     AlwaysDisabled(false),
     AlwaysHidden(false),
     Locks(0),
-    Proxy(NULL)
+    Proxy(NULL),
+    Menu(NULL),
+    InputDefault(false)
 {
 }
 
@@ -393,6 +401,27 @@ LRESULT DefWindowProcImpl(HWND wnd, UINT message, WPARAM wParam, LPARAM lParam)
 {
   switch (message)
   {
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_CHAR:
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP:
+    case WM_SYSCHAR:
+    case WM_MOUSEMOVE:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_LBUTTONDBLCLK:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP:
+    case WM_RBUTTONDBLCLK:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_MOUSEWHEEL:
+      // the widget handles the Qt event of the message (ShimInput.cpp)
+      wnd->InputDefault = true;
+      return 0;
+    case WM_NCCREATE:
+      return TRUE;
     case WM_SETTEXT:
       wnd->SetText(FromW((LPCWSTR)lParam));
       return TRUE;
@@ -923,8 +952,10 @@ static void MoveWidget(HWND wnd, int x, int y, int width, int height, bool move,
       r.moveTo(x, y);
     if (size)
       r.setSize(QSize(width, height));
-    if (wnd->Kind == kKind_ComboBox)
+    if (wnd->Kind == kKind_ComboBox || wnd->Kind == kKind_ComboBoxEx)
       r.setHeight(ComboBoxClosedHeight(wnd));
+    else if (BarOwnHeight(wnd) > 0)
+      r.setHeight(BarOwnHeight(wnd));
     w->setGeometry(r);
     SendResizeOfHidden(w, oldSize);
     return;
@@ -1007,7 +1038,7 @@ BOOL GetClientRect(HWND wnd, LPRECT rect)
     HWND w = FromHandle(wnd);
     if (!w || !w->Widget || !rect)
       return FALSE;
-    SetRect(rect, QRect(QPoint(0, 0), w->Widget->size()));
+    SetRect(rect, QRect(QPoint(0, 0), w->ClientArea()->size()));
     return TRUE;
   });
 }
@@ -1019,7 +1050,7 @@ BOOL ClientToScreen(HWND wnd, LPPOINT point)
     HWND w = FromHandle(wnd);
     if (!w || !w->Widget || !point)
       return FALSE;
-    const QPoint p = w->Widget->mapToGlobal(QPoint(point->x, point->y));
+    const QPoint p = w->ClientArea()->mapToGlobal(QPoint(point->x, point->y));
     point->x = p.x();
     point->y = p.y();
     return TRUE;
@@ -1033,7 +1064,7 @@ BOOL ScreenToClient(HWND wnd, LPPOINT point)
     HWND w = FromHandle(wnd);
     if (!w || !w->Widget || !point)
       return FALSE;
-    const QPoint p = w->Widget->mapFromGlobal(QPoint(point->x, point->y));
+    const QPoint p = w->ClientArea()->mapFromGlobal(QPoint(point->x, point->y));
     point->x = p.x();
     point->y = p.y();
     return TRUE;
@@ -1104,8 +1135,23 @@ BOOL SetWindowPlacement(HWND wnd, const WINDOWPLACEMENT *placement)
       return FALSE;
     const RECT &r = placement->rcNormalPosition;
     MoveWidget(w, r.left, r.top, r.right - r.left, r.bottom - r.top, true, true);
-    if (placement->showCmd == SW_SHOWMAXIMIZED && !w->IsChild())
-      w->Widget->setWindowState(w->Widget->windowState() | Qt::WindowMaximized);
+    if (w->IsChild())
+      return TRUE;
+    // as on Windows, the show state applies too
+    switch (placement->showCmd)
+    {
+      case SW_HIDE:
+        break;
+      case SW_SHOWMAXIMIZED:
+        if (!w->Widget->isVisible())
+          ShowWindow(w, SW_SHOWMAXIMIZED);
+        else
+          w->Widget->setWindowState(w->Widget->windowState() | Qt::WindowMaximized);
+        break;
+      default:
+        ShowWindow(w, (int)placement->showCmd);
+        break;
+    }
     return TRUE;
   });
 }
@@ -1329,7 +1375,14 @@ static LONG_PTR SetLongImpl(HWND wnd, int index, LONG_PTR value)
       wnd->WndProc = ((WNDPROC)value == BuiltinWndProc) ? NULL : (WNDPROC)value;
       break;
     case GWLP_ID: wnd->Id = (UINT)value; break;
-    case GWL_STYLE: wnd->Style = (DWORD)value; break;
+    case GWL_STYLE:
+    {
+      const DWORD oldStyle = wnd->Style;
+      wnd->Style = (DWORD)value;
+      if (oldStyle != wnd->Style)
+        wnd->OnStyleChanged(oldStyle);
+      break;
+    }
     case GWL_EXSTYLE: wnd->ExStyle = (DWORD)value; break;
     case GWLP_USERDATA: wnd->UserData = value; break;
     default:

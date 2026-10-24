@@ -1,5 +1,6 @@
 // ShimShell.cpp -- the shell side of the GUI code: file icons and the
-// system image lists (SHGetFileInfo), special folders, help topics, the
+// system image lists (SHGetFileInfo), special folders, help topics, file
+// operations (the trash), opening documents with their applications, the
 // folder browser and file dialogs of Windows/Shell.h and
 // Windows/CommonDialog.h, and the text clipboard of Windows/Clipboard.h.
 
@@ -12,6 +13,8 @@
 #include <QHash>
 #include <QMimeData>
 #include <QMimeDatabase>
+#include <QProcess>
+#include <QStandardPaths>
 #include <QStyle>
 #include <QUrl>
 
@@ -20,8 +23,12 @@
 #include <HtmlHelp.h>
 #include <ShlObj.h>
 
+#include "../../CPP/Common/CommandLineParser.h"
+
 #include "../../CPP/Windows/Clipboard.h"
 #include "../../CPP/Windows/CommonDialog.h"
+#include "../../CPP/Windows/FileDir.h"
+#include "../../CPP/Windows/FileFind.h"
 #include "../../CPP/Windows/Shell.h"
 
 #include "ShimDialog.h"
@@ -386,6 +393,188 @@ DWORD_PTR SHGetFileInfoA(LPCSTR path, DWORD attrib, SHFILEINFOA *info, UINT /* i
   return GetFileInfo(pidl ? QString() : FromA(path), pidl, attrib, info, flags, CopyToA);
 }
 
+// The path of a special folder ITEMIDLIST (SHGetSpecialFolderLocation()).
+static QString SpecialFolderPath(int csidl)
+{
+  switch (csidl)
+  {
+    case CSIDL_PERSONAL:
+    case CSIDL_PROFILE:
+      return QDir::homePath();
+    case CSIDL_DESKTOP:
+      return QStandardPaths::writableLocation(QStandardPaths::DesktopLocation);
+    default:
+      return QString();
+  }
+}
+
+HRESULT SHGetDesktopFolder(IShellFolder **folder)
+{
+  // there is no shell namespace on Linux
+  if (folder)
+    *folder = NULL;
+  return E_NOTIMPL;
+}
+
+// pFrom holds zero-terminated paths, ended by an empty one.
+template <class TChar>
+static QStringList PathList(const TChar *s, QString (*conv)(const TChar *))
+{
+  QStringList list;
+  if (!s)
+    return list;
+  while (*s)
+  {
+    list.append(conv(s));
+    while (*s)
+      s++;
+    s++;
+  }
+  return list;
+}
+
+static QString ConvW(const WCHAR *s) { return FromW(s); }
+static QString ConvA(const CHAR *s) { return FromA(s); }
+
+/* FO_DELETE: with FOF_ALLOWUNDO the files go to the freedesktop trash
+   (QFile::moveToTrash), else they are deleted. Returns 0 or an errno code;
+   other operations are not supported (ENOTSUP). */
+static int FileOperation(UINT func, FILEOP_FLAGS flags, const QStringList &paths, BOOL &aborted)
+{
+  aborted = FALSE;
+  if (func != FO_DELETE)
+    return ENOTSUP;
+  int result = 0;
+  for (const QString &path : paths)
+  {
+    bool ok;
+    if (flags & FOF_ALLOWUNDO)
+      ok = QFile::moveToTrash(path);
+    else
+    {
+      const FString fs = us2fs(ToU(path));
+      NWindows::NFile::NFind::CFileInfo fi;
+      if (!fi.Find(fs))
+        ok = false;
+      else if (fi.IsDir() && !fi.IsPosixLink())
+        ok = NWindows::NFile::NDir::RemoveDirWithSubItems(fs);
+      else
+        ok = NWindows::NFile::NDir::DeleteFileAlways(fs);
+    }
+    if (!ok && result == 0)
+      result = errno ? errno : EIO;
+  }
+  return result;
+}
+
+int SHFileOperationW(LPSHFILEOPSTRUCTW op)
+{
+  if (!op)
+    return EINVAL;
+  const QStringList paths = PathList(op->pFrom, ConvW);
+  return OnGuiThread<int>([&]() { return FileOperation(op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
+}
+
+int SHFileOperationA(LPSHFILEOPSTRUCTA op)
+{
+  if (!op)
+    return EINVAL;
+  const QStringList paths = PathList(op->pFrom, ConvA);
+  return OnGuiThread<int>([&]() { return FileOperation(op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
+}
+
+/* Opens a document with the desktop's application for it, or runs a
+   program with parameters. Returns the hInstApp value of Windows: above 32
+   on success, SE_ERR_NOASSOC or SE_ERR_FNF on failure. */
+static int Execute(const QString &verb, const QString &file, const QString &params, const QString &dir)
+{
+  if (file.isEmpty())
+    return SE_ERR_FNF;
+  if (!params.isEmpty())
+  {
+    UStringVector parts;
+    NCommandLineParser::SplitCommandLine(ToU(params), parts);
+    QStringList args;
+    FOR_VECTOR (i, parts)
+      args.append(FromU(parts[i]));
+    return QProcess::startDetached(file, args, dir) ? 33 : SE_ERR_FNF;
+  }
+  if (!verb.isEmpty() && verb.compare(QLatin1String("open"), Qt::CaseInsensitive) != 0)
+    return SE_ERR_NOASSOC;
+  const QString path = (dir.isEmpty() || QDir::isAbsolutePath(file)) ? file : QDir(dir).filePath(file);
+  const QUrl url = QFileInfo::exists(path) ? QUrl::fromLocalFile(path) : QUrl(file);
+  return QDesktopServices::openUrl(url) ? 33 : SE_ERR_NOASSOC;
+}
+
+BOOL ShellExecuteExW(LPSHELLEXECUTEINFOW info)
+{
+  if (!info)
+    return FALSE;
+  const int r = OnGuiThread<int>([=]()
+  {
+    return Execute(FromW(info->lpVerb), FromW(info->lpFile), FromW(info->lpParameters), FromW(info->lpDirectory));
+  });
+  info->hInstApp = (HINSTANCE)(INT_PTR)r;
+  info->hProcess = NULL;
+  return r > 32 ? TRUE : FALSE;
+}
+
+BOOL ShellExecuteExA(LPSHELLEXECUTEINFOA info)
+{
+  if (!info)
+    return FALSE;
+  const int r = OnGuiThread<int>([=]()
+  {
+    return Execute(FromA(info->lpVerb), FromA(info->lpFile), FromA(info->lpParameters), FromA(info->lpDirectory));
+  });
+  info->hInstApp = (HINSTANCE)(INT_PTR)r;
+  info->hProcess = NULL;
+  return r > 32 ? TRUE : FALSE;
+}
+
+HINSTANCE ShellExecuteW(HWND /* wnd */, LPCWSTR operation, LPCWSTR file, LPCWSTR parameters, LPCWSTR directory, int /* showCmd */)
+{
+  return (HINSTANCE)(INT_PTR)OnGuiThread<int>([=]()
+  {
+    return Execute(FromW(operation), FromW(file), FromW(parameters), FromW(directory));
+  });
+}
+
+HINSTANCE ShellExecuteA(HWND /* wnd */, LPCSTR operation, LPCSTR file, LPCSTR parameters, LPCSTR directory, int /* showCmd */)
+{
+  return (HINSTANCE)(INT_PTR)OnGuiThread<int>([=]()
+  {
+    return Execute(FromA(operation), FromA(file), FromA(parameters), FromA(directory));
+  });
+}
+
+UINT ExtractIconExW(LPCWSTR /* file */, int /* index */, HICON * /* large */, HICON * /* small */, UINT /* numIcons */)
+{
+  return 0;
+}
+
+UINT ExtractIconExA(LPCSTR /* file */, int /* index */, HICON * /* large */, HICON * /* small */, UINT /* numIcons */)
+{
+  return 0;
+}
+
+void SHChangeNotify(LONG /* eventId */, UINT /* flags */, LPCVOID /* item1 */, LPCVOID /* item2 */)
+{
+}
+
+UINT DragQueryFileW(HDROP /* drop */, UINT /* index */, LPWSTR /* file */, UINT /* size */)
+{
+  return 0;
+}
+
+void DragFinish(HDROP /* drop */)
+{
+}
+
+void DragAcceptFiles(HWND /* wnd */, BOOL /* accept */)
+{
+}
+
 HRESULT SHGetSpecialFolderLocation(HWND /* owner */, int folder, LPITEMIDLIST *pidl)
 {
   if (!pidl)
@@ -432,6 +621,30 @@ DWORD CommDlgExtendedError()
 namespace NWindows {
 
 namespace NShell {
+
+bool GetPathFromIDList(LPCITEMIDLIST itemIDList, UString &path)
+{
+  path.Empty();
+  if (!itemIDList)
+    return false;
+  const QString p = SpecialFolderPath(((const CSpecialFolderId *)(const void *)itemIDList)->Csidl);
+  if (p.isEmpty())
+    return false;
+  path = ToU(p);
+  return true;
+}
+
+// Data objects come with OLE drag and drop, which Linux does not have.
+HRESULT DataObject_GetData_HDROP_or_IDLIST_Names(IDataObject * /* dataObject */, UStringVector &names)
+{
+  names.Clear();
+  return E_NOTIMPL;
+}
+
+HRESULT DataObject_GetData_FILE_ATTRS(IDataObject * /* dataObject */, CFileAttribs & /* attribs */)
+{
+  return E_NOTIMPL;
+}
 
 bool BrowseForFolder(HWND owner, LPCWSTR title, LPCWSTR initialFolder, UString &resultPath)
 {

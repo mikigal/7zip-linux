@@ -17,6 +17,7 @@ set(Z7_COMPAT_HEADER "${CMAKE_CURRENT_SOURCE_DIR}/Win32Compat.h")
 # FM_OBJS in CPP/7zip/Bundles/Fm/makefile and UI/FileManager/FM.mak.
 set(Z7_UI_EXTRA_SOURCES
   CPP/Common/Lang.cpp
+  CPP/Windows/DLL.cpp
   CPP/7zip/UI/Common/ArchiveName.cpp
   CPP/7zip/UI/Common/WorkDir.cpp
   CPP/7zip/UI/Common/ZipRegistry.cpp
@@ -48,6 +49,7 @@ add_library(z7_platform STATIC
   ClassDefs.cpp
   CommandLine.cpp
   DirWatcher.cpp
+  UpstreamPosix.cpp
   FolderCompare.cpp
   FSFolderPosix.cpp
   Globals.cpp

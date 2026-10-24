@@ -21,8 +21,10 @@
 #include <QRegularExpressionValidator>
 #include <QResizeEvent>
 #include <QScrollBar>
+#include <QSignalBlocker>
 #include <QSlider>
 #include <QStyle>
+#include <QStyledItemDelegate>
 #include <QToolButton>
 #include <QVBoxLayout>
 
@@ -1021,9 +1023,448 @@ HWND CreateComboBox(DWORD style, QWidget *parent)
 
 int ComboBoxClosedHeight(HWND wnd)
 {
-  if (wnd->Kind != kKind_ComboBox || !wnd->Widget)
+  if ((wnd->Kind != kKind_ComboBox && wnd->Kind != kKind_ComboBoxEx) || !wnd->Widget)
     return 0;
   return wnd->Widget->sizeHint().height();
+}
+
+// ---------- ComboBoxEx ----------
+
+/* The extended combo box (ComboBoxEx32) of the address bar of a panel: a
+   drop-down combo box whose items have images (of CBEM_SETIMAGELIST) and
+   indents, and whose edit field is a window of its own (CBEM_GETEDITCONTROL)
+   that the program subclasses. The edit field has the keyboard focus
+   itself, so its keys reach the subclass first; it reports Enter, Esc and
+   the loss of the focus to the parent as CBEN_ENDEDIT, and getting the
+   focus as CBEN_BEGINEDIT. */
+
+enum
+{
+  kRole_ComboIndent = Qt::UserRole + 10,
+  kRole_ComboImage,
+  kRole_ComboParam
+};
+
+class CComboExWnd;
+
+class CComboExWidget: public QComboBox
+{
+public:
+  CComboExWnd *Wnd;
+  CComboExWidget(QWidget *parent): QComboBox(parent), Wnd(NULL) {}
+  void showPopup() override;
+  void hidePopup() override;
+};
+
+// Draws the indent of an item in the drop-down list.
+class CComboExDelegate: public QStyledItemDelegate
+{
+public:
+  CComboExDelegate(QObject *parent): QStyledItemDelegate(parent) {}
+  void paint(QPainter *painter, const QStyleOptionViewItem &option, const QModelIndex &index) const override
+  {
+    QStyleOptionViewItem o(option);
+    const int indent = index.data(kRole_ComboIndent).toInt();
+    o.rect.adjust(indent * 10, 0, 0, 0);
+    QStyledItemDelegate::paint(painter, o, index);
+  }
+  QSize sizeHint(const QStyleOptionViewItem &option, const QModelIndex &index) const override
+  {
+    QSize size = QStyledItemDelegate::sizeHint(option, index);
+    size.rwidth() += index.data(kRole_ComboIndent).toInt() * 10;
+    return size;
+  }
+};
+
+class CComboExEditWnd: public CEditWnd
+{
+public:
+  CComboExWnd *Combo;
+  CComboExEditWnd(): Combo(NULL) {}
+  LRESULT Proc(UINT message, WPARAM wParam, LPARAM lParam) override;
+};
+
+class CComboExWnd: public HWND__
+{
+public:
+  HIMAGELIST ImageList;
+  CComboExEditWnd *Edit;
+  QAction *EditIcon;     // the image of the edit field (CBEM_SETITEM, iItem -1)
+  DWORD CbExStyle;
+  bool SelectionCleared; // as in CComboWnd
+
+  CComboExWnd(): HWND__(kKind_ComboBoxEx), ImageList(NULL), Edit(NULL), EditIcon(NULL),
+      CbExStyle(0), SelectionCleared(false) {}
+
+  CComboExWidget *Combo() const { return static_cast<CComboExWidget *>(Widget.data()); }
+  int CurSel() const { return SelectionCleared ? CB_ERR : Combo()->currentIndex(); }
+
+  void SetText(const QString &s) override
+  {
+    QComboBox *c = Combo();
+    // the text of the edit field does not select an item
+    const QSignalBlocker block(c);
+    c->setCurrentIndex(-1);
+    c->setEditText(s);
+    if (c->lineEdit())
+      c->lineEdit()->setModified(false);
+  }
+
+  QString Text() const override
+  {
+    return Combo()->currentText();
+  }
+
+  QIcon Image(int index) const
+  {
+    if (ImageList && index >= 0 && index < (int)ImageList->Icons.size())
+      return ImageList->Icons[index];
+    return QIcon();
+  }
+
+  void SetEditImage(int index)
+  {
+    if (!EditIcon)
+      return;
+    EditIcon->setIcon(Image(index));
+    EditIcon->setVisible(!EditIcon->icon().isNull());
+  }
+
+  template <class TItem>
+  LRESULT InsertItem(const TItem *item, QString (*text)(const TItem *))
+  {
+    QComboBox *c = Combo();
+    int pos = (int)item->iItem;
+    if (pos < 0 || pos > c->count())
+      pos = c->count();
+    const QSignalBlocker block(c);
+    const bool noSelection = (c->currentIndex() < 0);
+    const QString editText = c->currentText();
+    c->insertItem(pos, (item->mask & CBEIF_TEXT) ? text(item) : QString());
+    if (noSelection)
+    {
+      c->setCurrentIndex(-1);
+      c->setEditText(editText);
+    }
+    SetItemData(pos, item);
+    return pos;
+  }
+
+  template <class TItem>
+  void SetItemData(int pos, const TItem *item)
+  {
+    QComboBox *c = Combo();
+    if (item->mask & CBEIF_INDENT)
+      c->setItemData(pos, item->iIndent, kRole_ComboIndent);
+    if (item->mask & CBEIF_IMAGE)
+    {
+      c->setItemData(pos, item->iImage, kRole_ComboImage);
+      c->setItemIcon(pos, Image(item->iImage));
+    }
+    if (item->mask & CBEIF_LPARAM)
+      c->setItemData(pos, (qlonglong)item->lParam, kRole_ComboParam);
+  }
+
+  template <class TItem>
+  LRESULT SetItem(const TItem *item, QString (*text)(const TItem *))
+  {
+    QComboBox *c = Combo();
+    const int pos = (int)item->iItem;
+    if (pos == -1)
+    {
+      // the edit field
+      if (item->mask & CBEIF_TEXT)
+        SetText(text(item));
+      if (item->mask & CBEIF_IMAGE)
+        SetEditImage(item->iImage);
+      return TRUE;
+    }
+    if (pos < 0 || pos >= c->count())
+      return FALSE;
+    if (item->mask & CBEIF_TEXT)
+      c->setItemText(pos, text(item));
+    SetItemData(pos, item);
+    return TRUE;
+  }
+
+  void EndEdit(int why)
+  {
+    NMCBEENDEDITW nm;
+    memset(&nm, 0, sizeof(nm));
+    QLineEdit *e = Combo()->lineEdit();
+    nm.fChanged = (e && e->isModified()) ? TRUE : FALSE;
+    nm.iNewSelection = CB_ERR;
+    CopyToW(Text(), nm.szText, CBEMAXSTRLEN);
+    nm.iWhy = why;
+    NotifyParent(&nm.hdr, CBEN_ENDEDITW);
+  }
+
+  LRESULT Proc(UINT message, WPARAM wParam, LPARAM lParam) override;
+};
+
+static QString ComboExTextW(const COMBOBOXEXITEMW *item) { return FromW(item->pszText); }
+static QString ComboExTextA(const COMBOBOXEXITEMA *item) { return FromA(item->pszText); }
+
+LRESULT CComboExWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  QComboBox *c = Combo();
+  const int index = (int)(INT_PTR)wParam;
+  switch (message)
+  {
+    case CBEM_INSERTITEMW:
+      return InsertItem((const COMBOBOXEXITEMW *)lParam, ComboExTextW);
+    case CBEM_INSERTITEMA:
+      return InsertItem((const COMBOBOXEXITEMA *)lParam, ComboExTextA);
+    case CBEM_SETITEMW:
+      return SetItem((const COMBOBOXEXITEMW *)lParam, ComboExTextW);
+    case CBEM_SETITEMA:
+      return SetItem((const COMBOBOXEXITEMA *)lParam, ComboExTextA);
+    case CBEM_GETITEMW:
+    {
+      COMBOBOXEXITEMW *item = (COMBOBOXEXITEMW *)lParam;
+      const int pos = (int)item->iItem;
+      if (pos < -1 || pos >= c->count())
+        return FALSE;
+      if (item->mask & CBEIF_TEXT)
+        CopyToW(pos < 0 ? Text() : c->itemText(pos), item->pszText, item->cchTextMax);
+      if (pos >= 0)
+      {
+        if (item->mask & CBEIF_IMAGE)
+          item->iImage = c->itemData(pos, kRole_ComboImage).toInt();
+        if (item->mask & CBEIF_INDENT)
+          item->iIndent = c->itemData(pos, kRole_ComboIndent).toInt();
+        if (item->mask & CBEIF_LPARAM)
+          item->lParam = (LPARAM)c->itemData(pos, kRole_ComboParam).toLongLong();
+      }
+      return TRUE;
+    }
+    case CBEM_SETIMAGELIST:
+    {
+      HIMAGELIST prev = ImageList;
+      ImageList = (HIMAGELIST)lParam;
+      if (ImageList)
+        c->setIconSize(QSize(ImageList->Cx, ImageList->Cy));
+      for (int i = 0; i < c->count(); i++)
+        c->setItemIcon(i, Image(c->itemData(i, kRole_ComboImage).toInt()));
+      return (LRESULT)prev;
+    }
+    case CBEM_GETIMAGELIST:
+      return (LRESULT)ImageList;
+    case CBEM_GETEDITCONTROL:
+      return (LRESULT)(HWND)Edit;
+    case CBEM_GETCOMBOCONTROL:
+      return (LRESULT)(HWND)this;
+    case CBEM_SETEXTENDEDSTYLE:
+    {
+      const DWORD prev = CbExStyle;
+      const DWORD mask = wParam ? (DWORD)wParam : 0xFFFFFFFF;
+      CbExStyle = (CbExStyle & ~mask) | ((DWORD)lParam & mask);
+      return prev;
+    }
+    case CBEM_GETEXTENDEDSTYLE:
+      return CbExStyle;
+    case CBEM_HASEDITCHANGED:
+      return (c->lineEdit() && c->lineEdit()->isModified()) ? TRUE : FALSE;
+    case CBEM_SETUNICODEFORMAT:
+      return TRUE;
+    case CB_DELETESTRING:
+      if (index < 0 || index >= c->count())
+        return CB_ERR;
+      c->removeItem(index);
+      return c->count();
+    case CB_RESETCONTENT:
+    {
+      // the edit field keeps its text, as in a ComboBoxEx
+      const QString text = Text();
+      const QSignalBlocker block(c);
+      c->clear();
+      c->setEditText(text);
+      SelectionCleared = false;
+      return CB_OKAY;
+    }
+    case CB_GETCOUNT:
+      return c->count();
+    case CB_GETCURSEL:
+      return CurSel();
+    case CB_SETCURSEL:
+    {
+      const QSignalBlocker block(c);
+      SelectionCleared = false;
+      if (index < 0 || index >= c->count())
+      {
+        const QString text = Text();
+        c->setCurrentIndex(-1);
+        c->setEditText(text);
+        return CB_ERR;
+      }
+      c->setCurrentIndex(index);
+      return index;
+    }
+    case CB_GETLBTEXTLEN:
+      if (index < 0 || index >= c->count())
+        return CB_ERR;
+      return LengthW(c->itemText(index));
+    case CB_GETLBTEXT:
+    {
+      if (index < 0 || index >= c->count())
+        return CB_ERR;
+      const std::wstring w = c->itemText(index).toStdWString();
+      wmemcpy((wchar_t *)lParam, w.c_str(), w.size() + 1);
+      return (LRESULT)w.size();
+    }
+    case CB_SETITEMDATA:
+      if (index < 0 || index >= c->count())
+        return CB_ERR;
+      c->setItemData(index, (qlonglong)lParam, kRole_ComboParam);
+      return CB_OKAY;
+    case CB_GETITEMDATA:
+      if (index < 0 || index >= c->count())
+        return CB_ERR;
+      return (LRESULT)c->itemData(index, kRole_ComboParam).toLongLong();
+    case CB_SHOWDROPDOWN:
+      if (wParam)
+        c->showPopup();
+      else
+        c->hidePopup();
+      return TRUE;
+    case CB_GETDROPPEDSTATE:
+      return c->view() && c->view()->isVisible();
+    case CB_LIMITTEXT:
+      if (c->lineEdit())
+        c->lineEdit()->setMaxLength(wParam ? (int)wParam : 32767);
+      return TRUE;
+    case WM_SETFOCUS:
+      if (Edit && Edit->Widget)
+        Edit->Widget->setFocus(Qt::OtherFocusReason);
+      return 0;
+    case WM_COMMAND:
+      // the notifications of the edit field
+      if ((HWND)lParam == (HWND)Edit && Edit)
+      {
+        switch (HIWORD(wParam))
+        {
+          case EN_SETFOCUS:
+          {
+            NMHDR hdr;
+            memset(&hdr, 0, sizeof(hdr));
+            NotifyParent(&hdr, CBEN_BEGINEDIT);
+            NotifyCommand(CBN_SETFOCUS);
+            break;
+          }
+          case EN_KILLFOCUS:
+            if (!(c->view() && c->view()->isVisible()))
+              EndEdit(CBENF_KILLFOCUS);
+            NotifyCommand(CBN_KILLFOCUS);
+            break;
+          case EN_CHANGE:
+            NotifyCommand(CBN_EDITCHANGE);
+            break;
+          case EN_UPDATE:
+            NotifyCommand(CBN_EDITUPDATE);
+            break;
+          default:
+            break;
+        }
+      }
+      return 0;
+    case WM_GETDLGCODE:
+      return DLGC_WANTCHARS | DLGC_WANTARROWS;
+    default:
+      return DefWindowProcImpl(this, message, wParam, lParam);
+  }
+}
+
+LRESULT CComboExEditWnd::Proc(UINT message, WPARAM wParam, LPARAM lParam)
+{
+  if (Combo && FromHandle(Combo))
+  {
+    if (message == WM_KEYDOWN)
+    {
+      switch (wParam)
+      {
+        case VK_RETURN:
+          Combo->EndEdit(CBENF_RETURN);
+          return 0;
+        case VK_ESCAPE:
+          Combo->EndEdit(CBENF_ESCAPE);
+          return 0;
+        case VK_F4:
+          Combo->Combo()->showPopup();
+          return 0;
+        default:
+          break;
+      }
+    }
+    else if (message == WM_SYSKEYDOWN && (wParam == VK_DOWN || wParam == VK_UP))
+    {
+      Combo->Combo()->showPopup();
+      return 0;
+    }
+  }
+  return CEditWnd::Proc(message, wParam, lParam);
+}
+
+void CComboExWidget::showPopup()
+{
+  if (Wnd && FromHandle(Wnd))
+  {
+    // Windows sends CBN_DROPDOWN before the list opens; the panel fills it
+    Wnd->NotifyCommand(CBN_DROPDOWN);
+    if (!FromHandle(Wnd))
+      return;
+  }
+  QComboBox::showPopup();
+}
+
+void CComboExWidget::hidePopup()
+{
+  QComboBox::hidePopup();
+  if (Wnd && FromHandle(Wnd))
+    Wnd->NotifyCommand(CBN_CLOSEUP);
+}
+
+HWND CreateComboBoxEx(DWORD style, QWidget *parent)
+{
+  CComboExWnd *w = new CComboExWnd();
+  w->Style = style;
+  CComboExWidget *c = new CComboExWidget(parent);
+  c->Wnd = w;
+  RegisterWindow(w, c);
+  c->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+  c->setMinimumContentsLength(1);
+  c->setMaxVisibleItems(25);
+  c->setItemDelegate(new CComboExDelegate(c));
+  c->setEditable(true);
+  c->setInsertPolicy(QComboBox::NoInsert);
+  c->setDuplicatesEnabled(true);
+  c->setCompleter(nullptr);
+  QLineEdit *line = c->lineEdit();
+  w->EditIcon = line->addAction(QIcon(), QLineEdit::LeadingPosition);
+  w->EditIcon->setVisible(false);
+
+  // the edit field is a window, and it has the focus itself
+  CComboExEditWnd *e = new CComboExEditWnd();
+  e->Style = WS_CHILD | WS_VISIBLE | ES_AUTOHSCROLL;
+  e->Combo = w;
+  e->Id = 1001;   // as the edit control of a Windows combo box
+  RegisterWindow(e, line);
+  line->installEventFilter(e->Proxy);
+  line->setFocusProxy(nullptr);
+  c->setFocusProxy(line);
+  e->Parent = w;
+  w->Children.push_back(e);
+  w->Edit = e;
+  Connect(e, line, &QLineEdit::textChanged, [](CEditWnd *self, const QString &) { self->OnTextChanged(); });
+  Connect(w, line, &QLineEdit::textEdited, [](CComboExWnd *self, const QString &) { self->SelectionCleared = true; });
+  Connect(w, c, &QComboBox::activated, [](CComboExWnd *self, int)
+  {
+    self->SelectionCleared = false;
+    self->NotifyCommand(CBN_SELCHANGE);
+    if (FromHandle(self))
+      self->NotifyCommand(CBN_SELENDOK);
+  });
+  SetFocusPolicy(c, style | WS_TABSTOP, true);
+  return w;
 }
 
 // ---------- Progress bar ----------
@@ -1463,6 +1904,7 @@ struct CClassInfo
 {
   WNDCLASSW Info;
   std::wstring Name;
+  UInt32 MenuId;   // lpszMenuName as a resource ID, or 0
 };
 
 static std::map<QString, CClassInfo> &Classes()
@@ -1476,6 +1918,9 @@ static QString ClassKey(const QString &name)
   return name.toLower();
 }
 
+/* A window of a registered class. A top-level one has a frame (Widget)
+   with the menu bar and the client area (Client) in a layout; children,
+   client coordinates and WM_SIZE belong to the client area, as on Windows. */
 class CGenericWnd: public HWND__
 {
 public:
@@ -1484,20 +1929,23 @@ public:
 
   bool OnEvent(QObject *watched, QEvent *event) override
   {
+    if (watched == ClientArea() && event->type() == QEvent::Resize)
+    {
+      const QSize size = static_cast<QResizeEvent *>(event)->size();
+      if (size != LastSize)
+      {
+        LastSize = size;
+        WPARAM type = SIZE_RESTORED;
+        if (!IsChild() && Widget)
+          type = Widget->isMaximized() ? SIZE_MAXIMIZED : Widget->isMinimized() ? SIZE_MINIMIZED : SIZE_RESTORED;
+        Send(this, WM_SIZE, type, MAKELPARAM(size.width(), size.height()));
+      }
+      return false;
+    }
     if (watched != Widget.data())
       return false;
     switch (event->type())
     {
-      case QEvent::Resize:
-      {
-        const QSize size = static_cast<QResizeEvent *>(event)->size();
-        if (size != LastSize)
-        {
-          LastSize = size;
-          Send(this, WM_SIZE, SIZE_RESTORED, MAKELPARAM(size.width(), size.height()));
-        }
-        return false;
-      }
       case QEvent::Close:
         if (!Destroying)
         {
@@ -1505,6 +1953,20 @@ public:
           Send(this, WM_CLOSE, 0, 0);
           return true;
         }
+        return false;
+      case QEvent::WindowActivate:
+        // DefWindowProc(WM_ACTIVATE) gives the focus to the window itself,
+        // and the program moves it on in WM_SETFOCUS
+        if (!IsChild())
+        {
+          Send(this, WM_ACTIVATE, WA_ACTIVE, 0);
+          if (FromHandle(this))
+            Post(this, WM_SETFOCUS, 0, 0);
+        }
+        return false;
+      case QEvent::WindowDeactivate:
+        if (!IsChild())
+          Send(this, WM_ACTIVATE, WA_INACTIVE, 0);
         return false;
       default:
         return false;
@@ -1522,9 +1984,14 @@ const char *ClassName(HWND wnd)
     case kKind_Edit: return "Edit";
     case kKind_ComboBox: return "ComboBox";
     case kKind_ListView: return "SysListView32";
+    case kKind_Header: return "SysHeader32";
     case kKind_Progress: return "msctls_progress32";
     case kKind_UpDown: return "msctls_updown32";
     case kKind_Trackbar: return "msctls_trackbar32";
+    case kKind_ComboBoxEx: return "ComboBoxEx32";
+    case kKind_Toolbar: return "ToolbarWindow32";
+    case kKind_ReBar: return "ReBarWindow32";
+    case kKind_StatusBar: return "msctls_statusbar32";
     default: return "";
   }
 }
@@ -1537,7 +2004,7 @@ HWND CreateWindowImpl(DWORD exStyle, const QString &className, const QString &te
   const bool child = (style & WS_CHILD) != 0;
   if (child && !parentWnd)
     return NULL;
-  QWidget *parentWidget = parentWnd ? parentWnd->Widget.data() : NULL;
+  QWidget *parentWidget = parentWnd ? ParentWidgetFor(parentWnd) : NULL;
   const QString cls = ClassKey(className);
 
   HWND w = NULL;
@@ -1559,6 +2026,14 @@ HWND CreateWindowImpl(DWORD exStyle, const QString &className, const QString &te
       w = CreateUpDown(style, parentWidget);
     else if (cls == QLatin1String("msctls_trackbar32"))
       w = CreateTrackbar(style, parentWidget);
+    else if (cls == QLatin1String("comboboxex32"))
+      w = CreateComboBoxEx(style, parentWidget);
+    else if (cls == QLatin1String("toolbarwindow32"))
+      w = CreateToolbar(style, parentWidget);
+    else if (cls == QLatin1String("rebarwindow32"))
+      w = CreateReBar(style, parentWidget);
+    else if (cls == QLatin1String("msctls_statusbar32"))
+      w = CreateStatusBar(style, parentWidget);
   }
 
   const auto it = Classes().find(cls);
@@ -1577,8 +2052,10 @@ HWND CreateWindowImpl(DWORD exStyle, const QString &className, const QString &te
     QWidget *q = w->Widget;
     q->setObjectName(QStringLiteral("z7ctl_%1").arg(id));
     q->setGeometry(x, y, width, height);
-    if (w->Kind == kKind_ComboBox)
+    if (w->Kind == kKind_ComboBox || w->Kind == kKind_ComboBoxEx)
       q->setGeometry(x, y, width, ComboBoxClosedHeight(w));
+    else if (BarOwnHeight(w) > 0)
+      q->setGeometry(x, y, width, BarOwnHeight(w));
     q->setEnabled(!(style & WS_DISABLED));
     q->setVisible((style & WS_VISIBLE) != 0);
     w->SetText(text);
@@ -1593,19 +2070,47 @@ HWND CreateWindowImpl(DWORD exStyle, const QString &className, const QString &te
   g->Parent = parentWnd;
   g->WndProc = it->second.Info.lpfnWndProc;
   QWidget *q;
+  QWidget *client = NULL;
   if (child)
+  {
     q = new QWidget(parentWidget);
+    client = q;
+  }
   else
   {
     q = new QWidget(parentWidget ? parentWidget->window() : NULL, parentWidget ? Qt::Dialog : Qt::Window);
     q->setWindowTitle(text);
+    QVBoxLayout *layout = new QVBoxLayout(q);
+    layout->setContentsMargins(0, 0, 0, 0);
+    layout->setSpacing(0);
+    client = new QWidget(q);
+    layout->addWidget(client, 1);
   }
   RegisterWindow(g, q);
   q->installEventFilter(g->Proxy);
+  if (client != q)
+  {
+    g->Client = client;
+    client->installEventFilter(g->Proxy);
+  }
+  {
+    const HCURSOR cursor = it->second.Info.hCursor;
+    if (cursor && CursorShape(cursor) != Qt::ArrowCursor)
+      client->setCursor(CursorShape(cursor));
+  }
   if (child)
     parentWnd->Children.push_back(g);
   else
+  {
     g->TextValue = text;
+    // the menu of the class (Windows loads it before WM_CREATE)
+    if (it->second.MenuId != 0)
+    {
+      HMENU menu = LoadMenuW(NULL, MAKEINTRESOURCEW(it->second.MenuId));
+      if (menu)
+        SetWindowMenuBar(g, menu);
+    }
+  }
   if (x != CW_USEDEFAULT && width != CW_USEDEFAULT)
     q->setGeometry(x, y, width, height);
   else if (width != CW_USEDEFAULT)
@@ -1656,6 +2161,8 @@ ATOM RegisterClassW(const WNDCLASSW *wndClass)
     CClassInfo info;
     info.Info = *wndClass;
     info.Name = wndClass->lpszClassName;
+    info.MenuId = (wndClass->lpszMenuName && IS_INTRESOURCE(wndClass->lpszMenuName)) ?
+        (UInt32)(uintptr_t)wndClass->lpszMenuName : 0;
     const QString key = ClassKey(FromW(wndClass->lpszClassName));
     if (Classes().find(key) != Classes().end())
       return 0;  // ERROR_CLASS_ALREADY_EXISTS
@@ -1681,7 +2188,8 @@ ATOM RegisterClassA(const WNDCLASSA *wndClass)
   w.hIcon = wndClass->hIcon;
   w.hCursor = wndClass->hCursor;
   w.hbrBackground = wndClass->hbrBackground;
-  w.lpszMenuName = NULL;
+  w.lpszMenuName = (wndClass->lpszMenuName && IS_INTRESOURCE(wndClass->lpszMenuName)) ?
+      (LPCWSTR)(const void *)wndClass->lpszMenuName : NULL;
   w.lpszClassName = name.c_str();
   return RegisterClassW(&w);
 }

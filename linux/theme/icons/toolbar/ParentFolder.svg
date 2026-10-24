@@ -1,0 +1,8 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 16 16">
+  <!-- VIEW_PARENTFOLDER of the standard comctl32 view bitmap (the "up one
+       level" button of the panel), redrawn for a dark background: a yellow
+       folder with a green arrow pointing up. -->
+  <path d="M0.5,4.5 L0.5,14.5 L12.5,14.5 L12.5,5.5 L6.5,5.5 L5.5,3.5 L1.5,3.5 Z" fill="#e8c25a" stroke="#1e1e1e"/>
+  <path d="M0.5,6.5 L12.5,6.5" stroke="#b08a2e"/>
+  <path d="M11.5,13.5 L11.5,6.5 L9,6.5 L12.5,1.5 L16,6.5 L13.5,6.5 L13.5,13.5 Z" transform="translate(-0.5 0)" fill="#2fb34a" stroke="#0b3d16" stroke-linejoin="round"/>
+</svg>

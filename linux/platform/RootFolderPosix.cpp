@@ -17,7 +17,9 @@
 #include "../../CPP/7zip/PropID.h"
 
 #include "FSFolderPosix.h"
+#include "Platform.h"
 #include "RootFolderPosix.h"
+#include "UpstreamPosix.h"
 
 using namespace NWindows;
 
@@ -136,19 +138,6 @@ bool IsUserMountPoint(const CMountPoint &mp)
   return true;
 }
 
-static FString GetHomeDir()
-{
-  const char *home = getenv("HOME");
-  if (!home || home[0] != '/')
-  {
-    const struct passwd *pw = getpwuid(getuid());
-    home = (pw && pw->pw_dir && pw->pw_dir[0] == '/') ? pw->pw_dir : NULL;
-  }
-  FString s (home ? home : "/");
-  while (s.Len() > 1 && s.Back() == '/')
-    s.DeleteBack();
-  return s;
-}
 
 static bool ReadFileText(const char *path, AString &text)
 {
@@ -197,7 +186,7 @@ void CRootFolder::Init(const AString *mountInfo)
   }
 
   FStringVector paths;
-  paths.Add(GetHomeDir());
+  paths.Add(NPlatform::GetHomeDir());
   paths.Add(FString("/"));
   FOR_VECTOR (i, mounts)
     if (IsUserMountPoint(mounts[i]))
@@ -316,7 +305,7 @@ Z7_COM7F_IMF(CRootFolder::BindToFolder(const wchar_t *name, IFolderFolder **resu
   }
   // "~" and "~/..." are in the home directory
   if (name2[0] == '~' && (name2.Len() == 1 || name2[1] == '/'))
-    name2 = fs2us(GetHomeDir()) + name2.Ptr(1);
+    name2 = fs2us(NPlatform::GetHomeDir()) + name2.Ptr(1);
   if (name2[0] != '/')
     return E_INVALIDARG;
   FString path = us2fs(name2);
@@ -349,3 +338,34 @@ Z7_COM7F_IMF(CRootFolder::GetFolderProperty(PROPID propID, PROPVARIANT *value))
   prop.Detach(value);
   return S_OK;
 }
+
+namespace NWindows {
+namespace NFile {
+namespace NFind {
+
+bool MyGetLogicalDriveStrings(CObjectVector<FString> &driveStrings)
+{
+  driveStrings.Clear();
+  driveStrings.Add(FString("/"));
+  AString text;
+  NRootFolder::ReadFileText("/proc/self/mountinfo", text);
+  CObjectVector<NRootFolder::CMountPoint> mounts;
+  NRootFolder::ParseMountInfo(text, mounts);
+  FOR_VECTOR (i, mounts)
+  {
+    const NRootFolder::CMountPoint &mp = mounts[i];
+    if (mp.Path == "/" || !NRootFolder::IsUserMountPoint(mp))
+      continue;
+    FString path = mp.Path;
+    path.Add_PathSepar();
+    bool dup = false;
+    FOR_VECTOR (k, driveStrings)
+      if (driveStrings[k] == path)
+        dup = true;
+    if (!dup)
+      driveStrings.Add(path);
+  }
+  return true;
+}
+
+}}}
