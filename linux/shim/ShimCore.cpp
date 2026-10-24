@@ -733,7 +733,9 @@ UINT_PTR SetTimer(HWND wnd, UINT_PTR idEvent, UINT elapse, TIMERPROC timerFunc)
     QTimer *&t = g_Timers[key];
     if (!t)
     {
-      t = new QTimer();
+      // a child of the application: KillTimer() deletes it later, and the
+      // event loop may not run again before the program ends
+      t = new QTimer(QCoreApplication::instance());
       const UInt64 serial = wnd->Serial;
       QObject::connect(t, &QTimer::timeout, t, [wnd, serial, idEvent, timerFunc]()
       {

@@ -3,3 +3,6 @@
 
 # fontconfig keeps font patterns that it never frees (no FcFini() at exit)
 leak:libfontconfig.so
+
+# xkbcommon keeps the keymap and compose tables of Qt's Wayland plugin
+leak:libxkbcommon.so
