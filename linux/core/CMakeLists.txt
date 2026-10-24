@@ -31,7 +31,8 @@ if(Z7_BUILD_ORACLE)
   include(ProcessorCount)
   ProcessorCount(Z7_NPROC)
   add_custom_target(oracle_7zz ALL
-    COMMAND make -f makefile.gcc "O=${Z7_ORACLE_DIR}" "CFLAGS_WARN_WALL=-Wall -Wextra" -j${Z7_NPROC} --quiet
+    COMMAND make -f "${CMAKE_CURRENT_SOURCE_DIR}/oracle.mak" "O=${Z7_ORACLE_DIR}"
+            "CFLAGS_WARN_WALL=-Wall -Wextra -MMD -MP" -j${Z7_NPROC} --quiet
     WORKING_DIRECTORY "${Z7_ROOT}/CPP/7zip/Bundles/Alone2"
     BYPRODUCTS "${Z7_ORACLE_7ZZ}"
     COMMENT "Building upstream 7zz oracle with the upstream makefile"
