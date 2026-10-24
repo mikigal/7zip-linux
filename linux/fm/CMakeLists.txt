@@ -11,7 +11,8 @@
 # z7_gui, the Windows file system folders (FSFolder, FSFolderCopy,
 # RootFolder, FSDrives, NetFolder, AltStreamsFolder: linux/platform has the
 # POSIX ones), OLE drag and drop (PanelDrag, EnumFormatEtc: see
-# PanelDragLinux.cpp) and the Windows registry associations.
+# PanelDragLinux.cpp) and the Windows registry associations
+# (RegistryAssociations: see RegistryAssociationsLinux.cpp).
 set(Z7_FM_SOURCES
   CPP/7zip/UI/Common/CompressCall2.cpp
   CPP/7zip/UI/Explorer/ContextMenu.cpp
@@ -43,7 +44,6 @@ set(Z7_FM_SOURCES
   CPP/7zip/UI/FileManager/PanelSelect.cpp
   CPP/7zip/UI/FileManager/PanelSort.cpp
   CPP/7zip/UI/FileManager/PanelSplitFile.cpp
-  CPP/7zip/UI/FileManager/RegistryAssociations.cpp
   CPP/7zip/UI/FileManager/SettingsPage.cpp
   CPP/7zip/UI/FileManager/SplitDialog.cpp
   CPP/7zip/UI/FileManager/SystemPage.cpp
@@ -74,7 +74,19 @@ z7_port_target(z7_fm_linux)
 target_compile_options(z7_fm_linux PRIVATE -Wno-non-virtual-dtor
   "SHELL:-include ${Z7_SHIM_INCLUDE}/windows.h"
   "SHELL:-include ${Z7_ROOT}/linux/platform/UpstreamPosix.h")
-target_link_libraries(z7_fm_linux PUBLIC z7_fm)
+target_link_libraries(z7_fm_linux PUBLIC z7_fm z7_fm_qt)
+
+# Linux parts of the file manager that use Qt. They include the Qt headers
+# before windows.h, which defines _WIN64 (a Windows build for Qt), so
+# windows.h is not force-included for them.
+add_library(z7_fm_qt STATIC
+  RegistryAssociationsLinux.cpp
+)
+z7_port_target(z7_fm_qt)
+target_compile_options(z7_fm_qt PRIVATE -Wno-non-virtual-dtor)
+target_compile_definitions(z7_fm_qt PRIVATE Z7_QT_GUI)
+target_include_directories(z7_fm_qt PRIVATE "${Z7_SHIM_INCLUDE}")
+target_link_libraries(z7_fm_qt PUBLIC z7_gui)
 
 add_executable(7zFM Main.cpp)
 z7_port_target(7zFM)
