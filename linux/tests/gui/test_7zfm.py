@@ -25,6 +25,8 @@ import rcgen  # noqa: E402
 
 DRIVER = None
 ORACLE = None
+IDYES = 6
+IDNO = 7
 ARTIFACTS = None
 IDS = {}
 
@@ -450,6 +452,89 @@ class FmTest(unittest.TestCase):
     listing = oracle("l", "-slt", other).stdout
     self.assertIn("Path = inner" + os.sep + "x.txt", listing)
     oracle("t", other)
+
+  # ---------- Delete ----------
+
+  def trash(self, *parts):
+    return os.path.join(self.home, "data", "Trash", *parts)
+
+  def test_delete_to_trash(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"click": {"panel": 0, "item": "docs", "mods": "ctrl"}},
+            {"key": "Delete"},
+            {"wait": {"items": ["sub", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    self.assertEqual(run.of("messagebox"), [])
+    with open(self.trash("files", "b.txt")) as f:
+      self.assertEqual(f.read(), "world, a longer file\n")
+    self.assertTrue(os.path.exists(self.trash("files", "docs", "a.txt")))
+    with open(self.trash("info", "b.txt.trashinfo")) as f:
+      self.assertIn("Path=" + os.path.join(self.data, "b.txt"), f.read())
+
+  def test_shift_delete_is_permanent(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"key": "Space"},
+            {"key": "shift+Delete"}),
+        {"on": "messagebox", "contains": "docs", "answer": IDNO},
+        main_step(
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}},
+            {"key": "shift+Delete"}),
+        {"on": "messagebox", "contains": "docs", "answer": IDYES},
+        main_step(
+            {"wait": {"items": ["sub", "b.txt", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    box = run.of("messagebox")[0]
+    self.assertEqual(box["caption"], "Confirm Folder Delete")
+    self.assertFalse(os.path.exists(os.path.join(self.data, "docs")))
+    self.assertFalse(os.path.exists(self.trash("files", "docs")))
+
+  def test_delete_without_trash_asks(self):
+    # a file where the trash folder would be: nothing can go to the trash
+    os.makedirs(os.path.join(self.home, "data"))
+    with open(self.trash(), "w") as f:
+      f.write("not a folder\n")
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "Delete"}),
+        {"on": "messagebox", "contains": "Cannot move to the Trash", "answer": IDNO},
+        main_step(
+            {"expect": {"items": ["docs", "sub", "b.txt", "c10.bin"]}},
+            {"key": "Delete"}),
+        {"on": "messagebox", "contains": "Delete permanently?", "answer": IDYES},
+        main_step(
+            {"wait": {"items": ["docs", "sub", "c10.bin"]}}),
+    ], self.data)
+    self.assertRun(run)
+    box = run.of("messagebox")[0]
+    self.assertIn(os.path.join(self.data, "b.txt"), box["text"])
+    self.assertEqual(box["caption"], "Delete File")
+    self.assertFalse(os.path.exists(os.path.join(self.data, "b.txt")))
+
+  def test_delete_in_archive(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"key": "Delete"}),
+        {"on": "messagebox", "contains": "top.txt", "answer": IDYES},
+        main_step(
+            {"wait": {"items": ["inner", "nested.zip"]}}),
+    ], archive)
+    self.assertRun(run)
+    listing = oracle("l", "-slt", archive).stdout
+    self.assertNotIn("Path = top.txt", listing)
+    self.assertIn("Path = nested.zip", listing)
+    oracle("t", archive)
 
   # ---------- Window ----------
 

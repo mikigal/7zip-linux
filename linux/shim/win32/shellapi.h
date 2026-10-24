@@ -53,7 +53,8 @@ DWORD_PTR SHGetFileInfoW(LPCWSTR path, DWORD attrib, SHFILEINFOW *info, UINT inf
 
 
 /* File operations: FO_DELETE with FOF_ALLOWUNDO moves the files to the
-   freedesktop trash; the other operations are not supported. */
+   freedesktop trash, and asks before deleting files that cannot go there;
+   the other operations are not supported. */
 #define FO_MOVE   0x0001
 #define FO_COPY   0x0002
 #define FO_DELETE 0x0003

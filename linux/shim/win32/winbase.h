@@ -15,14 +15,18 @@ LPSTR lstrcatA(LPSTR dest, LPCSTR src);
 LPWSTR lstrcatW(LPWSTR dest, LPCWSTR src);
 #define lstrcat lstrcatA
 
-/* Modules: the program is one module (resources are linked in), so there
-   are no module handles to find; callers fall back as they do when a
-   function is missing from a DLL. */
+/* Modules: the program is one module (resources are linked in).
+   GetModuleHandle() finds "shell32.dll" and "kernel32.dll" only, for the
+   functions that the GUI code looks up by name because it is built without
+   _UNICODE (Z7_GET_PROC_ADDRESS): GetProcAddress() gives the shim functions
+   that have those names, and NULL for the others, so callers fall back as
+   they do when a function is missing from a DLL. For other modules it is
+   the dlsym() of Windows/DLL.cpp, which declares it the same way in
+   Windows/DLL.h; the macro keeps the two apart. */
 HMODULE GetModuleHandleA(LPCSTR name);
 HMODULE GetModuleHandleW(LPCWSTR name);
 #define GetModuleHandle GetModuleHandleA
-/* Windows/DLL.cpp implements it with dlsym() (and declares it the same way
-   in Windows/DLL.h). */
+#define GetProcAddress Shim_GetProcAddress
 void *GetProcAddress(HMODULE module, LPCSTR procName);
 
 /* Process priority. IDLE_PRIORITY_CLASS runs the threads of the process

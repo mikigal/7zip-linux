@@ -638,7 +638,7 @@ Findings:
 
 ### Phase 5: 7zFM operations
 - [x] Copy and Move (F5, F6) across file systems and archives.
-- [ ] Delete to Trash, and Shift+Delete for permanent deletion.
+- [x] Delete to Trash, and Shift+Delete for permanent deletion.
 - [ ] New folder and new file, rename, properties, comments.
 - [ ] Hashes, split and combine, links.
 - [ ] Add, Extract and Test from the toolbar, run in-process.
@@ -651,6 +651,9 @@ Exit: the parity checklist in Appendix A is complete.
 What is where:
 - `linux/platform/FSFolderCopyPosix.cpp`: `CFSFolder::CopyTo()` and
   `CopyFileSystemItems()`, the POSIX `FSFolderCopy.cpp`.
+- `linux/shim/ShimShell.cpp`: `SHFileOperation(FO_DELETE)` with the trash;
+  `ShimSystem.cpp`: the modules that `GetModuleHandle()` finds and the
+  functions that `GetProcAddress()` gives for them.
 
 Findings:
 - Copy and move follow the Windows code (the callback's `AskWrite()` deletes
@@ -665,6 +668,21 @@ Findings:
   would delete the source.
 - Upstream swaps "copy" and "move" in the "Cannot ... folder onto itself"
   message; the POSIX code does not.
+- The GUI code is built without `_UNICODE`, so it looks up the wide shell
+  functions by name (`Z7_GET_PROC_ADDRESS(GetModuleHandleW(L"shell32.dll"),
+  ...)`): Delete did nothing while `GetModuleHandle()` returned NULL. Now
+  `shell32` and `kernel32` are found, `GetProcAddress()` (a macro for the
+  shim version, so the `dlsym()` one of `Windows/DLL.cpp` stays for real
+  libraries) gives `SHFileOperationW`, `SHGetFileInfoW` and
+  `ShellExecuteExW`, and NULL for the rest, which callers handle as a
+  missing function.
+- Delete moves to the freedesktop trash (`QFile::moveToTrash`, the home
+  trash or `.Trash-$UID` at the top of another file system); Shift+Delete
+  asks and deletes. What cannot go to the trash is listed in a question
+  that offers permanent deletion, as Windows asks for drives without a
+  Recycle Bin. Qt 6.12 fails with EBADF for files outside `$HOME` on the
+  home file system while `$XDG_DATA_HOME/Trash` does not exist, so the shim
+  creates it first.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.

@@ -25,6 +25,7 @@
 
 #include <windows.h>
 #include <CommCtrl.h>
+#include <shellapi.h>
 
 #include "../../../CPP/Windows/Control/ComboBox.h"
 #include "../../../CPP/Windows/Control/Dialog.h"
@@ -858,6 +859,24 @@ private slots:
       QCOMPARE(e2.Resets, 1);
       QCOMPARE(f2.Inits, 0);
     }
+  }
+
+  void moduleFunctions()
+  {
+    // what the code built without _UNICODE looks up with Z7_GET_PROC_ADDRESS
+    const HMODULE shell32 = GetModuleHandleW(L"shell32.dll");
+    QVERIFY(shell32);
+    QCOMPARE(GetModuleHandleA("SHELL32"), shell32);
+    QCOMPARE(GetModuleHandleA("C:\\Windows\\System32\\shell32.dll"), shell32);
+    QCOMPARE(GetProcAddress(shell32, "SHFileOperationW"), reinterpret_cast<void *>(&SHFileOperationW));
+    QCOMPARE(GetProcAddress(shell32, "SHGetFileInfoW"), reinterpret_cast<void *>(&SHGetFileInfoW));
+    QVERIFY(!GetProcAddress(shell32, "SHGetSpecialFolderPathW"));
+    const HMODULE kernel32 = GetModuleHandleA("kernel32.dll");
+    QVERIFY(kernel32 && kernel32 != shell32);
+    QVERIFY(!GetProcAddress(kernel32, "GetUserDefaultUILanguage"));
+    QVERIFY(!GetModuleHandleA("dwmapi.dll"));
+    QVERIFY(!GetModuleHandleA(NULL));
+    QVERIFY(!GetProcAddress(NULL, "SHFileOperationW"));
   }
 };
 

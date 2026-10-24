@@ -8,6 +8,7 @@
 #include <QStringList>
 
 #include <dirent.h>
+#include <dlfcn.h>
 #include <errno.h>
 #include <pwd.h>
 #include <sched.h>
@@ -18,6 +19,7 @@
 #include <wchar.h>
 
 #include <windows.h>
+#include <shellapi.h>
 #include <TlHelp32.h>
 
 #include "../../CPP/Common/CommandLineParser.h"
@@ -45,14 +47,68 @@ LPWSTR lstrcatW(LPWSTR dest, LPCWSTR src)
   return wcscat(dest, src);
 }
 
-HMODULE GetModuleHandleA(LPCSTR /* name */)
+// ---------- Modules ----------
+
+struct CProc
 {
+  const char *Name;
+  void *Func;
+};
+
+struct CModule
+{
+  const char *Name;   // lower case, without ".dll"
+  const CProc *Procs;
+  unsigned NumProcs;
+};
+
+static const CProc kShell32Procs[] =
+{
+  { "SHFileOperationW", reinterpret_cast<void *>(&SHFileOperationW) },
+  { "SHGetFileInfoW", reinterpret_cast<void *>(&SHGetFileInfoW) },
+  { "ShellExecuteExW", reinterpret_cast<void *>(&ShellExecuteExW) }
+};
+
+static const CModule kModules[] =
+{
+  { "shell32", kShell32Procs, Z7_ARRAY_SIZE(kShell32Procs) },
+  { "kernel32", NULL, 0 }
+};
+
+static HMODULE FindModule(const QString &path)
+{
+  QString name = path.section(QLatin1Char('\\'), -1).toLower();
+  if (name.endsWith(QLatin1String(".dll")))
+    name.chop(4);
+  for (const CModule &m : kModules)
+    if (name == QLatin1String(m.Name))
+      return (HMODULE)const_cast<CModule *>(&m);
   return NULL;
 }
 
-HMODULE GetModuleHandleW(LPCWSTR /* name */)
+HMODULE GetModuleHandleA(LPCSTR name)
 {
-  return NULL;
+  return name ? FindModule(QString::fromLocal8Bit(name)) : NULL;
+}
+
+HMODULE GetModuleHandleW(LPCWSTR name)
+{
+  return name ? FindModule(QString::fromWCharArray(name)) : NULL;
+}
+
+void *GetProcAddress(HMODULE module, LPCSTR procName)
+{
+  if (!module || !procName)
+    return NULL;
+  for (const CModule &m : kModules)
+    if (module == (HMODULE)&m)
+    {
+      for (unsigned i = 0; i < m.NumProcs; i++)
+        if (strcmp(m.Procs[i].Name, procName) == 0)
+          return m.Procs[i].Func;
+      return NULL;
+    }
+  return dlsym(module, procName);
 }
 
 HMODULE LoadLibraryA(LPCSTR /* name */)

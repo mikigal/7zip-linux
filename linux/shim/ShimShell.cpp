@@ -8,6 +8,7 @@
 #include <QClipboard>
 #include <QDesktopServices>
 #include <QDir>
+#include <QFile>
 #include <QFileDialog>
 #include <QFileInfo>
 #include <QHash>
@@ -17,6 +18,8 @@
 #include <QStandardPaths>
 #include <QStyle>
 #include <QUrl>
+
+#include <sys/stat.h>
 
 #include <windows.h>
 #include <CommCtrl.h>
@@ -439,34 +442,94 @@ static QStringList PathList(const TChar *s, QString (*conv)(const TChar *))
 static QString ConvW(const WCHAR *s) { return FromW(s); }
 static QString ConvA(const CHAR *s) { return FromA(s); }
 
+// Deletes a file, or a directory with its contents; links are not followed.
+static bool DeletePermanently(const QString &path)
+{
+  const FString fs = us2fs(ToU(path));
+  NWindows::NFile::NFind::CFileInfo fi;
+  if (!fi.Find(fs))
+    return false;
+  if (fi.IsDir() && !fi.IsPosixLink())
+    return NWindows::NFile::NDir::RemoveDirWithSubItems(fs);
+  return NWindows::NFile::NDir::DeleteFileAlways(fs);
+}
+
+/* Creates the home trash ($XDG_DATA_HOME/Trash) if it is missing, as other
+   trash implementations do. QFile::moveToTrash() (Qt 6.12) creates it only
+   for files inside $HOME, and fails with EBADF for other files on the same
+   file system while it does not exist. */
+static void CreateHomeTrash()
+{
+  const QString data = QStandardPaths::writableLocation(QStandardPaths::GenericDataLocation);
+  if (data.isEmpty())
+    return;
+  const QString trash = data + QStringLiteral("/Trash");
+  if (QFileInfo(trash).isDir())
+    return;
+  const FString path = us2fs(ToU(trash));
+  // only the user may read the trash
+  if (QDir().mkpath(data) && mkdir(path, 0700) == 0)
+  {
+    mkdir(path + "/files", 0700);
+    mkdir(path + "/info", 0700);
+  }
+}
+
 /* FO_DELETE: with FOF_ALLOWUNDO the files go to the freedesktop trash
-   (QFile::moveToTrash), else they are deleted. Returns 0 or an errno code;
-   other operations are not supported (ENOTSUP). */
-static int FileOperation(UINT func, FILEOP_FLAGS flags, const QStringList &paths, BOOL &aborted)
+   (QFile::moveToTrash), else they are deleted. Files that cannot go to the
+   trash (a file system without one) are deleted permanently only when the
+   user says so, as the Windows shell asks for drives without a Recycle Bin.
+   Returns 0 or an errno code; other operations are not supported
+   (ENOTSUP). */
+static int FileOperation(HWND owner, UINT func, FILEOP_FLAGS flags, const QStringList &paths, BOOL &aborted)
 {
   aborted = FALSE;
   if (func != FO_DELETE)
     return ENOTSUP;
   int result = 0;
+  QStringList notTrashed;
+  QString trashError;
+  if (flags & FOF_ALLOWUNDO)
+    CreateHomeTrash();
   for (const QString &path : paths)
   {
-    bool ok;
     if (flags & FOF_ALLOWUNDO)
-      ok = QFile::moveToTrash(path);
-    else
     {
-      const FString fs = us2fs(ToU(path));
-      NWindows::NFile::NFind::CFileInfo fi;
-      if (!fi.Find(fs))
-        ok = false;
-      else if (fi.IsDir() && !fi.IsPosixLink())
-        ok = NWindows::NFile::NDir::RemoveDirWithSubItems(fs);
-      else
-        ok = NWindows::NFile::NDir::DeleteFileAlways(fs);
+      QFile file(path);
+      if (!file.moveToTrash())
+      {
+        notTrashed.append(path);
+        if (trashError.isEmpty())
+          trashError = file.errorString();
+      }
     }
-    if (!ok && result == 0)
+    else if (!DeletePermanently(path) && result == 0)
       result = errno ? errno : EIO;
   }
+  if (notTrashed.isEmpty())
+    return result;
+
+  if (flags & FOF_NOERRORUI)
+    return EIO;
+  QString text = QStringLiteral("Cannot move to the Trash:\n");
+  const int kMaxShown = 10;
+  for (int i = 0; i < notTrashed.size() && i < kMaxShown; i++)
+    text += notTrashed[i] + QLatin1Char('\n');
+  if (notTrashed.size() > kMaxShown)
+    text += QStringLiteral("...\n");
+  if (!trashError.isEmpty())
+    text += QLatin1Char('\n') + trashError + QLatin1Char('\n');
+  text += QStringLiteral("\nDelete permanently?");
+  const QString caption = (notTrashed.size() == 1) ?
+      QStringLiteral("Delete File") : QStringLiteral("Delete Multiple Items");
+  if (MessageBoxW(owner, ToU(text), ToU(caption), MB_YESNO | MB_ICONWARNING) != IDYES)
+  {
+    aborted = TRUE;
+    return ECANCELED;
+  }
+  for (const QString &path : notTrashed)
+    if (!DeletePermanently(path) && result == 0)
+      result = errno ? errno : EIO;
   return result;
 }
 
@@ -475,7 +538,7 @@ int SHFileOperationW(LPSHFILEOPSTRUCTW op)
   if (!op)
     return EINVAL;
   const QStringList paths = PathList(op->pFrom, ConvW);
-  return OnGuiThread<int>([&]() { return FileOperation(op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
+  return OnGuiThread<int>([&]() { return FileOperation(op->hwnd, op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
 }
 
 int SHFileOperationA(LPSHFILEOPSTRUCTA op)
@@ -483,7 +546,7 @@ int SHFileOperationA(LPSHFILEOPSTRUCTA op)
   if (!op)
     return EINVAL;
   const QStringList paths = PathList(op->pFrom, ConvA);
-  return OnGuiThread<int>([&]() { return FileOperation(op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
+  return OnGuiThread<int>([&]() { return FileOperation(op->hwnd, op->wFunc, op->fFlags, paths, op->fAnyOperationsAborted); });
 }
 
 /* Opens a document with the desktop's application for it, or runs a
