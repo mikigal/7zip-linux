@@ -69,6 +69,22 @@ private slots:
     QVERIFY(NRc::FindDialog(12345) == NULL);
   }
 
+  void icons()
+  {
+    // IDI_ICON (FM.ico) and IDI_LOGO (7zipLogo.ico), embedded as .ico files
+    for (UInt32 id : { 1u, 100u })
+    {
+      const NRc::CIcon *icon = NRc::FindIcon(id);
+      QVERIFY(icon);
+      QVERIFY(icon->Size > 6);
+      // ICONDIR: reserved 0, type 1, image count
+      QCOMPARE(icon->Data[0], (Byte)0);
+      QCOMPARE(icon->Data[2], (Byte)1);
+      QVERIFY(icon->Data[4] != 0 || icon->Data[5] != 0);
+    }
+    QVERIFY(NRc::FindIcon(2) == NULL);
+  }
+
   void copyDialog()
   {
     const NRc::CDialog *d = NRc::FindDialog(IDD_COPY);

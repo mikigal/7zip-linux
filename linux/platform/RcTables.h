@@ -86,6 +86,14 @@ struct CString
   const wchar_t *Text;
 };
 
+// An icon resource: the contents of the .ico file.
+struct CIcon
+{
+  UInt32 Id;
+  const Byte *Data;
+  UInt32 Size;
+};
+
 // All arrays are sorted by Id.
 struct CResources
 {
@@ -97,6 +105,8 @@ struct CResources
   unsigned NumAccelTables;
   const CString *Strings;
   unsigned NumStrings;
+  const CIcon *Icons;
+  unsigned NumIcons;
 };
 
 extern const CResources g_Resources;
@@ -105,6 +115,7 @@ const CDialog *FindDialog(UInt32 id);
 const CMenu *FindMenu(UInt32 id);
 const CAccelTable *FindAccelTable(UInt32 id);
 const wchar_t *FindString(UInt32 id);
+const CIcon *FindIcon(UInt32 id);
 
 }
 

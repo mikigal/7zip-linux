@@ -2,10 +2,14 @@
 // tables.
 
 #include <QApplication>
+#include <QBuffer>
+#include <QImageReader>
+#include <QPixmap>
 #include <QFontDatabase>
 #include <QHash>
 #include <QStyle>
 
+#include "ShimDialog.h"
 #include "ShimResources.h"
 #include "ShimWindow.h"
 
@@ -15,12 +19,23 @@ namespace NShim {
 
 QIcon ResourceIcon(UInt32 id)
 {
-  // Icon resources come from the .rc files (see rcgen.py); they are built
-  // into the program as Qt resources named after the resource ID.
-  const QString path = QStringLiteral(":/z7/icons/%1.ico").arg(id);
-  QIcon icon(path);
-  if (icon.availableSizes().isEmpty())
+  // the .ico files of the ICON resources, embedded by rcgen.py; an .ico file
+  // holds the same picture in several sizes
+  const NRc::CIcon *res = NRc::FindIcon(id);
+  if (!res)
     return QIcon();
+  QByteArray data = QByteArray::fromRawData((const char *)res->Data, (qsizetype)res->Size);
+  QBuffer buffer(&data);
+  buffer.open(QIODevice::ReadOnly);
+  QImageReader reader(&buffer, "ico");
+  QIcon icon;
+  do
+  {
+    const QImage image = reader.read();
+    if (!image.isNull())
+      icon.addPixmap(QPixmap::fromImage(image));
+  }
+  while (reader.jumpToNextImage());
   return icon;
 }
 
@@ -50,10 +65,33 @@ QIcon IconFromHandle(HICON icon)
   return icon ? icon->Icon : QIcon();
 }
 
+QIcon IconFromHandleForTest(HICON icon)
+{
+  return IconFromHandle(icon);
+}
+
+// LoadIcon() returns shared handles: one per resource, freed when the
+// application object is destroyed.
+static QHash<UInt32, HICON> *g_SharedIcons;
+
+static void FreeSharedIcons()
+{
+  if (!g_SharedIcons)
+    return;
+  for (HICON h : *g_SharedIcons)
+    delete h;
+  delete g_SharedIcons;
+  g_SharedIcons = NULL;
+}
+
 static HICON LoadIconImpl(UInt32 id)
 {
-  // LoadIcon() returns shared handles: one per resource for the process
-  static QHash<UInt32, HICON> cache;
+  if (!g_SharedIcons)
+  {
+    g_SharedIcons = new QHash<UInt32, HICON>;
+    qAddPostRoutine(FreeSharedIcons);
+  }
+  QHash<UInt32, HICON> &cache = *g_SharedIcons;
   const auto it = cache.constFind(id);
   if (it != cache.constEnd())
     return *it;

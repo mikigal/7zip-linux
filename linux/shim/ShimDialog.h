@@ -5,6 +5,7 @@
 #define ZIP7_INC_LINUX_SHIM_DIALOG_H
 
 #include <QFont>
+#include <QIcon>
 #include <QString>
 
 #include <functional>
@@ -44,6 +45,8 @@ HWND CreateDialogFromTemplateIn(const NRc::CDialog *t, HWND parent, QWidget *qtP
 
 // The widget of a window, for tests and tools; NULL if wnd is not a window.
 QWidget *WidgetOf(HWND wnd);
+// The icon of an icon handle, for tests.
+QIcon IconFromHandleForTest(HICON icon);
 // Whether the modal loop of a dialog runs and EndDialog() was not called.
 bool IsInModalLoop(HWND dlg);
 

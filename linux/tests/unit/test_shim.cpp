@@ -291,6 +291,28 @@ private slots:
     }
   }
 
+  void iconResources()
+  {
+    const HICON logo = LoadIconW(NULL, MAKEINTRESOURCEW(100));
+    QVERIFY(logo);
+    // shared: the same handle again, and DestroyIcon() does not free it
+    QCOMPARE(LoadIconW(NULL, MAKEINTRESOURCEW(100)), logo);
+    QVERIFY(DestroyIcon(logo));
+    QVERIFY(!NShim::IconFromHandleForTest(logo).availableSizes().isEmpty());
+    QVERIFY(LoadIconW(NULL, MAKEINTRESOURCEW(1)));
+    QVERIFY(!LoadIconW(NULL, MAKEINTRESOURCEW(4321)));
+    // the static control of the About dialog shows the logo
+    const HWND d = NShim::CreateDialogFromTemplate(NRc::FindDialog(2900), NULL, TrivialProc, 0);
+    QVERIFY(d);
+    bool found = false;
+    for (QLabel *l : NShim::WidgetOf(d)->findChildren<QLabel *>())
+      if (!l->pixmap().isNull())
+        found = true;
+    QVERIFY(found);
+    DestroyWindow(d);
+    QCoreApplication::sendPostedEvents(NULL, QEvent::DeferredDelete);
+  }
+
   void labelBuddies()
   {
     // the mnemonic of a label goes to the next control that can take the

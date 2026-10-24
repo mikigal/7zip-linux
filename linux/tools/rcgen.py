@@ -4,9 +4,10 @@
 rcgen runs the C preprocessor over a resource script (.rc) with the stub
 windows.h and CommCtrl.h from linux/shim/win32 and RC_INVOKED defined, and
 parses the result: DIALOG and DIALOGEX templates, MENU and MENUEX resources,
-ACCELERATORS tables and STRINGTABLEs. Icons, bitmaps, manifests and version
-information are skipped. Anything else is an error, so a new construct in an
-upstream release is noticed instead of silently dropped.
+ACCELERATORS tables, STRINGTABLEs and ICONs (the .ico files are embedded).
+Bitmaps, manifests and version information are skipped. Anything else is an
+error, so a new construct in an upstream release is noticed instead of
+silently dropped.
 
 The C++ output defines NRc::g_Resources (see linux/platform/RcTables.h).
 Styles get the defaults that the Windows resource compiler adds (for example
@@ -142,6 +143,7 @@ class Resources:
     self.menus = {}
     self.accels = {}
     self.strings = {}
+    self.icons = {}    # id -> path of the .ico file
     self.symbols = {}  # macro name -> int, for the names of resource IDs
 
   def add(self, table, id, value, kind, tok):
@@ -470,7 +472,9 @@ class Parser:
         while not (self.is_kw("BEGIN") or self.is_op("{")):
           self.next()
         self.skip_block()
-      elif kind in ("ICON", "BITMAP", "CURSOR", "FONT", "HTML", "MESSAGETABLE",
+      elif kind == "ICON":
+        self.icon(name, type_tok)
+      elif kind in ("BITMAP", "CURSOR", "FONT", "HTML", "MESSAGETABLE",
                     "RCDATA") or type_tok.kind == "num":
         self.skip_memory_options()
         if self.peek() is not None and self.peek().kind == "str":
@@ -479,6 +483,16 @@ class Parser:
           self.skip_block()
       else:
         self.error("unsupported resource type %r" % (type_tok.value,), type_tok)
+
+  def icon(self, id, tok):
+    self.skip_memory_options()
+    file_tok = self.peek()
+    if file_tok is None or file_tok.kind != "str":
+      self.error("ICON without a file name", tok)
+    self.next()
+    if not isinstance(id, int):
+      self.error("icon %r: only numeric icon IDs are supported" % (id,), tok)
+    self.res.add(self.res.icons, id, resolve_file(file_tok.value, self.script_dir, file_tok.file), "icon", tok)
 
   def stringtable(self):
     tok = self.next()
@@ -768,6 +782,20 @@ def repo_relative(path, cache={}):
   return cache[path]
 
 
+def resolve_file(name, script_dir, rc_file):
+  """A file named in a resource script: the resource compiler looks in its
+  working directory, which is the directory of the top-level script; the
+  directory of the script that names the file is the fallback."""
+  candidates = [os.path.join(script_dir, name)]
+  if not rc_file.startswith("<"):
+    base = rc_file if os.path.isabs(rc_file) else os.path.join(ROOT, rc_file)
+    candidates.append(os.path.join(os.path.dirname(base), name))
+  for c in candidates:
+    if os.path.isfile(c):
+      return os.path.normpath(c)
+  return os.path.normpath(candidates[0])
+
+
 def parse_file(path, defines=(), cc=None, depfile=None, deptarget=None):
   consts = read_constants(cc)
   res = Resources()
@@ -775,7 +803,9 @@ def parse_file(path, defines=(), cc=None, depfile=None, deptarget=None):
   # paths in diagnostics and tables are relative to the repository
   for t in tokens:
     t.file = repo_relative(t.file)
-  Parser(tokens, consts, res).parse()
+  parser = Parser(tokens, consts, res)
+  parser.script_dir = os.path.dirname(os.path.abspath(path))
+  parser.parse()
   return res
 
 
@@ -876,9 +906,27 @@ def generate_cpp(res, script):
     out.append("  { %d, %s },\n" % (id, cpp_wstring(res.strings[id])))
   out.append("};\n")
 
+  for id in sorted(res.icons):
+    path = res.icons[id]
+    try:
+      with open(path, "rb") as f:
+        data = f.read()
+    except OSError as e:
+      raise RcError("icon %d: cannot read %s: %s" % (id, path, e.strerror))
+    out.append("\n// %s\nstatic const Byte kIcon_%d[] =\n{\n" % (repo_relative(path), id))
+    for i in range(0, len(data), 16):
+      out.append("  " + ",".join("0x%02x" % b for b in data[i:i + 16]) + ",\n")
+    out.append("};\n")
+  out.append("\nstatic const CIcon kIcons[] =\n{\n")
+  if not res.icons:
+    out.append("  { 0, NULL, 0 }\n")
+  for id in sorted(res.icons):
+    out.append("  { %d, kIcon_%d, sizeof(kIcon_%d) },\n" % (id, id, id))
+  out.append("};\n")
+
   out.append("\nextern const CResources g_Resources =\n{\n"
-             "  kDialogs, %d,\n  kMenus, %d,\n  kAccelTables, %d,\n  kStrings, %d\n};\n" % (
-                 len(res.dialogs), len(res.menus), len(res.accels), len(res.strings)))
+             "  kDialogs, %d,\n  kMenus, %d,\n  kAccelTables, %d,\n  kStrings, %d,\n  kIcons, %d\n};\n" % (
+                 len(res.dialogs), len(res.menus), len(res.accels), len(res.strings), len(res.icons)))
   out.append("\n}\n")
   return "".join(out)
 
@@ -903,6 +951,8 @@ def dump(res):
       print("  key=0x%x cmd=%d flags=0x%x" % (a.key, a.cmd, a.flags))
   for id in sorted(res.strings):
     print("STRING %d %r" % (id, res.strings[id]))
+  for id in sorted(res.icons):
+    print("ICON %d %s" % (id, repo_relative(res.icons[id])))
 
 
 def main():
@@ -924,7 +974,18 @@ def main():
     dump(res)
   if args.cpp:
     script = os.path.relpath(os.path.abspath(args.script), ROOT)
-    text = generate_cpp(res, script)
+    try:
+      text = generate_cpp(res, script)
+    except RcError as e:
+      print("rcgen: %s" % e, file=sys.stderr)
+      return 1
+    if args.depfile and res.icons:
+      # the embedded icons are inputs too
+      with open(args.depfile, encoding="utf-8") as f:
+        dep = f.read().rstrip()
+      dep += "".join(" \\\n " + p.replace(" ", "\\ ") for p in sorted(set(res.icons.values())))
+      with open(args.depfile, "w", encoding="utf-8") as f:
+        f.write(dep + "\n")
     tmp = tempfile.NamedTemporaryFile("w", encoding="utf-8", delete=False,
                                       dir=os.path.dirname(os.path.abspath(args.cpp)))
     with tmp:

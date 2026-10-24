@@ -5,8 +5,10 @@
   statement and window class.
 - Every dialog template in the upstream tree parses, in the configuration
   where its script is meant to build.
+- The icons of both programs are found where the resource compiler finds
+  them.
 - Resource script syntax (strings, styles, menus, accelerators, string
-  tables, skipped resources) and error reporting, on small scripts.
+  tables, icons, skipped resources) and error reporting, on small scripts.
 """
 
 import glob
@@ -62,6 +64,18 @@ class ProgramScripts(unittest.TestCase):
     print("\n7zFM: %d dialogs, %d controls, %d strings; 7zG: %d dialogs, %d strings" % (
         len(fm.dialogs), sum(len(d.controls) for d in fm.dialogs.values()), len(fm.strings),
         len(gui.dialogs), len(gui.strings)), file=sys.stderr)
+
+  def test_icons(self):
+    fm = self.res["7zFM"]
+    gui = self.res["7zG"]
+    # IDI_ICON is 1 in both programs, IDI_LOGO (100) only in 7zFM; the paths
+    # are relative to the top-level script
+    self.assertEqual(sorted(fm.icons), [1, 100])
+    self.assertEqual(rcgen.repo_relative(fm.icons[1]), "CPP/7zip/UI/FileManager/FM.ico")
+    self.assertEqual(rcgen.repo_relative(fm.icons[100]), "CPP/7zip/UI/FileManager/7zipLogo.ico")
+    self.assertEqual(rcgen.repo_relative(gui.icons[1]), "CPP/7zip/UI/GUI/FM.ico")
+    for path in list(fm.icons.values()) + list(gui.icons.values()):
+      self.assertTrue(os.path.isfile(path), path)
 
   def test_controls_are_known(self):
     for name, res in self.res.items():
@@ -257,6 +271,8 @@ BEGIN
 END
 ''')
     self.assertEqual(res.strings, {7: "seven"})
+    self.assertEqual(list(res.icons), [100])
+    self.assertTrue(res.icons[100].endswith(os.sep + "app.ico"))
 
   def test_cpp_strings(self):
     self.assertEqual(rcgen.cpp_wstring('a"b\\c\n\t\x01ą\U0001F600'),

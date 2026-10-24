@@ -375,15 +375,28 @@ public:
 
   QString Text() const override { return TextValue; }
 
+  // Windows sizes an icon static control to the icon: SM_CXICON by
+  // SM_CYICON, or the size of the image with SS_REALSIZEIMAGE; with
+  // SS_REALSIZECONTROL or SS_CENTERIMAGE the control keeps its size.
   void SetIcon(HICON icon)
   {
     Icon = icon;
     const QIcon qi = IconFromHandle(icon);
-    QSize size = Widget->size();
-    if (size.isEmpty() || (Style & SS_REALSIZEIMAGE))
-      size = QSize(32, 32);
+    QSize size(32, 32);
+    if (Style & SS_REALSIZECONTROL)
+      size = Widget->size();
+    else if (Style & SS_REALSIZEIMAGE)
+    {
+      // the largest image of the icon
+      QSize best(0, 0);
+      for (const QSize &s : qi.availableSizes())
+        if (s.width() * s.height() > best.width() * best.height())
+          best = s;
+      if (!best.isEmpty())
+        size = best;
+    }
     Label()->setPixmap(qi.isNull() ? QPixmap() : qi.pixmap(size, Widget->devicePixelRatioF()));
-    if (Widget->size().isEmpty())
+    if (!(Style & (SS_REALSIZECONTROL | SS_CENTERIMAGE)))
       Widget->resize(size);
   }
 
