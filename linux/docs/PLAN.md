@@ -937,17 +937,15 @@ After merging a release, check that each edit is still needed.
 - **App ID:** resolved: `pl.mikigal.SevenZip` (the user's choice). It must
   be a valid D-Bus name, and segments cannot start with a digit, so
   `org.7-zip.*` is invalid.
-- **`Lang/*.txt` translations** are not in the source repo. They ship in the
-  binary distribution and could be extracted with our own `7zz` from the
-  official package once the user approves the download.
-- **SFX archives:** 7zG looks for `7z.sfx`, the Windows GUI module, so
-  "Create SFX archive" is disabled on Linux. The upstream console SFX
-  (`Bundles/SFXCon/makefile.gcc`) builds on Linux; shipping it as the module
-  would make self-extracting ELF archives possible.
-- **Help pages:** Help opens the online copy of the help
-  (7-zip.opensource.jp/chm/). The release's `7-zip.chm` could be unpacked
-  with `7zz` into a `help/` directory next to the program for offline help,
-  which `HtmlHelp()` already prefers; this goes with the Lang decision.
+- **`Lang/*.txt` translations:** resolved: shipped. `linux/lang/` has the
+  `Lang` folder of the official 26.05 release, unchanged (README.md there
+  records the source); the build copies it next to 7zFM and 7zG, and the
+  install layout (Phase 7) puts it in the program folder. A new upstream
+  release brings new files from its Windows release.
+- **SFX archives:** resolved: left out (the user's choice). 7zG looks for
+  `7z.sfx`, the Windows GUI module, so "Create SFX archive" stays disabled.
+- **Help pages:** resolved: online only (the user's choice). Help opens the
+  online copy of the help (7-zip.opensource.jp/chm/).
 - **Windows reference screenshots** (section 4, "Fidelity check"): resolved
   without mingw-w64. The user approved downloading the official release for
   Windows (26.05, `7z2605-x64.exe`, SHA-256 checked against the GitHub
