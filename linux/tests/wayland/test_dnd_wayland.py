@@ -8,6 +8,8 @@ headless KWin, with a real pointer from libei:
   text/uri-list;
 - archive items dragged to Dolphin are extracted by 7zFM into Dolphin's
   folder: Dolphin names it through the Ark protocol (org.kde.ark.DndExtract);
+- files copied with Ctrl+C go to the Wayland clipboard, where wl-paste
+  reads them, and files that wl-copy puts there are pasted into an archive;
 - Open With of the System menu asks the desktop portal (a stand-in that
   records the call) which application opens the file.
 
@@ -240,6 +242,64 @@ class WaylandDnD(unittest.TestCase):
     with open(os.path.join(target, "top.txt")) as f:
       self.assertEqual(f.read(), "top\n")
 
+
+  # ---------- the clipboard ----------
+
+  @unittest.skipUnless(shutil.which("wl-copy") and shutil.which("wl-paste"), "needs wl-clipboard")
+  def test_clipboard_with_other_programs(self):
+    archive = os.path.join(self.data, "arc.7z")
+    subprocess.run([ORACLE, "a", "-bso0", archive, "b.txt"], cwd=self.data, check=True)
+    outside = os.path.join(self.tmp, "outside.txt")
+    with open(outside, "w") as f:
+      f.write("outside\n")
+    data = self.data + "/"
+    arc_title = archive + "/"
+    copied = os.path.join(self.tmp, "copied")
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(data) + "$"}},
+              {"click": {"panel": 0, "item": "b.txt"}},
+              {"wait_file": self.placed},
+              {"log": {"panel": 0, "item": "b.txt"}},
+              {"wait_file": copied},
+              {"click": {"panel": 0, "item": "arc.7z"}},
+              {"key": "Return"},
+              {"wait": {"path": "^" + re.escape(arc_title) + "$"}},
+              {"log": "clipboard"},
+              {"wait_file": self.go}]},
+      ], self.data)
+      self.client(s, data)
+      self.place_7zfm(s, data)
+      # b.txt is selected and the window placed and active
+      with open(self.placed, "w"):
+        pass
+      self.wait_event("point")
+      # Ctrl+C on the keyboard: the files go to the Wayland clipboard,
+      # where another program (wl-paste) reads them
+      s.run([EI_INPUT, "key", "ctrl+c"])
+      url = "file://" + os.path.join(self.data, "b.txt")
+
+      def pasted(kind, expected):
+        res = s.run(["wl-paste", "--no-newline", "--type", kind], check=False, timeout=10)
+        return res.returncode == 0 and res.stdout.strip() == expected
+      wlsession.wait_until(lambda: pasted("text/uri-list", url), 15, "the copied file in wl-paste")
+      self.assertTrue(pasted("x-special/gnome-copied-files", "copy\n" + url))
+      # files that another program copies (wl-copy) are pasted into the archive
+      s.spawn(["wl-copy", "--type", "text/uri-list", "file://" + outside], log="wl-copy")
+      wlsession.wait_until(lambda: pasted("text/uri-list", "file://" + outside), 15, "the files of wl-copy")
+      with open(copied, "w"):
+        pass
+      self.wait_event("clipboard")
+      s.run([EI_INPUT, "key", "ctrl+v"])
+
+      def added():
+        res = subprocess.run([ORACLE, "l", "-slt", archive], capture_output=True, text=True)
+        return "Path = outside.txt" in res.stdout
+      wlsession.wait_until(added, 30, "the pasted file in the archive")
+      s.screenshot(os.path.join(self.artifacts, "after.png"))
+      self.finish(p, s, arc_title)
+    self.assertTrue(os.path.exists(outside))
 
   # ---------- the shell commands that go to the desktop ----------
 
