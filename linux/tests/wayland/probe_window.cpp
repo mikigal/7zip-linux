@@ -9,12 +9,15 @@
 //   drag-start / drag-end <action>
 //   drop <action> formats=<comma-separated MIME types>
 //   drop-url <url>
+//   enter-read <MIME type>   (--read-on-enter)
 //
 // Options:
 //   --color COLOR      fill color (default #3366cc)
 //   --title TITLE      window title (default z7-probe)
 //   --size WxH         normal window of that size instead of full screen
 //   --drag-file PATH   act as a drag source offering PATH as text/uri-list
+//   --read-on-enter    read every type of a drag that enters, and refuse
+//                      it, as the drop areas of the Plasma shell read them
 
 #include <QApplication>
 #include <QCommandLineParser>
@@ -64,7 +67,8 @@ QString DropActionName(Qt::DropAction a)
 class CProbeWindow: public QWidget
 {
 public:
-  CProbeWindow(const QColor &color, const QString &dragFile): _color(color), _dragFile(dragFile)
+  CProbeWindow(const QColor &color, const QString &dragFile, bool readOnEnter):
+      _color(color), _dragFile(dragFile), _readOnEnter(readOnEnter)
   {
     setAcceptDrops(_dragFile.isEmpty());
   }
@@ -114,7 +118,20 @@ protected:
     Report(QStringLiteral("key %1").arg(e->text().isEmpty() ? QString::number(e->key()) : e->text()));
   }
 
-  void dragEnterEvent(QDragEnterEvent *e) override { e->acceptProposedAction(); }
+  void dragEnterEvent(QDragEnterEvent *e) override
+  {
+    if (!_readOnEnter)
+    {
+      e->acceptProposedAction();
+      return;
+    }
+    for (const QString &format : e->mimeData()->formats())
+    {
+      e->mimeData()->data(format);
+      Report(QStringLiteral("enter-read %1").arg(format));
+    }
+    e->ignore();
+  }
 
   void dropEvent(QDropEvent *e) override
   {
@@ -132,6 +149,7 @@ protected:
 private:
   QColor _color;
   QString _dragFile;
+  bool _readOnEnter;
   QPoint _pressPos;
   bool _reportedReady = false;
 };
@@ -151,11 +169,13 @@ int main(int argc, char **argv)
       QStringLiteral("size"));
   const QCommandLineOption dragOpt(QStringLiteral("drag-file"), QStringLiteral("File to offer as a drag source."),
       QStringLiteral("path"));
-  parser.addOptions({ colorOpt, titleOpt, sizeOpt, dragOpt });
+  const QCommandLineOption readOpt(QStringLiteral("read-on-enter"),
+      QStringLiteral("Read every type of a drag that enters, and refuse it."));
+  parser.addOptions({ colorOpt, titleOpt, sizeOpt, dragOpt, readOpt });
   parser.process(app);
 
   Report(QStringLiteral("platform %1").arg(QGuiApplication::platformName()));
-  CProbeWindow w(QColor(parser.value(colorOpt)), parser.value(dragOpt));
+  CProbeWindow w(QColor(parser.value(colorOpt)), parser.value(dragOpt), parser.isSet(readOpt));
   w.setWindowTitle(parser.value(titleOpt));
   const QStringList size = parser.value(sizeOpt).split(QLatin1Char('x'));
   if (size.size() == 2)

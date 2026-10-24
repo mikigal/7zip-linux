@@ -295,6 +295,65 @@ class WaylandDnD(unittest.TestCase):
       self.finish(p, s, arc_title)
     self.assertFalse(os.path.exists(extracted))
 
+  def test_drag_archive_items_twice(self):
+    # The drag passes over a Plasma shell (a probe with its name, which reads
+    # every type of the drag as the drop areas of the shell do, the types of
+    # the Ark protocol among them) to a program that takes the files. 7zFM
+    # waits for an Ark call after such a drop; the next drag, right after,
+    # ends the wait and starts.
+    archive = os.path.join(self.data, "arc.7z")
+    for name in ("one.txt", "two.txt"):
+      with open(os.path.join(self.tmp, name), "w") as f:
+        f.write(name + "\n")
+    subprocess.run([ORACLE, "a", "-bso0", archive, "one.txt", "two.txt"], cwd=self.tmp, check=True)
+    shell = os.path.join(self.tmp, "plasmashell")
+    shutil.copy(PROBE, shell)
+    arc_title = archive + "/"
+    placed2 = os.path.join(self.tmp, "placed2")
+    with wlsession.Session(WIDTH, HEIGHT, artifacts=self.artifacts) as s:
+      p = self.start_7zfm(s, [
+          {"on": "main", "actions": [
+              {"wait": {"path": "^" + re.escape(arc_title) + "$"}},
+              {"click": {"panel": 0, "item": "one.txt"}},
+              {"wait_file": self.placed},
+              {"log": {"panel": 0, "item": "one.txt"}},
+              {"wait_file": placed2},
+              {"log": {"panel": 0, "item": "two.txt"}},
+              {"wait_file": self.go}]},
+      ], archive)
+      shell_log = os.path.join(s.artifacts, "shell.log")
+      probe_log = os.path.join(s.artifacts, "probe.log")
+      s.spawn([shell, "--title", "z7-shell", "--size", "300x700", "--color", "#aa33aa", "--read-on-enter"],
+              log="shell")
+      s.spawn([PROBE, "--title", "z7-dst", "--size", "340x700", "--color", "#33aa33"], log="probe")
+      wlsession.wait_until(lambda: "ready" in read_lines(probe_log) and "ready" in read_lines(shell_log), 20,
+                           "the probe windows")
+      self.client(s, arc_title)
+      s.place_window("z7-shell", 640, 0, 300, HEIGHT)
+      s.place_window("z7-dst", 940, 0, 340, HEIGHT)
+      self.place_7zfm(s, arc_title)
+      start = self.screen_point(s, arc_title)
+      self.drag(s, start, (1110, HEIGHT // 2))
+
+      def urls():
+        return [l[len("drop-url "):] for l in read_lines(probe_log) if l.startswith("drop-url ")]
+      wlsession.wait_until(lambda: len(urls()) == 1, 30, "the first item in the probe")
+      self.assertIn("enter-read application/x-kde-ark-dndextract-service", read_lines(shell_log))
+      # the second item, right away
+      s.kwin_script("for (const w of workspace.windowList()) if (w.caption === %s) "
+                    "workspace.activeWindow = w;" % js_string(arc_title))
+      with open(placed2, "w"):
+        pass
+      wlsession.wait_until(lambda: len([e for e in events(self.log) if e["event"] == "point"]) == 2, 20,
+                           "the point of the second item")
+      second = [e for e in events(self.log) if e["event"] == "point"][-1]
+      c = self.client(s, arc_title)
+      self.drag(s, (int(c["x"] + second["x"]), int(c["y"] + second["y"])), (1110, HEIGHT // 2))
+      wlsession.wait_until(lambda: len(urls()) == 2, 30, "the second item in the probe")
+      s.screenshot(os.path.join(self.artifacts, "after.png"))
+      self.finish(p, s, arc_title)
+    self.assertEqual([os.path.basename(u) for u in urls()], ["one.txt", "two.txt"])
+
   def drag_archive_item_to_browser(self, argv, env=None):
     """Drags top.txt of an archive to a page that shows the name and the
     contents of the dropped file in its title."""
