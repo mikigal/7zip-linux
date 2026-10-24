@@ -974,6 +974,20 @@ INT_PTR CProgressDialog::Create(const UString &title, NWindows::CThread &thread,
       if (res2 == WAIT_OBJECT_0 && !Sync.ThereIsMessage())
         return 0;
     }
+    #else
+    if (WaitMode)
+    {
+      // a POSIX thread cannot be waited for with a timeout:
+      // ProcessWasFinished() sets (_needClose) when the work is done
+      CWaitCursor waitCursor;
+      for (UInt32 t = 0; t < kCreateDelay && !_needClose; t += 10)
+        Sleep(10);
+      if (_needClose && !Sync.ThereIsMessage())
+      {
+        thread.Wait_Close();
+        return 0;
+      }
+    }
     #endif
     _title = title;
     BIG_DIALOG_SIZE(360, 192);
