@@ -839,13 +839,24 @@ Findings:
   `extractSelectedFilesTo()`. Such drops are accepted at once and processed
   afterwards, so that the source does not wait while the Add to Archive
   dialog is open.
-- Archive items are offered through the Ark protocol only, as Ark does:
-  Dolphin reads text/uri-list while the pointer moves over it (to refuse
-  drops onto the dragged items), so a lazy text/uri-list would extract on
-  hover. Targets without the Ark protocol (GTK file managers, browsers)
-  cannot take archive items yet; files of the file system go as
-  text/uri-list everywhere. Dolphin calls `extractSelectedFilesTo()`
-  asynchronously, after the drag ended, so `DoDragDrop()` waits for it.
+- Archive items go to Dolphin (and the file managers that drop with KIO)
+  through the Ark protocol, as Ark does: straight into the folder. Dolphin
+  calls `extractSelectedFilesTo()` asynchronously, after the drag ended, so
+  `DoDragDrop()` waits for it.
+- Almost every target reads text/uri-list while the pointer moves over it
+  and uses that list at the drop: Dolphin (to refuse drops onto the
+  dragged items), GTK 3 programs such as Thunar (GDK keeps the data of the
+  offer), Firefox and Chromium (Brave). Extracting only after the drop
+  (wl_data_source.dnd_drop_performed) reaches none of them; it was tried
+  and dropped. So browsers and GTK programs get archive items extracted
+  at their first request (an option of the Settings page, on by default,
+  with its costs described there: the extraction starts without a drop,
+  and the files stay in $TMPDIR until 7zFM exits after a drop). Ark
+  targets are told apart by the process at the other end of the pipe of
+  the request (/proc), by its program name: on Plasma every Qt program
+  loads KIOWidgets with the platform theme. Qt itself reads the list at
+  the start of a drag (files for the document portal), without a pipe.
+  Without a pipe (X11 targets too) the list is empty, as before.
 - Upstream moves by default when the source and the target are on the same
   drive; `IsItSameDrive()` compares devices on POSIX (every path starts
   with "/"). Extraction to a folder counts as a move, as upstream prefers.
