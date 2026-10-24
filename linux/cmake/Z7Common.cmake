@@ -17,7 +17,9 @@ if(Z7_WERROR)
 endif()
 
 if(Z7_SANITIZE)
-  add_compile_options(-fsanitize=${Z7_SANITIZE} -fno-omit-frame-pointer)
+  # 7-Zip reads unaligned data on purpose where the CPU allows it (x86), so
+  # the alignment check only adds noise.
+  add_compile_options(-fsanitize=${Z7_SANITIZE} -fno-omit-frame-pointer -fno-sanitize=alignment)
   add_link_options(-fsanitize=${Z7_SANITIZE})
 endif()
 
@@ -44,7 +46,12 @@ function(z7_apply_source_flags)
 endfunction()
 
 # z7_port_target(<target>): settings for code written for the Linux port.
+# Sanitizer findings in port code abort, so that the tests fail; upstream code
+# only reports them (it has known ones, for example shifts of negative values).
 function(z7_port_target target)
   target_compile_features(${target} PRIVATE cxx_std_17)
   target_compile_options(${target} PRIVATE ${Z7_PORT_WARNINGS})
+  if(Z7_SANITIZE)
+    target_compile_options(${target} PRIVATE -fno-sanitize-recover=all)
+  endif()
 endfunction()
