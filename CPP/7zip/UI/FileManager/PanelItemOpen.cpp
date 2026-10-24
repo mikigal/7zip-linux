@@ -716,12 +716,20 @@ static WRes StartAppWithParams(const UString &cmd, const UStringVector &paramVec
 }
 
 
+#ifndef _WIN32
+HRESULT StartApplication(const UString &dir, const UString &path, HWND window, CProcess &process);
+#endif
+
 static HRESULT StartEditApplication(const UString &path, bool useEditor, HWND window, CProcess &process)
 {
   UString command;
   ReadRegEditor(useEditor, command);
   if (command.IsEmpty())
   {
+    #ifndef _WIN32
+    // POSIX: there is no notepad: the desktop opens the file with its application
+    return StartApplication(UString(), path, window, process);
+    #endif
     #ifdef UNDER_CE
     command = "\\Windows\\";
     #else
@@ -1126,6 +1134,7 @@ void CExitEventLauncher::Exit(bool hardExit)
       Thread_Close(&th);
       #else
       // POSIX: no process handles: the thread only waits for _exitEvent
+      UNUSED_VAR(hardExit)
       Thread_Wait_Close(&th);
       #endif
       _numActiveThreads--;
@@ -1263,6 +1272,36 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
 
   bool needCheckTimestamp = true;
 
+  #ifndef _WIN32
+  /* POSIX: the desktop opens the file, and there is no process to wait
+     for. The file is checked every second until the program exits, and
+     each change can update the archive. */
+  UNUSED_VAR(mainProcessWasSet)
+  UNUSED_VAR(isComplexMode)
+  while (::WaitForSingleObject(g_ExitEventLauncher._exitEvent, 1000) != WAIT_OBJECT_0)
+  {
+    NFind::CFileInfo newFileInfo;
+    if (!newFileInfo.Find(tpi->FilePath) || !tpi->WasChanged_from_TempFileInfo(newFileInfo))
+      continue;
+    // the next change is compared with this version
+    tpi->FileInfo = newFileInfo;
+    const UString m = MyFormatNew(IDS_CANNOT_UPDATE_FILE, fs2us(tpi->FilePath));
+    if (tpi->ReadOnly)
+    {
+      UString m2 = m;
+      m2.Add_LF();
+      AddLangString(m2, IDS_PROP_READ_ONLY);
+      m2.Add_LF();
+      m2 += tpi->FullPathFolderPrefix;
+      ::MessageBoxW(g_HWND, m2, L"7-Zip", MB_OK | MB_ICONSTOP);
+      return 0;
+    }
+    const UString message = MyFormatNew(IDS_WANT_UPDATE_MODIFIED_FILE, tpi->RelPath);
+    if (::MessageBoxW(g_HWND, message, L"7-Zip", MB_YESNOCANCEL | MB_ICONQUESTION) == IDYES)
+      if (SendMessage(tpi->Window, kOpenItemChanged, 0, (LONG_PTR)tpi.get()) != 1)
+        ::MessageBoxW(g_HWND, m, L"7-Zip", MB_OK | MB_ICONSTOP);
+  }
+  #else
   for (;;)
   {
     NFind::CFileInfo newFileInfo;
@@ -1305,7 +1344,6 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
     }
     
     // DEBUG_PRINT("WaitForSingleObject");
-    #ifdef _WIN32
     DWORD waitResult = ::WaitForSingleObject(g_ExitEventLauncher._exitEvent, INFINITE);
     // DEBUG_PRINT("---");
 
@@ -1313,11 +1351,8 @@ static THREAD_FUNC_DECL MyThreadFunction(void *param)
       break;
 
     return 1;
-    #else
-    g_ExitEventLauncher._exitEvent.Lock();
-    break;
-    #endif
   }
+  #endif
 
   {
     NFind::CFileInfo newFileInfo;
