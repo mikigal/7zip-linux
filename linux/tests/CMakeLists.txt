@@ -82,7 +82,7 @@ if(TARGET 7zG)
   # Upstream COM interfaces have no virtual destructors by design.
   target_compile_options(z7-gui-driver PRIVATE -Wno-non-virtual-dtor)
   z7_link_ui(z7-gui-driver GUI)
-  target_link_libraries(z7-gui-driver PRIVATE z7_7zg_main z7_driver_core z7_gui z7_theme)
+  target_link_libraries(z7-gui-driver PRIVATE z7_7zg_main z7_7zg_linux z7_driver_core z7_gui z7_theme)
 
   if(Z7_BUILD_ORACLE)
     add_test(NAME gui_7zg
@@ -191,9 +191,25 @@ endif()
 # The desktop files of linux/packaging (label "unit").
 find_program(Z7_DESKTOP_FILE_VALIDATE desktop-file-validate)
 if(Z7_DESKTOP_FILE_VALIDATE)
-  file(GLOB Z7_DESKTOP_FILES "${Z7_ROOT}/linux/packaging/*.desktop")
+  # the applications; the service menus (Type=Service) are KDE's own format
+  file(GLOB Z7_DESKTOP_FILES "${Z7_ROOT}/linux/packaging/io.github.mikigal.SevenZip.desktop"
+       "${Z7_ROOT}/linux/packaging/io.github.mikigal.SevenZip.Gui.desktop")
   add_test(NAME desktop_files COMMAND "${Z7_DESKTOP_FILE_VALIDATE}" ${Z7_DESKTOP_FILES})
   set_tests_properties(desktop_files PROPERTIES LABELS "unit" TIMEOUT 60)
 else()
   message(STATUS "desktop_files test disabled (need desktop-file-validate)")
+endif()
+
+# The service menus of Dolphin as KIO reads them (label "unit"), when the
+# KIO development files are there.
+find_package(KF6KIO QUIET)
+if(KF6KIO_FOUND AND TARGET Qt6::Widgets)
+  add_executable(z7-servicemenu-probe desktop/servicemenu_probe.cpp)
+  target_link_libraries(z7-servicemenu-probe PRIVATE KF6::KIOWidgets Qt6::Widgets)
+  add_test(NAME servicemenus_kio
+    COMMAND Python3::Interpreter -I "${CMAKE_CURRENT_SOURCE_DIR}/desktop/test_servicemenus.py"
+            --probe $<TARGET_FILE:z7-servicemenu-probe> --packaging "${Z7_ROOT}/linux/packaging")
+  set_tests_properties(servicemenus_kio PROPERTIES LABELS "unit" TIMEOUT 60)
+else()
+  message(STATUS "servicemenus_kio test disabled (need KF6 KIO)")
 endif()

@@ -87,6 +87,40 @@ private slots:
       QVERIFY2(_desktopTypes.contains(t), qPrintable(t));
   }
 
+  void serviceMenus()
+  {
+    // the archive actions offer the types that 7zFM opens
+    const QString extract = kPackaging + Z7_APP_ID ".servicemenu-extract.desktop";
+    const QString compress = kPackaging + Z7_APP_ID ".servicemenu-compress.desktop";
+    QCOMPARE(DesktopValue(extract, "MimeType"), DesktopValue(kPackaging + Z7_FM_DESKTOP_FILE, "MimeType"));
+    QCOMPARE(DesktopValue(compress, "MimeType"), QStringLiteral("all/all;"));
+    // every action runs a command that 7zG knows
+    const QStringList known = { "extract", "extracthere", "extractto", "test", "add", "add7z",
+        "addzip", "email", "email7z", "emailzip", "hash:SHA256", "hash:CRC32", "hash:*" };
+    for (const QString &menu : { extract, compress })
+    {
+      QFile f(menu);
+      QVERIFY(f.open(QIODevice::ReadOnly | QIODevice::Text));
+      int numExec = 0;
+      while (!f.atEnd())
+      {
+        const QString line = QString::fromUtf8(f.readLine()).trimmed();
+        if (!line.startsWith(QLatin1String("Exec=")))
+          continue;
+        numExec++;
+        const QStringList parts = line.mid(5).split(' ');
+        if (parts[0] == QLatin1String("7zFM"))
+          continue;
+        QCOMPARE(parts.value(0), QStringLiteral("7zG"));
+        QCOMPARE(parts.value(1), QStringLiteral("--context"));
+        QVERIFY2(known.contains(parts.value(2)), qPrintable(line));
+        QCOMPARE(parts.value(3), QStringLiteral("%F"));
+      }
+      const int numActions = DesktopValue(menu, "Actions").split(';', Qt::SkipEmptyParts).size();
+      QCOMPARE(numExec, numActions);
+    }
+  }
+
   void everyAssociatedTypeIsListed()
   {
     // the MIME package as an installed one, in a database of its own

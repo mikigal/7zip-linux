@@ -7,14 +7,38 @@
 #include <windows.h>
 
 #include "Platform.h"
+#include <stdio.h>
+
+#include <string>
+#include <vector>
+
 #include "AppId.h"
+#include "ContextCommand.h"
 #include "Theme.h"
 
 int APIENTRY WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmdLine, int cmdShow);
 
 int main(int argc, char *argv[])
 {
-  NPlatform::SetCommandLine(argc, argv);
+  // file manager context menus: 7zG --context ACTION FILE...
+  std::vector<std::string> args(argv + (argc > 0 ? 1 : 0), argv + argc);
+  std::vector<std::string> command;
+  std::string error;
+  if (NGui::TranslateContextCommand(args, command, error))
+  {
+    if (!error.empty())
+    {
+      fprintf(stderr, "%s\n", error.c_str());
+      return 2;
+    }
+    std::vector<const char *> list;
+    list.push_back(argc > 0 ? argv[0] : "7zG");
+    for (const std::string &a : command)
+      list.push_back(a.c_str());
+    NPlatform::SetCommandLine((int)list.size(), list.data());
+  }
+  else
+    NPlatform::SetCommandLine(argc, argv);
   NPlatform::InitModuleDirPrefix(argc > 0 ? argv[0] : NULL);
 
   // Qt sees no 7-Zip arguments: it would take its own options (-style,

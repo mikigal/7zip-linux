@@ -1,6 +1,7 @@
 # Installation: the programs, their .desktop files (named by the application
 # ID of platform/AppId.h), the application icon in the hicolor theme, and
-# the MIME package with the archive types that shared-mime-info lacks.
+# the MIME package with the archive types that shared-mime-info lacks, and
+# the service menus of Dolphin (7zG --context ...).
 # Lang files and the help pages come with the package layout (PLAN.md,
 # Phase 7).
 
@@ -15,3 +16,6 @@ install(FILES "${Z7_ROOT}/linux/theme/icons/app/7-Zip.svg"
   DESTINATION "${CMAKE_INSTALL_DATADIR}/icons/hicolor/scalable/apps"
   RENAME ${Z7_APP_ID}.svg)
 install(FILES ${Z7_APP_ID}.xml DESTINATION "${CMAKE_INSTALL_DATADIR}/mime/packages")
+# the 7-Zip submenu of Dolphin (KIO service menus)
+install(FILES ${Z7_APP_ID}.servicemenu-compress.desktop ${Z7_APP_ID}.servicemenu-extract.desktop
+  DESTINATION "${CMAKE_INSTALL_DATADIR}/kio/servicemenus")

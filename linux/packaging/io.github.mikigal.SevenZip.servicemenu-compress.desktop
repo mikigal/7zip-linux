@@ -1,0 +1,48 @@
+[Desktop Entry]
+Type=Service
+MimeType=all/all;
+X-KDE-Submenu=7-Zip
+Icon=io.github.mikigal.SevenZip
+Actions=add;add7z;addzip;email;email7z;emailzip;sha256;crc32;allhashes
+
+[Desktop Action add]
+Name=Add to archive...
+Icon=io.github.mikigal.SevenZip
+Exec=7zG --context add %F
+
+[Desktop Action add7z]
+Name=Add to 7z archive
+Icon=io.github.mikigal.SevenZip
+Exec=7zG --context add7z %F
+
+[Desktop Action addzip]
+Name=Add to zip archive
+Icon=io.github.mikigal.SevenZip
+Exec=7zG --context addzip %F
+
+[Desktop Action email]
+Name=Compress and email...
+Icon=mail-send
+Exec=7zG --context email %F
+
+[Desktop Action email7z]
+Name=Compress to 7z and email
+Icon=mail-send
+Exec=7zG --context email7z %F
+
+[Desktop Action emailzip]
+Name=Compress to zip and email
+Icon=mail-send
+Exec=7zG --context emailzip %F
+
+[Desktop Action sha256]
+Name=SHA-256 checksum
+Exec=7zG --context hash:SHA256 %F
+
+[Desktop Action crc32]
+Name=CRC-32 checksum
+Exec=7zG --context hash:CRC32 %F
+
+[Desktop Action allhashes]
+Name=All checksums
+Exec=7zG --context hash:* %F

@@ -456,6 +456,56 @@ class GuiTest(unittest.TestCase):
     closed = run.of("dialog_closed", "IDD_PROGRESS")[-1]
     self.assertTrue(control(closed, ID("IDL_PROGRESS_MESSAGES"))["rows"])
 
+  # ---------- Context menus of file managers (7zG --context) ----------
+
+  def test_context_add(self):
+    # one file: the archive is named after it, next to it
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_COMPRESS", "actions": [
+            # the dialog shows the name; the folder is that of the file
+            {"expect": [ID("IDC_COMPRESS_ARCHIVE"), r"^small\.7z$"]},
+            {"click": ID("IDOK")}]},
+    ], "--context", "add", os.path.join(self.src, "small.txt"))
+    self.assertRun(run)
+    self.assertIn("Path = small.txt", oracle("l", "-slt", os.path.join(self.src, "small.7z")).stdout)
+    # several items: named after their folder, no dialog
+    run = self.run_7zg([], "--context", "addzip", os.path.join(self.src, "small.txt"),
+                       os.path.join(self.src, "dir"))
+    self.assertRun(run)
+    listing = oracle("l", "-slt", os.path.join(self.src, "src.zip")).stdout
+    self.assertIn("Type = zip", listing)
+    self.assertIn("Path = small.txt", listing)
+    self.assertIn("Path = dir" + os.sep + "nested" + os.sep + "random.bin", listing)
+
+  def test_context_extract(self):
+    archive = self.make_archive("a.7z")
+    folder = os.path.dirname(archive)
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_EXTRACT", "actions": [
+            {"expect": [ID("IDC_EXTRACT_PATH"), "^" + re.escape(folder) + "/$"]},
+            {"click": ID("IDCANCEL")}]},
+    ], "--context", "extract", archive)
+    self.assertEqual(run.code, K_USER_BREAK, run.stderr)
+    # "*": a folder named after the archive
+    run = self.run_7zg([], "--context", "extractto", archive)
+    self.assertRun(run)
+    self.assertEqual(snapshot(os.path.join(folder, "a")), snapshot(self.src))
+    run = self.run_7zg([
+        {"on": "messagebox", "contains": "There are no errors", "answer": ID("IDOK")},
+    ], "--context", "test", archive)
+    self.assertRun(run)
+
+  def test_context_hash_and_errors(self):
+    run = self.run_7zg([
+        {"on": "dialog", "name": "IDD_LISTVIEW", "actions": [{"click": ID("IDOK")}]},
+    ], "--context", "hash:SHA256", os.path.join(self.src, "small.txt"))
+    self.assertRun(run)
+    rows = control(run.of("dialog", "IDD_LISTVIEW")[0], ID("IDL_LISTVIEW"))["rows"]
+    self.assertIn("SHA256", [r[0] for r in rows])
+    run = self.run_7zg([], "--context", "frobnicate", os.path.join(self.src, "small.txt"))
+    self.assertEqual(run.code, 2)
+    self.assertIn("unknown context menu action", run.stderr)
+
   # ---------- Hash ----------
 
   def test_hash(self):

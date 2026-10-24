@@ -19,6 +19,8 @@
 //   {"wait_file": "path"}         waits until the file exists (a test that
 //                                 looks at the screen tells the script to go on)
 //   {"screenshot": "name.png"}    saves a picture of the dialog in --shots
+// The 7zG arguments may be a context menu command (--context ACTION FILE...,
+// linux/gui/ContextCommand.h).
 //   {"tab": index}                shows a page of a property sheet; the
 //                                 actions then find the controls of the
 //                                 page too
@@ -37,6 +39,10 @@
 #include <windows.h>
 
 #include "AppId.h"
+#include <string>
+#include <vector>
+
+#include "ContextCommand.h"
 #include "DriverCore.h"
 #include "Theme.h"
 
@@ -50,7 +56,27 @@ int main(int argc, char *argv[])
     fprintf(stderr, "usage: z7-gui-driver --script FILE --log FILE [--shots DIR] [--timeout SEC] -- ARGS\n");
     return 2;
   }
-  NDriver::SetProgramCommandLine(argc, argv, args);
+  // the commands of file manager context menus, as 7zG takes them
+  std::vector<std::string> programArgs(argv + args.First, argv + argc);
+  std::vector<std::string> command;
+  std::string error;
+  if (NGui::TranslateContextCommand(programArgs, command, error))
+  {
+    if (!error.empty())
+    {
+      fprintf(stderr, "%s\n", error.c_str());
+      return 2;
+    }
+    std::vector<char *> list;
+    for (int i = 0; i < args.First; i++)
+      list.push_back(argv[i]);
+    for (std::string &a : command)
+      list.push_back(&a[0]);
+    list.push_back(NULL);
+    NDriver::SetProgramCommandLine((int)list.size() - 1, list.data(), args);
+  }
+  else
+    NDriver::SetProgramCommandLine(argc, argv, args);
 
   int qtArgc = 1;
   char *qtArgv[] = { argv[0], NULL };
