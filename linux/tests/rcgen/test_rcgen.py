@@ -77,6 +77,17 @@ class ProgramScripts(unittest.TestCase):
     for path in list(fm.icons.values()) + list(gui.icons.values()):
       self.assertTrue(os.path.isfile(path), path)
 
+  def test_bitmaps(self):
+    fm = self.res["7zFM"]
+    # the toolbar bitmaps (large and small) and the context menu logo
+    names = {id: os.path.basename(p) for id, p in fm.bitmaps.items()}
+    self.assertEqual(names[100], "Add.bmp")
+    self.assertEqual(names[150], "Add2.bmp")
+    self.assertEqual(names[190], "MenuLogo.bmp")
+    self.assertEqual(len(fm.bitmaps), 15)
+    for path in fm.bitmaps.values():
+      self.assertTrue(os.path.isfile(path), path)
+
   def test_controls_are_known(self):
     for name, res in self.res.items():
       for d in res.dialogs.values():
@@ -286,6 +297,10 @@ END
     self.assertEqual(res.strings, {7: "seven"})
     self.assertEqual(list(res.icons), [100])
     self.assertTrue(res.icons[100].endswith(os.sep + "app.ico"))
+    self.assertEqual(list(res.bitmaps), [101])
+    self.assertTrue(res.bitmaps[101].endswith(os.sep + "a.bmp"))
+    res.icons.clear()  # the .ico file does not exist
+    self.assertIn('{ 101, "a" }', rcgen.generate_cpp(res, "test.rc"))
 
   def test_cpp_strings(self):
     self.assertEqual(rcgen.cpp_wstring('a"b\\c\n\t\x01ą\U0001F600'),

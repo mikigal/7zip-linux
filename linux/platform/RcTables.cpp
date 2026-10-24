@@ -44,6 +44,11 @@ const CIcon *FindIcon(UInt32 id)
   return FindById(g_Resources.Icons, g_Resources.NumIcons, id);
 }
 
+const CBitmap *FindBitmap(UInt32 id)
+{
+  return FindById(g_Resources.Bitmaps, g_Resources.NumBitmaps, id);
+}
+
 const wchar_t *FindString(UInt32 id)
 {
   const CString *s = FindById(g_Resources.Strings, g_Resources.NumStrings, id);

@@ -94,6 +94,14 @@ struct CIcon
   UInt32 Size;
 };
 
+// A bitmap resource, by the base name of its file ("Add" for Add.bmp):
+// the program draws bitmaps itself (the toolbar icons of the theme).
+struct CBitmap
+{
+  UInt32 Id;
+  const char *Name;
+};
+
 // All arrays are sorted by Id.
 struct CResources
 {
@@ -107,6 +115,8 @@ struct CResources
   unsigned NumStrings;
   const CIcon *Icons;
   unsigned NumIcons;
+  const CBitmap *Bitmaps;
+  unsigned NumBitmaps;
 };
 
 extern const CResources g_Resources;
@@ -116,6 +126,7 @@ const CMenu *FindMenu(UInt32 id);
 const CAccelTable *FindAccelTable(UInt32 id);
 const wchar_t *FindString(UInt32 id);
 const CIcon *FindIcon(UInt32 id);
+const CBitmap *FindBitmap(UInt32 id);
 
 }
 

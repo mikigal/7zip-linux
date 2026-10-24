@@ -4,8 +4,9 @@
 rcgen runs the C preprocessor over a resource script (.rc) with the stub
 windows.h and CommCtrl.h from linux/shim/win32 and RC_INVOKED defined, and
 parses the result: DIALOG and DIALOGEX templates, MENU and MENUEX resources,
-ACCELERATORS tables, STRINGTABLEs and ICONs (the .ico files are embedded).
-Bitmaps, manifests and version information are skipped. Anything else is an
+ACCELERATORS tables, STRINGTABLEs, ICONs (the .ico files are embedded) and
+BITMAPs (by file name). Manifests and version information are skipped.
+Anything else is an
 error, so a new construct in an upstream release is noticed instead of
 silently dropped.
 
@@ -144,6 +145,7 @@ class Resources:
     self.accels = {}
     self.strings = {}
     self.icons = {}    # id -> path of the .ico file
+    self.bitmaps = {}  # id -> path of the .bmp file
     self.symbols = {}  # macro name -> int, for the names of resource IDs
 
   def add(self, table, id, value, kind, tok):
@@ -486,6 +488,8 @@ class Parser:
         self.skip_block()
       elif kind == "ICON":
         self.icon(name, type_tok)
+      elif kind == "BITMAP" and isinstance(name, int):
+        self.bitmap(name, type_tok)
       elif kind in ("BITMAP", "CURSOR", "FONT", "HTML", "MESSAGETABLE",
                     "RCDATA") or type_tok.kind == "num":
         self.skip_memory_options()
@@ -505,6 +509,14 @@ class Parser:
     if not isinstance(id, int):
       self.error("icon %r: only numeric icon IDs are supported" % (id,), tok)
     self.res.add(self.res.icons, id, resolve_file(file_tok.value, self.script_dir, file_tok.file), "icon", tok)
+
+  def bitmap(self, id, tok):
+    self.skip_memory_options()
+    file_tok = self.peek()
+    if file_tok is None or file_tok.kind != "str":
+      self.error("BITMAP without a file name", tok)
+    self.next()
+    self.res.add(self.res.bitmaps, id, resolve_file(file_tok.value, self.script_dir, file_tok.file), "bitmap", tok)
 
   def stringtable(self):
     tok = self.next()
@@ -936,9 +948,20 @@ def generate_cpp(res, script):
     out.append("  { %d, kIcon_%d, sizeof(kIcon_%d) },\n" % (id, id, id))
   out.append("};\n")
 
+  # Bitmaps are named after their files: the program draws them itself
+  # (the toolbar icons of the theme), so their data is not embedded.
+  out.append("\nstatic const CBitmap kBitmaps[] =\n{\n")
+  if not res.bitmaps:
+    out.append("  { 0, NULL }\n")
+  for id in sorted(res.bitmaps):
+    name = os.path.splitext(os.path.basename(res.bitmaps[id]))[0]
+    out.append("  { %d, %s },\n" % (id, cpp_string(name)))
+  out.append("};\n")
+
   out.append("\nextern const CResources g_Resources =\n{\n"
-             "  kDialogs, %d,\n  kMenus, %d,\n  kAccelTables, %d,\n  kStrings, %d,\n  kIcons, %d\n};\n" % (
-                 len(res.dialogs), len(res.menus), len(res.accels), len(res.strings), len(res.icons)))
+             "  kDialogs, %d,\n  kMenus, %d,\n  kAccelTables, %d,\n  kStrings, %d,\n  kIcons, %d,\n  kBitmaps, %d\n};\n" % (
+                 len(res.dialogs), len(res.menus), len(res.accels), len(res.strings), len(res.icons),
+                 len(res.bitmaps)))
   out.append("\n}\n")
   return "".join(out)
 
@@ -965,6 +988,8 @@ def dump(res):
     print("STRING %d %r" % (id, res.strings[id]))
   for id in sorted(res.icons):
     print("ICON %d %s" % (id, repo_relative(res.icons[id])))
+  for id in sorted(res.bitmaps):
+    print("BITMAP %d %s" % (id, repo_relative(res.bitmaps[id])))
 
 
 def main():
