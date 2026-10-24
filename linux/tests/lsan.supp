@@ -1,0 +1,5 @@
+# LeakSanitizer suppressions for the ASan build (check.sh --asan): leaks in
+# system libraries, not in 7-Zip or the port.
+
+# fontconfig keeps font patterns that it never frees (no FcFini() at exit)
+leak:libfontconfig.so

@@ -129,6 +129,9 @@ class GuiTest(unittest.TestCase):
         "QT_QPA_PLATFORM": "offscreen",
         "QT_FORCE_STDERR_LOGGING": "1",
     }
+    for name in ("ASAN_OPTIONS", "LSAN_OPTIONS", "UBSAN_OPTIONS"):
+      if name in os.environ:
+        env[name] = os.environ[name]
     res = subprocess.run(
         [DRIVER, "--script", script_path, "--log", log_path, "--shots", self.shots,
          "--timeout", str(timeout), "--", *args],
