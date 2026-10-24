@@ -44,6 +44,8 @@
 //   {"screenshot": "name.png"}  saves a picture of the main window in --shots
 //   {"close": true}             closes the main window (WM_CLOSE)
 //   {"sleep": ms}               lets the program run for a while
+//   {"append_opened": "text"}   appends the text to the file of the last
+//                               URL that the program opened (an editor)
 // When all steps are done, the driver closes the main window.
 
 #include <QApplication>
@@ -426,6 +428,16 @@ public:
       Close();
     else if (a.contains("sleep"))
       _sleepUntil = (int)_clock.elapsed() + a["sleep"].toInt();
+    else if (a.contains("append_opened"))
+    {
+      // as an application that the program opened a file with
+      const QUrl url(g_Driver.LastOpenedUrl);
+      QFile f(url.toLocalFile());
+      if (!url.isLocalFile() || !f.open(QIODevice::Append))
+        g_Driver.Fail(QStringLiteral("cannot append to the opened file \"%1\"").arg(g_Driver.LastOpenedUrl));
+      else
+        f.write(a["append_opened"].toString().toUtf8());
+    }
     else
       g_Driver.Fail(QStringLiteral("unknown main action %1")
           .arg(QString::fromUtf8(QJsonDocument(a).toJson(QJsonDocument::Compact))));

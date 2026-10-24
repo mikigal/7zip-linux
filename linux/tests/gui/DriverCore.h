@@ -29,6 +29,7 @@ struct CDriver
   int Next = 0;
   QSet<QString> Passive;
   QString ShotsDir;
+  QString LastOpenedUrl;  // the last URL that the program opened
   QFile Log;
   bool Failed = false;
 
@@ -67,6 +68,7 @@ public:
 public slots:
   void openUrl(const QUrl &url)
   {
+    g_Driver.LastOpenedUrl = url.toString();
     g_Driver.Write(QJsonObject{ { "event", "open_url" }, { "url", url.toString() } });
   }
 };

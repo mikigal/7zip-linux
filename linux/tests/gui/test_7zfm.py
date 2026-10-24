@@ -81,6 +81,8 @@ class FmTest(unittest.TestCase):
       f.write(b"\0" * 1000)
     self.home = os.path.join(self.tmp, "home")
     os.makedirs(self.home)
+    self.tmpdir = os.path.join(self.tmp, "tmp")
+    os.makedirs(self.tmpdir)
     self.shots = os.path.join(ARTIFACTS, self.id().split(".")[-1])
     shutil.rmtree(self.shots, ignore_errors=True)
     os.makedirs(self.shots)
@@ -102,6 +104,8 @@ class FmTest(unittest.TestCase):
         "XDG_CACHE_HOME": os.path.join(self.home, "cache"),
         "XDG_STATE_HOME": os.path.join(self.home, "state"),
         "XDG_RUNTIME_DIR": self.home,
+        # the temporary folders of 7-Zip (7zO*, 7zE*) go with the test
+        "TMPDIR": self.tmpdir,
         "LANG": "C.UTF-8",
         "QT_QPA_PLATFORM": "offscreen",
         "QT_FORCE_STDERR_LOGGING": "1",
@@ -890,6 +894,76 @@ class FmTest(unittest.TestCase):
     boxes = [b["text"] for b in run.of("messagebox")]
     self.assertIn("Files: 3", boxes[0])
     self.assertIn("Files: 3", boxes[1])
+
+  # ---------- Open outside and Edit ----------
+
+  def test_edit_in_archive_with_editor(self):
+    archive = self.make_archive()
+    # an editor that changes the file a moment after it starts
+    editor = os.path.join(self.tmp, "editor.sh")
+    with open(editor, "w") as f:
+      f.write('#!/bin/sh\nsleep 0.3\nprintf "edited\\n" >> "$1"\n')
+    os.chmod(editor, 0o755)
+    self.write_settings('[Software/7-Zip/FM]\n"Editor"="%s"\n' % editor)
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            {"key": "F4"}),
+        {"on": "messagebox", "contains": "'top.txt' was modified", "answer": IDYES},
+        main_step({"wait": {"focused": "top.txt"}}),
+    ], archive)
+    self.assertRun(run)
+    out = os.path.join(self.tmp, "out")
+    oracle("x", "-bso0", archive, "-o" + out, "top.txt")
+    with open(os.path.join(out, "top.txt")) as f:
+      self.assertEqual(f.read(), "top\nedited\n")
+
+  def test_open_outside_in_archive(self):
+    archive = self.make_archive()
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": "^" + re.escape(archive) + "/$"}},
+            {"click": {"panel": 0, "item": "top.txt"}},
+            # no editor set: the desktop's application, as Open Outside
+            {"key": "F4"},
+            {"append_opened": "first\n"}),
+        {"on": "messagebox", "contains": "was modified", "answer": IDNO},
+        # every save is offered
+        main_step({"append_opened": "second\n"}),
+        {"on": "messagebox", "contains": "was modified", "answer": IDYES},
+        main_step(
+            {"wait": {"focused": "top.txt"}},
+            {"key": "shift+Return"}),
+    ], archive)
+    self.assertRun(run)
+    urls = [e["url"] for e in run.of("open_url")]
+    self.assertEqual(len(urls), 2)
+    self.assertTrue(all(u.startswith("file:///") and u.endswith("/top.txt") for u in urls), urls)
+    # a temporary copy outside the archive folder
+    self.assertNotIn(self.data, urls[0])
+    out = os.path.join(self.tmp, "out")
+    oracle("x", "-bso0", archive, "-o" + out, "top.txt")
+    with open(os.path.join(out, "top.txt")) as f:
+      self.assertEqual(f.read(), "top\nfirst\nsecond\n")
+    # the temporary copies are removed when 7zFM exits
+    self.assertTrue(urls[0].startswith("file://" + self.tmpdir + "/7zO"), urls)
+    self.assertEqual(os.listdir(self.tmpdir), [])
+
+  def test_open_and_edit_files(self):
+    run = self.run_fm([
+        main_step(
+            {"wait": {"path": self.path_re()}},
+            {"click": {"panel": 0, "item": "b.txt"}},
+            {"key": "F4"},
+            {"key": "Return"},
+            {"click": {"panel": 0, "item": "docs"}},
+            {"key": "shift+Return"}),
+    ], self.data)
+    self.assertRun(run)
+    urls = [e["url"] for e in run.of("open_url")]
+    b = "file://" + os.path.join(self.data, "b.txt")
+    self.assertEqual(urls, [b, b, "file://" + os.path.join(self.data, "docs") + "/"])
 
   # ---------- Window ----------
 

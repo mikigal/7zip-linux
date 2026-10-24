@@ -642,7 +642,7 @@ Findings:
 - [x] New folder and new file, rename, properties, comments.
 - [x] Hashes, split and combine, links.
 - [x] Add, Extract and Test from the toolbar, run in-process.
-- [ ] Open inside and outside, Edit (F4) with the change watcher.
+- [x] Open inside and outside, Edit (F4) with the change watcher.
 - [ ] All option pages (with a Linux System page), and Help opening the
       online docs.
 
@@ -704,6 +704,16 @@ Findings:
 - Add, Extract and Test from the toolbar needed no Linux code: the dialogs
   of 7zG run in-process (`CompressCall2.cpp`), as in the Windows 7zFM of
   `Bundles/Fm`.
+- Open outside and Edit of archive items (upstream edit in
+  `PanelItemOpen.cpp`): there is no process to wait for, so the thread of
+  each opened file checks it every second until 7zFM exits (a timed
+  `WaitForSingleObject()` on the POSIX exit event, `UpstreamPosix.cpp`) and
+  offers to update the archive after every change; a QFileSystemWatcher
+  was not needed. Without an editor command, F4 and F3 open the file with
+  the desktop's application. `ShellExecuteExW` (Open outside) is found
+  through `GetProcAddress()` since the Delete fix.
+- The POSIX `CTempDir` (7zO*, 7zE* folders) honours `$TMPDIR`; upstream
+  `MyGetTempPath()` returns /tmp only.
 
 ### Phase 6: Desktop integration
 - [ ] App ID, `.desktop`, icons, MIME associations.
