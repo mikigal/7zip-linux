@@ -129,10 +129,12 @@ the packages have the plugins of Dolphin (KIO), Nemo, Thunar and Nautilus,
 but their libraries are no dependencies: they come with the file managers
 (Suggests).
 
-The workflow runs for each release (the release workflow calls it with the
-tag), for pushes and pull requests that change `linux/packaging/` or the
-workflow, and by hand (Actions, Packages, Run workflow). A distribution is
-one line of its matrix: the container image and `deb` or `rpm`.
+The workflow runs only for a release (the release workflow calls it with
+the tag) and by hand: after a change to the packaging, start it for the
+branch before tagging (Actions, Packages, Run workflow, or
+`gh workflow run Packages --ref main`); it builds the version of the
+AppStream metadata. A distribution is one line of its matrix: the
+container image and `deb` or `rpm`.
 
 The packages install with their dependencies from the distribution:
 
