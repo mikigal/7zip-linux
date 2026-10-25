@@ -13,7 +13,8 @@ Both install the same files. Their PKGBUILDs are in
 
 The GitHub release also has packages for Debian 13, Ubuntu 26.04 LTS,
 Fedora 43 and 44 and openSUSE Tumbleweed (see "Debian, Ubuntu, Fedora and
-openSUSE" below).
+openSUSE" below), and portable releases with their own Qt for the other
+distributions: an AppImage and a tar.gz (see "Portable releases" below).
 
 ## Version numbers
 
@@ -72,9 +73,9 @@ it to the release, and prints the PKGBUILDs instead of pushing them.
      the same files;
    - attaches `7zip-linux-VERSION-x86_64.pkg.tar.zst` to the release;
    - pushes the PKGBUILD and `.SRCINFO` of both packages to the AUR;
-   - builds and tests the Debian, Ubuntu, Fedora and openSUSE packages
-     (`.github/workflows/packages.yml`) from the tag and attaches them to
-     the release.
+   - builds and tests the Debian, Ubuntu, Fedora and openSUSE packages and
+     the portable releases (`.github/workflows/packages.yml`) from the tag
+     and attaches them to the release.
 
    To run it again for a published release (after a failed AUR push, for
    example), start it by hand with the tag (Actions, Release, Run workflow).
@@ -150,4 +151,49 @@ example with podman:
 ```sh
 podman run --rm -v "$PWD:/src:z" -w /src debian:13 linux/packaging/deb/build.sh --deps build/packages
 podman run --rm -v "$PWD:/src:z" -w /src debian:13 linux/packaging/install-test.sh build/packages/7zip-linux_26.05.1-1~debian13_amd64.deb
+```
+
+## Portable releases
+
+For the distributions without a package, the release has
+`7zip-linux-VERSION-x86_64.AppImage` and `7zip-linux-VERSION-x86_64.tar.gz`.
+Both bring their own Qt and run without installation on x86-64 with glibc
+2.36 or newer (Debian 12, Ubuntu 24.04 LTS and newer) in a Wayland or X11
+desktop. They have no 7-Zip menu in file managers and no file associations:
+a file manager cannot load the plugins of a portable folder.
+
+`linux/packaging/portable/build.sh` makes both in a Debian 12 container
+(the job `portable` of the Packages workflow):
+
+- it builds with the Qt release of the Qt Company (`aqtinstall`, the
+  version in the script) and runs the unit tests;
+- the AppDir has 7zFM, 7zG and `Lang/` in `usr/bin` (the programs find each
+  other and the language files in their folder), the Qt plugins that they
+  load in `usr/plugins` (the Wayland, X11 and offscreen platforms with their
+  integrations, the SVG icon engine; `usr/bin/qt.conf`), and the libraries
+  in `usr/lib`, which linuxdeploy (pinned, with its SHA-256) bundles,
+  except those of the AppImage excludelist that every desktop system has
+  (glibc, libstdc++, OpenGL, the Wayland and X11 client libraries,
+  fontconfig, ...);
+- `usr/share/doc/third-party` lists where each library comes from, with the
+  LGPL of Qt and the copyright files of the Debian packages;
+- the tar.gz is that folder with the scripts `7zFM` and `7zG` (and
+  `README.txt` of `linux/packaging/portable`); the AppImage starts 7zFM.
+  Both scripts unset `QT_PLUGIN_PATH`, which could name the plugins of
+  another Qt.
+
+`linux/packaging/portable/run-test.sh` then runs both in fresh containers
+of Ubuntu 24.04, Fedora 44 and Arch Linux with only the desktop libraries
+of the excludelist installed: every program, library and plugin finds its
+libraries, the programs use the bundled Qt, and 7zFM starts offscreen from
+the tar.gz and from the AppImage (with `APPIMAGE_EXTRACT_AND_RUN`, as
+containers have no FUSE).
+
+Users run them as they are:
+
+```sh
+chmod +x 7zip-linux-26.05.1-x86_64.AppImage
+./7zip-linux-26.05.1-x86_64.AppImage
+tar -xzf 7zip-linux-26.05.1-x86_64.tar.gz
+7zip-linux-26.05.1-x86_64/7zFM
 ```

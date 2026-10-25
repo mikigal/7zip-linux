@@ -907,6 +907,8 @@ Findings:
 - [x] Packages for Debian 13, Ubuntu 26.04 LTS (.deb), Fedora 43 and 44 and
       openSUSE Tumbleweed (.rpm), built and install-tested in a container
       of each distribution by GitHub Actions and attached to the release.
+- [x] Portable releases with their own Qt (AppImage, tar.gz), built on
+      Debian 12 and run on Ubuntu 24.04, Fedora 44 and Arch Linux.
 - [x] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
       consistency checks, check the templates against the new Windows release
@@ -946,6 +948,19 @@ Notes:
   programs load are explicit dependencies: the Wayland and offscreen
   platforms, and the SVG icon engine of the toolbar icons, whose library
   `--as-needed` drops (no code calls Qt SVG).
+- Portable releases (`linux/packaging/portable`, `docs/RELEASE.md`): built
+  on Debian 12 (glibc 2.36, CMake 3.25) with the Qt release of the Qt
+  Company (aqtinstall) and linuxdeploy, the programs and `Lang/` in
+  `usr/bin`, the Qt plugins picked by hand in `usr/plugins` (qt.conf), the
+  RPATHs set with patchelf. The test runs them in fresh containers of
+  other distributions with only the libraries of the AppImage excludelist.
+  No file manager menus and no associations. CMake 3.25 resolves the link
+  groups of `gui/` and `fm/` in their own directories, so Qt is found in
+  the top-level CMakeLists.txt. Without KDE's platform theme (which
+  recolors Breeze to the palette) Breeze drew dark file icons on the dark
+  theme, so the theme takes the dark variant of the icon theme
+  (`breeze-dark`); looked at in a nested KWin, the portable 7zFM matches
+  the installed one.
 - Found by these builds: the drag events of the test driver take a QPointF
   only since Qt 6.12 (Debian 13 has 6.8, Ubuntu 26.04 6.10, Fedora 44
   6.11), and shared-mime-info before 2.5 has no `application/vnd.squashfs`,

@@ -3,8 +3,11 @@
 # distribution, with the unit tests (linux/packaging/deb/build.sh,
 # linux/packaging/rpm/build.sh), then installed and started in a fresh
 # container of that distribution (linux/packaging/install-test.sh). The
-# release workflow runs it for the tag of a release and attaches the
-# packages; it also runs when the packaging changes, and by hand.
+# portable releases (tar.gz, AppImage), which bring their own Qt, are built
+# on Debian 12 (linux/packaging/portable/build.sh) and run on other
+# distributions (run-test.sh). The release workflow runs it for the tag of a
+# release and attaches the packages; it also runs when the packaging
+# changes, and by hand.
 name: Packages
 
 on:
@@ -65,4 +68,36 @@ jobs:
         with:
           name: package-${{ matrix.name }}
           path: out/*.${{ matrix.format }}
+          if-no-files-found: error
+
+  portable:
+    name: portable (tar.gz, AppImage)
+    runs-on: ubuntu-latest
+    env:
+      TAG: ${{ inputs.tag }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+
+      - name: Build the portable releases
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src debian:12 \
+            linux/packaging/portable/build.sh --deps out ${TAG#v}
+
+      - name: Run them on other distributions
+        run: |
+          for image in ubuntu:24.04 fedora:44 archlinux:latest; do
+            echo "::group::$image"
+            docker run --rm -v "$PWD:/src" -w /src "$image" \
+              linux/packaging/portable/run-test.sh out/*.tar.gz out/*.AppImage
+            echo "::endgroup::"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: package-portable
+          path: |
+            out/*.tar.gz
+            out/*.AppImage
           if-no-files-found: error
