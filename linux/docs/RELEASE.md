@@ -124,7 +124,10 @@ The version is the last release of the AppStream metadata
 version), and the package version names the distribution:
 `7zip-linux_26.05.1-1~debian13_amd64.deb`,
 `7zip-linux-26.05.1-1.fc44.x86_64.rpm`,
-`7zip-linux-26.05.1-1.opensuse_tumbleweed.x86_64.rpm`. As in the PKGBUILDs,
+`7zip-linux-26.05.1-1.opensuse_tumbleweed.x86_64.rpm`. GitHub replaces the
+`~` of the Debian and Ubuntu file names with `.` in release assets
+(`7zip-linux_26.05.1-1.debian13_amd64.deb`); the version inside the
+package keeps the `~`. As in the PKGBUILDs,
 the packages have the plugins of Dolphin (KIO), Nemo, Thunar and Nautilus,
 but their libraries are no dependencies: they come with the file managers
 (Suggests).
@@ -139,7 +142,7 @@ container image and `deb` or `rpm`.
 The packages install with their dependencies from the distribution:
 
 ```sh
-sudo apt install ./7zip-linux_26.05.1-1~debian13_amd64.deb
+sudo apt install ./7zip-linux_26.05.1-1.debian13_amd64.deb
 sudo dnf install ./7zip-linux-26.05.1-1.fc44.x86_64.rpm
 sudo zypper install --allow-unsigned-rpm ./7zip-linux-26.05.1-1.opensuse_tumbleweed.x86_64.rpm
 ```

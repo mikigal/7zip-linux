@@ -105,11 +105,11 @@ sudo pacman -U ./7zip-linux-26.05.1-x86_64.pkg.tar.zst
 ### Debian 13 and Ubuntu 26.04 LTS
 
 ```bash
-sudo apt install ./7zip-linux_26.05.1-1~debian13_amd64.deb
+sudo apt install ./7zip-linux_26.05.1-1.debian13_amd64.deb
 ```
 
 ```bash
-sudo apt install ./7zip-linux_26.05.1-1~ubuntu26.04_amd64.deb
+sudo apt install ./7zip-linux_26.05.1-1.ubuntu26.04_amd64.deb
 ```
 
 ### Fedora 43 and 44
