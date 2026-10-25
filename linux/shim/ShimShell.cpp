@@ -132,9 +132,18 @@ static CFileType FileType(const QString &path, DWORD attrib, UINT flags)
     return FolderType((flags & SHGFI_OPENICON) != 0);
 
   QMimeDatabase db;
-  const QMimeType mime = useAttrib ?
-      db.mimeTypeForFile(path, QMimeDatabase::MatchExtension) :
-      db.mimeTypeForFile(path);
+  QMimeType mime;
+  if (useAttrib)
+  {
+    /* The panel asks with the extension alone (".7z", SysIconUtils.cpp),
+       which Qt takes for a hidden file without an extension. */
+    QString name = QFileInfo(path).fileName();
+    if (name.startsWith(QLatin1Char('.')))
+      name.prepend(QLatin1Char('_'));
+    mime = db.mimeTypeForFile(name, QMimeDatabase::MatchExtension);
+  }
+  else
+    mime = db.mimeTypeForFile(path);
   if (!mime.isValid() || mime.isDefault())
     return UnknownFileType();
   CFileType t;
@@ -144,39 +153,42 @@ static CFileType FileType(const QString &path, DWORD attrib, UINT flags)
   return t;
 }
 
-struct CSystemImageList
+/* As on Windows, a type has the same index in the small and the large
+   system image list: the panel gets the index of an item without
+   SHGFI_SMALLICON and draws it from the small list. */
+struct CSystemImageLists
 {
-  HIMAGELIST List;
+  HIMAGELIST Lists[2];           // 16 and 32 pixels
   QHash<QString, int> Indexes;   // CFileType::Key -> index
 };
 
-static CSystemImageList *g_SystemImageLists[2];
+static CSystemImageLists *g_SystemImageLists;
 
 static void FreeSystemImageLists()
 {
-  for (CSystemImageList *&l : g_SystemImageLists)
-  {
-    if (!l)
-      continue;
-    delete l->List;
-    delete l;
-    l = NULL;
-  }
+  if (!g_SystemImageLists)
+    return;
+  for (HIMAGELIST list : g_SystemImageLists->Lists)
+    delete list;
+  delete g_SystemImageLists;
+  g_SystemImageLists = NULL;
 }
 
-static CSystemImageList &SystemList(bool smallIcons)
+static CSystemImageLists &SystemLists()
 {
-  CSystemImageList *&l = g_SystemImageLists[smallIcons ? 0 : 1];
+  CSystemImageLists *&l = g_SystemImageLists;
   if (!l)
   {
-    if (!g_SystemImageLists[0] && !g_SystemImageLists[1])
-      qAddPostRoutine(FreeSystemImageLists);
-    const int size = smallIcons ? 16 : 32;
-    l = new CSystemImageList;
-    l->List = ImageList_Create(size, size, ILC_COLOR32 | ILC_MASK, 0, 0);
-    l->List->System = true;
+    qAddPostRoutine(FreeSystemImageLists);
+    l = new CSystemImageLists;
     const CFileType unknown = UnknownFileType();
-    l->List->Icons.append(unknown.Icon);
+    for (int i = 0; i < 2; i++)
+    {
+      const int size = i == 0 ? 16 : 32;
+      l->Lists[i] = ImageList_Create(size, size, ILC_COLOR32 | ILC_MASK, 0, 0);
+      l->Lists[i]->System = true;
+      l->Lists[i]->Icons.append(unknown.Icon);
+    }
     l->Indexes.insert(unknown.Key, 0);
   }
   return *l;
@@ -184,17 +196,18 @@ static CSystemImageList &SystemList(bool smallIcons)
 
 HIMAGELIST SystemImageList(bool smallIcons)
 {
-  return SystemList(smallIcons).List;
+  return SystemLists().Lists[smallIcons ? 0 : 1];
 }
 
-static int SystemIconIndex(bool smallIcons, const CFileType &t)
+static int SystemIconIndex(const CFileType &t)
 {
-  CSystemImageList &l = SystemList(smallIcons);
+  CSystemImageLists &l = SystemLists();
   const auto it = l.Indexes.constFind(t.Key);
   if (it != l.Indexes.constEnd())
     return *it;
-  const int index = (int)l.List->Icons.size();
-  l.List->Icons.append(t.Icon);
+  const int index = (int)l.Lists[0]->Icons.size();
+  for (HIMAGELIST list : l.Lists)
+    list->Icons.append(t.Icon);
   l.Indexes.insert(t.Key, index);
   return index;
 }
@@ -219,7 +232,7 @@ static CFileInfoResult GetFileInfoImpl(const QString &path, const CSpecialFolder
   const bool smallIcons = (flags & SHGFI_SMALLICON) != 0;
   if (flags & SHGFI_SYSICONINDEX)
   {
-    r.IconIndex = SystemIconIndex(smallIcons, t);
+    r.IconIndex = SystemIconIndex(t);
     r.Result = (DWORD_PTR)SystemImageList(smallIcons);
   }
   if (flags & SHGFI_ICON)

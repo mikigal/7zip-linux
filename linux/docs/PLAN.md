@@ -512,7 +512,8 @@ What is where:
   `ShlObj.h`, `ShObjIdl.h`, `HtmlHelp.h`, `Shlwapi.h`; `winuser.h` sets
   `Z7_WIN32_WINNT_MIN` to Vista.
 - `linux/shim/ShimShell.cpp`: `SHGetFileInfo()` (theme icons by MIME type,
-  one system image list per icon size, index 0 for unknown types),
+  a small and a large system image list with the same indexes, as on
+  Windows, index 0 for unknown types),
   special folders, `HtmlHelp()` (a local `help/` copy of the pages next to
   the program, else the online help at 7-zip.opensource.jp/chm/), the
   folder browser of `Windows/Shell.h` and the file dialogs of
@@ -551,6 +552,12 @@ Findings:
 - "Background" in the progress dialog runs the threads with `SCHED_IDLE`.
   Going back needs a `RLIMIT_NICE` that allows nice 0 (the default limit
   is 0), so "Foreground" usually keeps the idle policy.
+- The panel asks `SHGetFileInfo()` for icons with the extension alone
+  (`.7z`, `SysIconUtils.cpp`), which `QMimeDatabase` takes for a hidden file
+  without an extension; the shim matches `_.7z`. It also takes the index
+  without `SHGFI_SMALLICON` and draws from the small list, so both lists
+  share their indexes. Until both were fixed every file had the icon and
+  the type name of unknown files.
 - The memory-limit dialog is asked for by the RAR5 and WIM handlers only;
   the test crafts a small RAR5 archive whose header asks for a 2 GB
   dictionary.

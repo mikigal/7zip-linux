@@ -7,6 +7,7 @@
 #include <QApplication>
 #include <QClipboard>
 #include <QMimeData>
+#include <QMimeDatabase>
 #include <QUrl>
 #include <QCheckBox>
 #include <QComboBox>
@@ -1010,6 +1011,32 @@ private slots:
     QVERIFY(!GetModuleHandleA("dwmapi.dll"));
     QVERIFY(!GetModuleHandleA(NULL));
     QVERIFY(!GetProcAddress(NULL, "SHFileOperationW"));
+  }
+
+  void fileTypesByExtension()
+  {
+    // the panel asks for icons with the extension alone (SysIconUtils.cpp)
+    const UINT flags = SHGFI_USEFILEATTRIBUTES | SHGFI_SYSICONINDEX | SHGFI_TYPENAME;
+    QMimeDatabase db;
+    SHFILEINFOW info;
+    QVERIFY(SHGetFileInfoW(L".7z", FILE_ATTRIBUTE_ARCHIVE, &info, sizeof(info), flags));
+    QCOMPARE(QString::fromWCharArray(info.szTypeName),
+        db.mimeTypeForName(QStringLiteral("application/x-7z-compressed")).comment());
+    const int archiveIcon = info.iIcon;
+    // index 0 is the icon of unknown types
+    QVERIFY(archiveIcon > 0);
+    // the same index in the small list, which the panel draws from
+    const HIMAGELIST small = (HIMAGELIST)SHGetFileInfoW(L".7z", FILE_ATTRIBUTE_ARCHIVE, &info,
+        sizeof(info), flags | SHGFI_SMALLICON);
+    QCOMPARE(info.iIcon, archiveIcon);
+    QVERIFY(ImageList_GetImageCount(small) > archiveIcon);
+    QVERIFY(SHGetFileInfoW(L".TXT", FILE_ATTRIBUTE_ARCHIVE, &info, sizeof(info), flags));
+    QCOMPARE(QString::fromWCharArray(info.szTypeName),
+        db.mimeTypeForName(QStringLiteral("text/plain")).comment());
+    QVERIFY(info.iIcon > 0 && info.iIcon != archiveIcon);
+    // a file without an extension
+    QVERIFY(SHGetFileInfoW(L"__DIR__", FILE_ATTRIBUTE_ARCHIVE, &info, sizeof(info), flags));
+    QCOMPARE(info.iIcon, 0);
   }
 
   void createProcess()
