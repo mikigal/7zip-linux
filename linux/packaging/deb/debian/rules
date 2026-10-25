@@ -1,0 +1,23 @@
+#!/usr/bin/make -f
+# The Debian and Ubuntu package of the Linux port. linux/packaging/deb/build.sh
+# copies this folder to the top of a copy of the source tree and writes
+# debian/changelog (linux/docs/RELEASE.md).
+
+export DEB_BUILD_MAINT_OPTIONS = hardening=+all
+
+%:
+	dh $@ --sourcedirectory=linux --builddirectory=build --buildsystem=cmake
+
+# no upstream 7zz test oracle; new compiler warnings must not stop a build
+override_dh_auto_configure:
+	dh_auto_configure -- -DZ7_BUILD_ORACLE=OFF -DZ7_WERROR=OFF
+
+override_dh_auto_test:
+ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))
+	ctest --test-dir build -L unit --output-on-failure
+endif
+
+# the file manager plugins: their libraries come with the file managers
+# (Suggests), as the optdepends of the AUR packages
+override_dh_shlibdeps:
+	dh_shlibdeps -X/kf6/kfileitemaction/ -X/nemo/ -X/thunarx-3/ -X/nautilus/

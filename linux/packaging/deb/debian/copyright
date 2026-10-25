@@ -1,0 +1,51 @@
+Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/
+Upstream-Name: 7-Zip
+Upstream-Contact: https://www.7-zip.org/
+Source: https://github.com/mikigal/7zip-linux
+Comment: 7-Zip with a native Linux GUI. The licenses of 7-Zip are in
+ /usr/share/doc/7zip-linux/License.txt, with the GNU LGPL in copying.txt and
+ the unRAR license restriction in unRarLicense.txt.
+
+Files: *
+Copyright: 1999-2026 Igor Pavlov
+License: LGPL-2.1+
+
+Files: linux/*
+Copyright: 2026 The authors of the 7-Zip Linux port (https://github.com/mikigal/7zip-linux)
+License: LGPL-2.1+
+
+Files: CPP/7zip/Compress/Rar*
+Copyright: 1999-2026 Igor Pavlov
+           Alexander Roshal (original unRAR code)
+License: LGPL-2.1+ with unRAR restriction
+ The GNU LGPL (below) with the restriction of the license of the original
+ unRAR code:
+ .
+ The unRAR sources cannot be used to re-create the RAR compression algorithm,
+ which is proprietary. Distribution of modified unRAR sources in separate form
+ or as a part of other software is permitted, provided that it is clearly
+ stated in the documentation and source comments that the code may
+ not be used to develop a RAR (WinRAR) compatible archiver.
+
+Files: CPP/7zip/Compress/LzfseDecoder.cpp
+       C/ZstdDec.c
+Copyright: 2015-2016 Apple Inc.
+           Facebook, Inc.
+           2023-2026 Igor Pavlov
+License: BSD-3-clause
+ The text of the license is in /usr/share/doc/7zip-linux/License.txt.
+
+Files: C/Xxh64.c
+Copyright: 2012-2021 Yann Collet
+           2023-2026 Igor Pavlov
+License: BSD-2-clause
+ The text of the license is in /usr/share/doc/7zip-linux/License.txt.
+
+License: LGPL-2.1+
+ This library is free software; you can redistribute it and/or modify it
+ under the terms of the GNU Lesser General Public License as published by the
+ Free Software Foundation; either version 2.1 of the License, or (at your
+ option) any later version.
+ .
+ On Debian systems, the complete text of the GNU Lesser General Public
+ License version 2.1 can be found in /usr/share/common-licenses/LGPL-2.1.

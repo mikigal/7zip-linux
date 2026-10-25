@@ -904,6 +904,9 @@ Findings:
 - [x] Install layout, AUR packages (Arch/CachyOS), AppStream metadata,
       `Lang` files; Flatpak is optional (portal FileTransfer for drag and
       drop) and not done.
+- [x] Packages for Debian 13, Ubuntu 26.04 LTS (.deb), Fedora 43 and 44 and
+      openSUSE Tumbleweed (.rpm), built and install-tested in a container
+      of each distribution by GitHub Actions and attached to the release.
 - [x] Upstream sync script and documentation: merge the new upstream release
       from `upstream` into `main`, rerun `upstream_sources.py`, rcgen and the
       consistency checks, check the templates against the new Windows release
@@ -929,6 +932,24 @@ Notes:
   `AUR_SSH_PRIVATE_KEY` secret. VERSION is the 7-Zip version plus the port
   release (26.05.1); `unit_packaging` checks that the PKGBUILDs and the
   AppStream metadata agree with `C/7zVersion.h`.
+- Debian, Ubuntu, Fedora and openSUSE (`linux/packaging/deb`,
+  `linux/packaging/rpm`, `.github/workflows/packages.yml`,
+  `docs/RELEASE.md`): one package per distribution release, built with its
+  own tools (`dpkg-buildpackage`, `rpmbuild`) in its container, with the
+  unit tests, then installed in a fresh container without recommended
+  packages and started (`install-test.sh`: libraries, Qt plugins,
+  `7z-context-menu`, 7zFM offscreen). The version comes from the AppStream
+  metadata, so the packaging has no version of its own. The file manager
+  plugins are excluded from the automatic library dependencies
+  (`dh_shlibdeps -X`, `__requires_exclude_from`) and their file managers
+  are Suggests, as the optdepends of the PKGBUILDs. The Qt plugins that the
+  programs load are explicit dependencies: the Wayland and offscreen
+  platforms, and the SVG icon engine of the toolbar icons, whose library
+  `--as-needed` drops (no code calls Qt SVG).
+- Found by these builds: the drag events of the test driver take a QPointF
+  only since Qt 6.12 (Debian 13 has 6.8, Ubuntu 26.04 6.10, Fedora 44
+  6.11), and shared-mime-info before 2.5 has no `application/vnd.squashfs`,
+  which the MIME package now defines too.
 - The console `7z` is not part of the packages: Arch's `7zip` has it.
 - Upstream sync (`linux/tools/upstream_sync.sh`, `docs/UPSTREAM.md`): merges
   the newest upstream tag (or a given one) with a merge commit, stops on

@@ -1,0 +1,68 @@
+# The Debian, Ubuntu, Fedora and openSUSE packages of the Linux port
+# (linux/docs/RELEASE.md). Each one is built in a container of its
+# distribution, with the unit tests (linux/packaging/deb/build.sh,
+# linux/packaging/rpm/build.sh), then installed and started in a fresh
+# container of that distribution (linux/packaging/install-test.sh). The
+# release workflow runs it for the tag of a release and attaches the
+# packages; it also runs when the packaging changes, and by hand.
+name: Packages
+
+on:
+  workflow_call:
+    inputs:
+      tag:
+        description: Release tag (vVERSION)
+        type: string
+        required: true
+  workflow_dispatch:
+  push:
+    paths:
+      - linux/packaging/**
+      - .github/workflows/packages.yml
+  pull_request:
+    paths:
+      - linux/packaging/**
+      - .github/workflows/packages.yml
+
+permissions:
+  contents: read
+
+jobs:
+  package:
+    name: ${{ matrix.name }}
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { name: debian-13, image: 'debian:13', format: deb }
+          - { name: ubuntu-26.04, image: 'ubuntu:26.04', format: deb }
+          - { name: fedora-43, image: 'fedora:43', format: rpm }
+          - { name: fedora-44, image: 'fedora:44', format: rpm }
+          - { name: opensuse-tumbleweed, image: 'opensuse/tumbleweed', format: rpm }
+    env:
+      # empty outside a release: the version is the last release of the
+      # AppStream metadata
+      TAG: ${{ inputs.tag }}
+      IMAGE: ${{ matrix.image }}
+      FORMAT: ${{ matrix.format }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ inputs.tag || github.sha }}
+
+      - name: Build the package
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src "$IMAGE" \
+            "linux/packaging/$FORMAT/build.sh" --deps out ${TAG#v}
+
+      - name: Install and start the package
+        run: |
+          docker run --rm -v "$PWD:/src" -w /src "$IMAGE" \
+            linux/packaging/install-test.sh out/*."$FORMAT"
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: package-${{ matrix.name }}
+          path: out/*.${{ matrix.format }}
+          if-no-files-found: error

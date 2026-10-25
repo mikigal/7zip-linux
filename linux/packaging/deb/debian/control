@@ -1,0 +1,38 @@
+Source: 7zip-linux
+Section: utils
+Priority: optional
+Maintainer: mikigal <mikigal.priv@gmail.com>
+Build-Depends: debhelper-compat (= 13),
+               cmake (>= 3.25),
+               pkgconf,
+               python3,
+               qt6-base-dev,
+               qt6-svg-dev,
+               libkf6kio-dev,
+               libglib2.0-dev,
+               libnemo-extension-dev,
+               libthunarx-3-dev,
+               libnautilus-extension-dev,
+               shared-mime-info
+Standards-Version: 4.7.2
+Homepage: https://github.com/mikigal/7zip-linux
+Rules-Requires-Root: no
+
+Package: 7zip-linux
+Architecture: any
+# the Qt plugins, which no library names: the platforms (Wayland, and
+# offscreen for 7z-context-menu) and the SVG icon engine (the toolbar)
+Depends: ${shlibs:Depends},
+         ${misc:Depends},
+         qt6-qpa-plugins,
+         qt6-wayland,
+         qt6-svg-plugins,
+         hicolor-icon-theme
+Suggests: dolphin,
+          nemo,
+          thunar,
+          nautilus
+Description: 7-Zip File Manager and GUI for Linux
+ The original 7-Zip design on Qt 6 and Wayland, in a dark theme: the 7-Zip
+ File Manager (7zFM), the 7-Zip GUI (7zG) and the 7-Zip menu in Dolphin and
+ other KDE programs, Nemo, Thunar and Nautilus.
