@@ -23,6 +23,11 @@ include(UpstreamSources)
 
 enable_testing()
 
+# Qt for every directory: imported targets are visible only below the
+# directory that finds them, and CMake 3.25 resolves the link groups of gui/
+# and fm/ (Qt6::Widgets, Qt6::Platform) in their own directories.
+find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets DBus Svg)
+
 add_subdirectory(core)
 add_subdirectory(platform)
 add_subdirectory(shim)
