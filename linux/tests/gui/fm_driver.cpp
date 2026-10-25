@@ -596,9 +596,15 @@ public:
     if (!PanelPoint(to, pos))
       return Qt::IgnoreAction;
     const Qt::KeyboardModifiers mods = Mods(to);
-    QDragEnterEvent enter(QPointF(pos), actions, mime, Qt::LeftButton, mods);
+    // the drag events take a QPointF since Qt 6.12, a QPoint before
+#if QT_VERSION >= QT_VERSION_CHECK(6, 12, 0)
+    const QPointF at(pos);
+#else
+    const QPoint at(pos);
+#endif
+    QDragEnterEvent enter(at, actions, mime, Qt::LeftButton, mods);
     QCoreApplication::sendEvent(frame, &enter);
-    QDragMoveEvent move(QPointF(pos), actions, mime, Qt::LeftButton, mods);
+    QDragMoveEvent move(at, actions, mime, Qt::LeftButton, mods);
     QCoreApplication::sendEvent(frame, &move);
     if (!move.isAccepted())
     {
