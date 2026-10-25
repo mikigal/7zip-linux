@@ -35,6 +35,6 @@
     <binary>7zG</binary>
   </provides>
   <releases>
-    <release version="26.05.1" date="2026-10-24"/>
+    <release version="26.05.1" date="2026-10-25"/>
   </releases>
 </component>
