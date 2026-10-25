@@ -2,6 +2,8 @@
 
 #include <QApplication>
 #include <QColor>
+#include <QFileInfo>
+#include <QIcon>
 #include <QKeyEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -318,6 +320,28 @@ QIcon AppIcon()
   return QIcon(QStringLiteral(":/z7/app/7-Zip.svg"));
 }
 
+// The icons of files and folders for the dark background: the dark variant
+// of the icon theme, when it has one (breeze-dark for breeze). KDE's
+// platform theme recolors Breeze to the palette itself; without it (other
+// desktops, the portable releases with their own Qt) Breeze draws dark
+// icons on the dark theme.
+static void UseDarkIconTheme()
+{
+  const QString name = QIcon::themeName();
+  if (name.isEmpty() || name.endsWith(QLatin1String("-dark"), Qt::CaseInsensitive))
+    return;
+  for (const char *suffix : { "-dark", "-Dark" })
+  {
+    const QString dark = name + QLatin1String(suffix);
+    for (const QString &dir : QIcon::themeSearchPaths())
+      if (QFileInfo::exists(dir + QLatin1Char('/') + dark + QLatin1String("/index.theme")))
+      {
+        QIcon::setThemeName(dark);
+        return;
+      }
+  }
+}
+
 void Apply(QApplication &app)
 {
   CStyle *style = new CStyle();
@@ -326,6 +350,7 @@ void Apply(QApplication &app)
   app.setStyleSheet(StyleSheet());
   app.setWindowIcon(AppIcon());
   app.installEventFilter(new CAltWatcher(style, &app));
+  UseDarkIconTheme();
 }
 
 }
