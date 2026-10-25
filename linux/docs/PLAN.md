@@ -973,6 +973,10 @@ Notes:
   6.11), and shared-mime-info before 2.5 has no `application/vnd.squashfs`,
   which the MIME package now defines too.
 - The console `7z` is not part of the packages: Arch's `7zip` has it.
+- The repository page is `.github/README.md`: GitHub shows it before the
+  upstream `README.md`, which stays unchanged. Its screenshots
+  (`docs/images/`) come from a nested KWin with sample data in a neutral
+  home folder; the comparison with Windows from the Wine reference pictures.
 - Upstream sync (`linux/tools/upstream_sync.sh`, `docs/UPSTREAM.md`): merges
   the newest upstream tag (or a given one) with a merge commit, stops on
   conflicts (`--continue` after they are committed), then regenerates the
