@@ -358,16 +358,9 @@ Rewriting it would give a different program that only looks like 7-Zip.
 Instead, the port makes the original code compile and behave on Linux, and
 keeps the Linux-specific code in [`linux/`](/linux).
 
-```mermaid
-flowchart TB
-  ui["<b>Upstream 7-Zip GUI code</b><br/>file manager, dialogs<br/>.rc layouts and menus"]
-  core[("<b>Archive engine</b><br/>upstream, unchanged")]
-  port["<b>linux/: the port</b><br/>Win32 API on Qt 6<br/>layouts from .rc files<br/>settings, POSIX folders<br/>Wayland, D-Bus, menus"]
-  qt["<b>Qt 6 Widgets</b><br/>Wayland or X11"]
-  ui -- "archive operations" --> core
-  ui -- "Win32 calls" --> port
-  port --> qt
-```
+<p align="center">
+  <img src="/linux/docs/images/architecture.png" width="820" alt="Architecture: the upstream 7-Zip GUI code calls the unchanged upstream archive engine for archive operations, and makes Win32 calls that the port in linux/ (shim, rcgen.py, platform, desktop integration) implements on Qt 6 Widgets, on Wayland or X11">
+</p>
 
 1. **The Win32 API under the wrappers.** Upstream GUI code reaches Windows
    through thin `NWindows` wrappers (`CWindow`, `CDialog`, `CListView`, ...).
