@@ -1043,7 +1043,13 @@ class FmTest(unittest.TestCase):
     self.assertTrue(text.startswith("# kept\n[Default Applications]\n"), text)
     self.assertIn("application/zip=org.kde.ark.desktop;\n", text)
     self.assertIn("application/x-7z-compressed=%s;\n" % app, text)
-    self.assertIn("application/x-extension-001=%s;\n" % app, text)
+    # .001 has the type of the MIME package of linux/packaging when 7-Zip is
+    # installed on the system (the default XDG_DATA_DIRS), else GIO's name
+    # for an unknown type
+    installed = any(os.path.exists(os.path.join(d, "mime/packages/pl.mikigal.SevenZip.xml"))
+                    for d in ("/usr/local/share", "/usr/share"))
+    split = "application/x-split-archive" if installed else "application/x-extension-001"
+    self.assertIn("%s=%s;\n" % (split, app), text)
     self.assertIn("text/plain=org.kde.kate.desktop;\n", text)
     self.assertIn("[Added Associations]\napplication/x-7z-compressed=%s;\n" % app, text)
 
