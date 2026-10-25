@@ -58,6 +58,12 @@ upstream 7-Zip **without a single changed line**.
 
 <table>
   <tr>
+    <td colspan="2"><img src="/linux/docs/images/7zfm-archive.png" alt="7-Zip File Manager with a 7z archive open: folders and files with their sizes, packed sizes, dates, attributes, CRC and method, four files selected"></td>
+  </tr>
+  <tr>
+    <td colspan="2" align="center"><b>7-Zip File Manager</b>: an archive opened like a folder, with every column the format stores</td>
+  </tr>
+  <tr>
     <td width="50%"><img src="/linux/docs/images/compress.png" alt="The Add to Archive dialog"></td>
     <td width="50%"><img src="/linux/docs/images/progress.png" alt="The progress dialog while compressing"></td>
   </tr>
@@ -354,10 +360,10 @@ keeps the Linux-specific code in [`linux/`](/linux).
 
 ```mermaid
 flowchart TB
-  ui["<b>Upstream 7-Zip GUI code</b><br/>7-Zip File Manager: FM.cpp, App, Panel*, option pages<br/>7-Zip dialogs: GUI.cpp, Compress, Extract, Benchmark<br/>.rc resources: dialogs, menus, strings"]
-  core[("<b>Archive engine</b><br/>upstream 7-Zip, unchanged")]
-  port["<b>linux/: the port</b><br/>shim: Win32 user32 and comctl32 on Qt 6<br/>rcgen.py: layouts from the .rc files<br/>platform: settings, POSIX folders, locale<br/>desktop: Wayland, D-Bus, portals, menus"]
-  qt["<b>Qt 6 Widgets</b><br/>on Wayland or X11"]
+  ui["<b>Upstream 7-Zip GUI code</b><br/>file manager, dialogs<br/>.rc layouts and menus"]
+  core[("<b>Archive engine</b><br/>upstream, unchanged")]
+  port["<b>linux/: the port</b><br/>Win32 API on Qt 6<br/>layouts from .rc files<br/>settings, POSIX folders<br/>Wayland, D-Bus, menus"]
+  qt["<b>Qt 6 Widgets</b><br/>Wayland or X11"]
   ui -- "archive operations" --> core
   ui -- "Win32 calls" --> port
   port --> qt
