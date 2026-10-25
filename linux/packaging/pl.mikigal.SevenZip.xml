@@ -43,6 +43,14 @@
     <generic-icon name="package-x-generic"/>
     <glob pattern="*.hfs"/>
   </mime-type>
+  <!-- in shared-mime-info since 2.5, which Debian 13, Ubuntu 26.04 and
+       Fedora 43 and 44 do not have; the same English comment, so that it
+       keeps the translations of shared-mime-info where both define it -->
+  <mime-type type="application/vnd.squashfs">
+    <comment>Squashfs filesystem image</comment>
+    <generic-icon name="package-x-generic"/>
+    <glob pattern="*.squashfs"/>
+  </mime-type>
   <mime-type type="application/x-apfs-image">
     <comment>APFS file system image</comment>
     <sub-class-of type="application/x-raw-disk-image"/>
