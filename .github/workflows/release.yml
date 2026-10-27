@@ -62,7 +62,9 @@ jobs:
           chmod 600 ~/.ssh/aur
           # the host key that aur.archlinux.org publishes
           echo "aur.archlinux.org ssh-ed25519 AAAAC3NzaC1lZDI1NTE5AAAAIEuBKrPzbawxA/k2g6NcyV5jmqwJ2s+zpgZGZ7tpLIcN" > ~/.ssh/known_hosts
-          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
+          # ssh takes ~ from /etc/passwd (/root), not from HOME (/github/home
+          # in a container job), so both files are given by path
+          export GIT_SSH_COMMAND="ssh -i $HOME/.ssh/aur -o UserKnownHostsFile=$HOME/.ssh/known_hosts -o IdentitiesOnly=yes -o StrictHostKeyChecking=yes"
           git config --global user.name "$GITHUB_ACTOR"
           git config --global user.email "$GITHUB_ACTOR@users.noreply.github.com"
           for name in 7zip-linux 7zip-linux-bin; do
